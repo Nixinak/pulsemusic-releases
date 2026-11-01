@@ -4,8 +4,8 @@
 
 # Pulse Music
 
-**Spotify, in liquid glass.**<br>
-A free Spotify app for Windows with an AI DJ that talks, word-by-word lyrics and party mode.
+**Spotify, painted by the music.**<br>
+A free Spotify app for Windows with an AI DJ that talks, word-by-word lyrics, party mode, and listening along with friends.
 
 <a href="https://nixinak.github.io/pulsemusic-releases/"><b>Website</b></a> &nbsp;•&nbsp;
 <a href="https://github.com/Nixinak/pulsemusic-releases/releases/latest/download/PulseMusic-Setup.exe"><b>Download</b></a> &nbsp;•&nbsp;
@@ -45,6 +45,10 @@ Tell it what you're in the mood for, like *"play phonk, but not too hard"* or *"
 
 <img src="assets/dj.webp" alt="The AI DJ page with a glowing orb, a spoken line and the songs it picked" width="100%">
 
+### 👥 Listen along with friends <sub>new in 1.4</sub>
+
+Follow anyone on Spotify from their profile; when you follow each other, you're friends. If a friend uses Pulse too, you see what they're playing right now, and **Listen along** puts you in the same song at the same second. Search finds people by name, and Pulse users get a Pulse badge and their own profile page.
+
 ### 🎤 Lyrics that follow every word
 
 Full-screen synced lyrics light up word by word on a background painted from the album cover. Or dock them at the side while you keep browsing.
@@ -69,8 +73,8 @@ Full-screen synced lyrics light up word by word on a background painted from the
   <tr>
     <td valign="top">
       <img src="assets/artist.jpg" alt="Artist page">
-      <h4>🎨 Artist pages in full resolution</h4>
-      Sharp header images, popular songs, the whole discography, socials and the story behind the artist.
+      <h4>🎨 Artist pages</h4>
+      The artist's photo next to their name, popular songs, the whole discography, their socials as logos, and a heart to follow them.
     </td>
     <td valign="top">
       <img src="assets/mix.jpg" alt="Mix generator">
@@ -119,7 +123,7 @@ Full-screen synced lyrics light up word by word on a background painted from the
 |:-:|:--|
 | **1** | **[Download `PulseMusic-Setup.exe`](https://github.com/Nixinak/pulsemusic-releases/releases/latest/download/PulseMusic-Setup.exe)** and open it. |
 | **2** | If Windows says *"Windows protected your PC"*, click **More info → Run anyway**. The app is safe, it just isn't signed with a paid certificate. |
-| **3** | Choose whether to add the **AI DJ** (about 5 GB, you can also add it later from the DJ page), then sign in with Spotify. |
+| **3** | The installer also sets up the **AI DJ** (its voice and brain, about 2.3 GB). Then sign in with Spotify. |
 
 > [!NOTE]
 > You need **Spotify Premium**. Spotify only lets a few accounts into each app, so if it doesn't let you in, the sign-in screen walks you through making your own free Spotify app key. It takes about two minutes.
@@ -149,7 +153,13 @@ Pulse checks this page in the background. When a new version is ready you get a 
 <details>
 <summary><b>The AI DJ doesn't answer.</b></summary>
 <br>
-The DJ runs on your own PC with Ollama. Open the <b>DJ</b> page (or Settings) and click <b>Set up the AI DJ for me</b>; it downloads everything it needs. The first answer can take a few seconds.
+The DJ runs on your own PC. The installer downloads it, and if that didn't finish, Pulse finishes it in the background the next time it starts (or use <b>Settings → AI DJ</b>). The first answer can take a few seconds.
+</details>
+
+<details>
+<summary><b>Who can see what I'm playing?</b></summary>
+<br>
+Only people who follow you, and only while <b>Show my profile to other Pulse users</b> is on in your profile. Turn it off and nothing is shared.
 </details>
 
 <details>
@@ -168,7 +178,7 @@ Not yet. Pulse Music is made for Windows 10 and 11.
 
 ## 💜 Thanks
 
-Pulse Music stands on the shoulders of [Spotify's Web API](https://developer.spotify.com/), [LRCLIB](https://lrclib.net/) and [Genius](https://genius.com/) for lyrics, [Deezer](https://developers.deezer.com/) for similar artists, [Ollama](https://ollama.com/) and [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) for the DJ's brain and voice, and [Electron](https://www.electronjs.org/) with [React](https://react.dev/).
+Pulse Music stands on the shoulders of [Spotify's Web API](https://developer.spotify.com/), [LRCLIB](https://lrclib.net/) and [Genius](https://genius.com/) for lyrics, [Deezer](https://developers.deezer.com/) for similar artists, [llama.cpp](https://github.com/ggml-org/llama.cpp) with [Llama 3.2](https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct) and [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) for the DJ's brain and voice, and [Electron](https://www.electronjs.org/) with [React](https://react.dev/).
 
 <br>
 
