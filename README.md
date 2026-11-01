@@ -1,101 +1,143 @@
-<p align="center">
-  <img src="assets/hero.jpg" alt="Pulse Music: a liquid-glass Spotify client for Windows" width="100%">
-</p>
+<div align="center">
 
-<p align="center">
-  <a href="https://github.com/Nixinak/pulsemusic-releases/releases/latest/download/PulseMusic-Setup.exe">
-    <img src="assets/download.png" alt="Download for Windows" width="380">
-  </a>
-</p>
+<img src="assets/icon.png" alt="Pulse Music logo" width="112">
 
-<p align="center">
-  <a href="https://github.com/Nixinak/pulsemusic-releases/releases/latest"><img src="https://img.shields.io/github/v/release/Nixinak/pulsemusic-releases?style=for-the-badge&label=latest&color=b03cff&labelColor=17141f" alt="Latest version"></a>
-  <a href="https://github.com/Nixinak/pulsemusic-releases/releases"><img src="https://img.shields.io/github/downloads/Nixinak/pulsemusic-releases/total?style=for-the-badge&color=ff4f8b&labelColor=17141f" alt="Downloads"></a>
-  <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-4a5cff?style=for-the-badge&labelColor=17141f" alt="Windows 10 and 11">
-  <img src="https://img.shields.io/badge/Spotify-Premium-1ed760?style=for-the-badge&labelColor=17141f" alt="Needs Spotify Premium">
-</p>
+# Pulse Music
 
-<p align="center">
-  <b>Your Spotify, rebuilt with frosted glass, colours that follow the music and an AI DJ that talks to you.</b><br>
-  <sub>The app updates itself, so you only download it once.</sub>
-</p>
+**Spotify, in liquid glass.**<br>
+A free Spotify app for Windows with an AI DJ that talks, word-by-word lyrics and party mode.
+
+<a href="https://nixinak.github.io/pulsemusic-releases/"><b>Website</b></a> &nbsp;•&nbsp;
+<a href="https://github.com/Nixinak/pulsemusic-releases/releases/latest/download/PulseMusic-Setup.exe"><b>Download</b></a> &nbsp;•&nbsp;
+<a href="#-features"><b>Features</b></a> &nbsp;•&nbsp;
+<a href="#-install"><b>Install</b></a> &nbsp;•&nbsp;
+<a href="#-faq"><b>FAQ</b></a>
 
 <br>
 
-## ✨ What's inside
+<a href="https://github.com/Nixinak/pulsemusic-releases/releases/latest"><img src="https://img.shields.io/github/v/release/Nixinak/pulsemusic-releases?style=flat-square&label=version&color=b03cff&labelColor=1d1629" alt="Latest version"></a>
+<a href="https://github.com/Nixinak/pulsemusic-releases/releases"><img src="https://img.shields.io/github/downloads/Nixinak/pulsemusic-releases/total?style=flat-square&color=ff4f8b&labelColor=1d1629" alt="Downloads"></a>
+<img src="https://img.shields.io/badge/Windows-10%20%7C%2011-4a5cff?style=flat-square&labelColor=1d1629" alt="Windows 10 and 11">
+<img src="https://img.shields.io/badge/Spotify-Premium-1ed760?style=flat-square&labelColor=1d1629" alt="Needs Spotify Premium">
+<img src="https://img.shields.io/github/release-date/Nixinak/pulsemusic-releases?style=flat-square&label=updated&color=2ad1c9&labelColor=1d1629" alt="Last update">
+
+<br><br>
+
+<img src="assets/hero.jpg" alt="Pulse Music: the home screen in frosted glass next to the words Spotify, in liquid glass" width="100%">
+
+<br><br>
+
+<a href="https://github.com/Nixinak/pulsemusic-releases/releases/latest/download/PulseMusic-Setup.exe">
+  <img src="assets/download.png" alt="Download for Windows" width="360">
+</a>
+
+<sub>Installs in seconds and updates itself, so you only download it once.</sub>
+
+</div>
+
+<br>
+
+## ✨ Features
+
+### 🎙️ An AI DJ that talks between songs
+
+Tell it what you're in the mood for, like *"play phonk, but not too hard"* or *"something by Porsche Boy"*. It builds a set, keeps to your vibe, switches genre every few songs and introduces the next one in a natural voice. Everything runs on your own PC, for free.
+
+<img src="assets/dj.webp" alt="The AI DJ page with a glowing orb, a spoken line and the songs it picked" width="100%">
+
+### 🎤 Lyrics that follow every word
+
+Full-screen synced lyrics light up word by word on a background painted from the album cover. Or dock them at the side while you keep browsing.
+
+<img src="assets/lyrics.webp" alt="Full-screen lyrics: the sung line is bright and the rest is blurred" width="100%">
+
+### And there's more
 
 <table>
   <tr>
     <td width="50%" valign="top">
-      <img src="assets/dj.webp" alt="AI DJ">
-      <h3>🎙️ An AI DJ that talks</h3>
-      Type <i>"play phonk"</i> or <i>"something by Porsche Boy"</i>. The DJ builds a set, keeps to your vibe, switches genre every few songs and tells you about it in a real voice.
+      <img src="assets/recommended.jpg" alt="Recommended songs under a playlist">
+      <h4>🧭 Recommendations that fit</h4>
+      Songs matched by artist, tempo (BPM) and key under every playlist. Press play and they keep going, then autoplay carries on with music like it.
     </td>
     <td width="50%" valign="top">
-      <img src="assets/lyrics.webp" alt="Synced lyrics">
-      <h3>🎤 Word-by-word lyrics</h3>
-      Full-screen lyrics that light up word by word, on a background that takes its colours from the album cover.
+      <img src="assets/party.jpg" alt="Party mode with a QR code">
+      <h4>🎉 Party mode</h4>
+      Friends scan a QR code or open a link and add songs from their phones. Nothing to install, and everyone gets a fair limit.
     </td>
   </tr>
   <tr>
     <td valign="top">
       <img src="assets/artist.jpg" alt="Artist page">
-      <h3>🎨 Artist pages in full resolution</h3>
-      Sharp header images, popular songs in Spotify's order, albums, EPs, singles, socials and the story behind the artist.
-    </td>
-    <td valign="top">
-      <img src="assets/recommended.jpg" alt="Recommended songs">
-      <h3>🧭 Smarter recommendations</h3>
-      Open a playlist and get songs that actually fit, matched by artist, tempo (BPM) and key. One click adds them.
-    </td>
-  </tr>
-  <tr>
-    <td valign="top">
-      <img src="assets/party.jpg" alt="Party mode">
-      <h3>🎉 Party mode</h3>
-      Friends scan a QR code and add songs from their phones. Nothing to install, and everyone has a fair limit.
+      <h4>🎨 Artist pages in full resolution</h4>
+      Sharp header images, popular songs, the whole discography, socials and the story behind the artist.
     </td>
     <td valign="top">
       <img src="assets/mix.jpg" alt="Mix generator">
-      <h3>🎛️ Mix generator</h3>
-      Pick any artists, a mood and a length, and Pulse makes the playlist for you.
+      <h4>🎛️ Mix generator</h4>
+      Pick a few artists, a mood and a length, and Pulse makes the playlist for you.
     </td>
   </tr>
   <tr>
     <td valign="top">
-      <img src="assets/stats.jpg" alt="Your stats">
-      <h3>📊 Your stats and Recap</h3>
+      <img src="assets/stats.jpg" alt="Listening stats">
+      <h4>📊 Your stats and Recap</h4>
       Listening time, top songs and artists, plus a story-style Recap you can share.
     </td>
     <td valign="top">
       <img src="assets/light-home.jpg" alt="Light mode">
-      <h3>🌗 Light and dark</h3>
-      Follows Windows, or pick your own. Also has Last.fm scrobbling, Discord status, a sleep timer and a mini player.
+      <h4>🌗 Light and dark</h4>
+      Follows Windows, or pick your own theme, background palette and font.
     </td>
   </tr>
 </table>
 
+<details>
+<summary><b>Everything else in the box</b></summary>
 <br>
 
-## 🚀 Get started in 3 steps
+| | |
+|:--|:--|
+| 🎨 **Colours that follow the music** | The whole app takes its colours from the album cover that's playing. |
+| 🔁 **Autoplay** | When a song, album or playlist ends, similar music keeps playing. |
+| 📋 **A real queue** | Reorder, remove and clear songs, which Spotify's own API doesn't allow. |
+| 🌊 **Song transitions** | Optional fades between songs with both covers on screen (Settings → Playback). |
+| 💬 **Discord status** | Shows what you're listening to, and "Paused" when you pause. |
+| 📻 **Last.fm** | Scrobbling in one click. |
+| 😴 **Sleep timer** | Stop after a set time or at the end of the song. |
+| 🪟 **Mini player** | A small always-handy window for the current song. |
+| 📱 **Spotify Connect** | Pulse shows up as a device, and it can control your phone or speaker too. |
+| ⬆️ **Updates itself** | New versions download in the background. |
+
+</details>
+
+<br>
+
+## 🚀 Install
 
 | | |
 |:-:|:--|
 | **1** | **[Download `PulseMusic-Setup.exe`](https://github.com/Nixinak/pulsemusic-releases/releases/latest/download/PulseMusic-Setup.exe)** and open it. |
 | **2** | If Windows says *"Windows protected your PC"*, click **More info → Run anyway**. The app is safe, it just isn't signed with a paid certificate. |
-| **3** | Choose whether to install the **AI DJ** (about 5 GB, can also be added later from the DJ page), then sign in with Spotify. |
+| **3** | Choose whether to add the **AI DJ** (about 5 GB, you can also add it later from the DJ page), then sign in with Spotify. |
 
-> [!IMPORTANT]
-> You need **Spotify Premium**, and the app is in Spotify's developer mode, so **Nix has to add your Spotify account first**. Send him the email you use for Spotify before you sign in.
+> [!NOTE]
+> You need **Spotify Premium**. Spotify only lets a few accounts into each app, so if it doesn't let you in, the sign-in screen walks you through making your own free Spotify app key. It takes about two minutes.
 
 <br>
 
 ## ❓ FAQ
 
 <details>
-<summary><b>Do I need any API keys or accounts?</b></summary>
+<summary><b>Is it free?</b></summary>
 <br>
-No. Everything is built in. You only sign in with Spotify. Last.fm is optional and connects in one click.
+Yes. Pulse Music is a free fan project. You need your own Spotify Premium account, because Spotify only lets Premium accounts play music in other apps.
+</details>
+
+<details>
+<summary><b>Will my playlists and likes be there?</b></summary>
+<br>
+Yes. Pulse signs in to your Spotify account, so everything you change shows up in Spotify on your phone too, and the other way round.
 </details>
 
 <details>
@@ -111,23 +153,31 @@ The DJ runs on your own PC with Ollama. Open the <b>DJ</b> page (or Settings) an
 </details>
 
 <details>
-<summary><b>Sign-in says I'm not allowed.</b></summary>
+<summary><b>Do I need any API keys?</b></summary>
 <br>
-Your Spotify account hasn't been added yet. Ask Nix to add the email of your Spotify account.
+No. Everything is built in. Last.fm is optional and connects in one click.
 </details>
 
 <details>
-<summary><b>Is it free?</b></summary>
+<summary><b>Is there a Mac or phone version?</b></summary>
 <br>
-Yes. Pulse Music is a free fan project and is not affiliated with Spotify.
+Not yet. Pulse Music is made for Windows 10 and 11.
 </details>
 
 <br>
 
-<p align="center">
-  <a href="https://github.com/Nixinak/pulsemusic-releases/releases/latest/download/PulseMusic-Setup.exe">
-    <img src="assets/download.png" alt="Download for Windows" width="300">
-  </a>
-  <br>
-  <sub>Made with ♥ by Nix · <a href="https://github.com/Nixinak/pulsemusic-releases/releases">All versions</a></sub>
-</p>
+## 💜 Thanks
+
+Pulse Music stands on the shoulders of [Spotify's Web API](https://developer.spotify.com/), [LRCLIB](https://lrclib.net/) and [Genius](https://genius.com/) for lyrics, [Deezer](https://developers.deezer.com/) for similar artists, [Ollama](https://ollama.com/) and [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) for the DJ's brain and voice, and [Electron](https://www.electronjs.org/) with [React](https://react.dev/).
+
+<br>
+
+<div align="center">
+
+<a href="https://github.com/Nixinak/pulsemusic-releases/releases/latest/download/PulseMusic-Setup.exe">
+  <img src="assets/download.png" alt="Download for Windows" width="280">
+</a>
+
+<sub>Made with ♥ by Nix &nbsp;•&nbsp; <a href="https://github.com/Nixinak/pulsemusic-releases/releases">All versions</a> &nbsp;•&nbsp; Not affiliated with Spotify</sub>
+
+</div>
