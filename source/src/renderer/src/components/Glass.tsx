@@ -100,6 +100,17 @@ function displacementMap(w: number, h: number, r: number, bezel: number): string
   return url
 }
 
+/** True while the window is being resized (and a moment after). */
+let windowResizing = false
+let resizeTimer = 0
+if (typeof window !== 'undefined') {
+  window.addEventListener('resize', () => {
+    windowResizing = true
+    window.clearTimeout(resizeTimer)
+    resizeTimer = window.setTimeout(() => (windowResizing = false), 220)
+  })
+}
+
 export const Glass = forwardRef<HTMLDivElement, GlassProps>(function Glass(
   {
     radius = 24,
@@ -120,23 +131,50 @@ export const Glass = forwardRef<HTMLDivElement, GlassProps>(function Glass(
   const ref = useRef<HTMLDivElement>(null)
   useImperativeHandle(outerRef, () => ref.current as HTMLDivElement)
   const [size, setSize] = useState({ w: 0, h: 0 })
+  /** Being resized: a plain frosted blur until the size settles. */
+  const [settling, setSettling] = useState(false)
+  const sizeRef = useRef({ w: 0, h: 0 })
   const rawId = useId()
   const id = `lg${rawId.replace(/[^a-zA-Z0-9]/g, '')}`
 
   useEffect(() => {
     const el = ref.current
     if (!el || quality !== 'full' || simple) return
+    // While the window is being resized every panel changes size every frame; drawing new
+    // refraction maps each time made resizing stutter, so then the glass waits (as a plain
+    // frosted blur) until the size settles. Other size changes apply straight away.
+    let timer = 0
+    let first = true
     const ro = new ResizeObserver(([entry]) => {
       const b = entry.borderBoxSize?.[0]
       const w = Math.round((b?.inlineSize ?? el.offsetWidth) / 2) * 2
       const h = Math.round((b?.blockSize ?? el.offsetHeight) / 2) * 2
-      setSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }))
+      const apply = (): void => {
+        sizeRef.current = { w, h }
+        setSize({ w, h })
+        setSettling(false)
+      }
+      window.clearTimeout(timer)
+      if (first || !windowResizing) {
+        first = false
+        apply()
+        return
+      }
+      if (w === sizeRef.current.w && h === sizeRef.current.h) {
+        setSettling(false)
+        return
+      }
+      setSettling(true)
+      timer = window.setTimeout(apply, 140)
     })
     ro.observe(el)
-    return () => ro.disconnect()
+    return () => {
+      window.clearTimeout(timer)
+      ro.disconnect()
+    }
   }, [quality, simple])
 
-  const full = !simple && quality === 'full' && size.w > 0 && size.h > 0
+  const full = !simple && quality === 'full' && !settling && size.w > 0 && size.h > 0
   const r = Math.min(radius, size.h / 2 || radius, size.w / 2 || radius)
   const edge = Math.min(bezel, Math.max(4, Math.min(size.w, size.h) / 3))
   const map = useMemo(() => (full ? displacementMap(size.w, size.h, r, edge) : ''), [full, size.w, size.h, r, edge])

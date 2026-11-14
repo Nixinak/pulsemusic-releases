@@ -2,7 +2,8 @@
 // slowly and looping forever (there is no first or last card). Drag, scroll sideways or use the
 // arrow keys to move it; click a side card to bring it to the middle, click the middle one to
 // open it. Positions are written straight to the DOM every frame, so React never re-renders
-// while it moves, and there is no motion blur.
+// while it moves, and there is no motion blur. Every card is placed next to its neighbour as it
+// looks on screen (after the turn and the perspective), so the covers never slide over each other.
 import { Emo } from './Emoji'
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -29,16 +30,58 @@ const DRIFT = 0.11
 const reduced = (): boolean =>
   document.documentElement.classList.contains('reduce-motion') || window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
+/** Matches .ring__stage { perspective } in the stylesheet. */
+const PERSPECTIVE = 1300
+/** Steps per card in the spacing table. */
+const STEPS = 48
+
+interface Pose {
+  /** turn in degrees (towards the middle) */
+  ry: number
+  /** depth (negative: further away) */
+  z: number
+  /** size */
+  s: number
+}
+
+/** How a card `a` places from the middle stands (a is a distance in cards, 0 = middle). */
+function pose(a: number, card: number, spread: number): Pose {
+  const depth = 0.4 / spread
+  return {
+    ry: Math.min(58, a * 22 + (a > 1 ? 16 : 0) * Math.min(1, a - 1)),
+    z: -Math.pow(a, 1.2) * card * depth,
+    s: 1 + Math.max(0, 1 - a) * 0.28
+  }
+}
+
+/** Where a card's left and right edges land on screen, for a card on the right half centred at x. */
+function edges(p: Pose, x: number, card: number): { left: number; right: number; hw: number; c: number; sn: number } {
+  const hw = (card * p.s) / 2
+  const r = (p.ry * Math.PI) / 180
+  const c = Math.cos(r)
+  const sn = Math.sin(r)
+  // rotateY(-ry): the outer edge swings towards you, the inner edge away
+  const left = ((x - hw * c) * PERSPECTIVE) / (PERSPECTIVE - (p.z - hw * sn))
+  const right = ((x + hw * c) * PERSPECTIVE) / (PERSPECTIVE - (p.z + hw * sn))
+  return { left, right, hw, c, sn }
+}
+
+/** The centre x that puts a card's left edge at `left` on screen. */
+function placeLeft(p: Pose, left: number, card: number): number {
+  const { hw, c, sn } = edges(p, 0, card)
+  return (left * (PERSPECTIVE - (p.z - hw * sn))) / PERSPECTIVE + hw * c
+}
+
 /** Wraps a distance in cards to the shortest way round a loop of `n`. */
 const wrap = (d: number, n: number): number => ((((d + n / 2) % n) + n) % n) - n / 2
 
 export function CoverRing({ items, onFocus }: { items: RingItem[]; onFocus?: (item: RingItem) => void }): React.JSX.Element | null {
   // Few items still need a full loop: repeat them.
-  const loop = items.length === 0 ? [] : Array.from({ length: Math.max(1, Math.ceil(16 / items.length)) }, () => items).flat()
+  const loop = items.length === 0 ? [] : Array.from({ length: Math.max(1, Math.ceil((MAX_SIDE * 2 + 4) / items.length)) }, () => items).flat()
   const n = loop.length
   const stage = useRef<HTMLDivElement>(null)
   const cards = useRef<(HTMLDivElement | null)[]>([])
-  const motionState = useRef({ offset: 0, velocity: 0, target: null as number | null, hover: false, drag: false })
+  const motionState = useRef({ offset: 0, velocity: 0, target: null as number | null, hover: false, drag: false, unit: (): number => 160 })
   const [focus, setFocus] = useState(0)
   const focusRef = useRef(0)
   const onFocusRef = useRef(onFocus)
@@ -65,35 +108,80 @@ export function CoverRing({ items, onFocus }: { items: RingItem[]; onFocus?: (it
     const io = new IntersectionObserver(([e]) => (visible = e.isIntersecting))
     io.observe(el)
 
+    // Spacing table: x of a card at distance a (in steps of 1/STEPS), built so neighbours just
+    // touch with a small gap on screen. Rebuilt only when the stage changes size.
+    let table: number[] = []
+    let tableFor = -1
+    let card = 190
+    let spread = 1
+    let reach = 4
+    const GAP = 14
+    const build = (w: number): void => {
+      tableFor = w
+      card = Math.max(120, Math.min(230, w / 6.6))
+      spread = Math.max(1, Math.min(1.9, w / 1300))
+      el.style.setProperty('--ring-card', `${card}px`)
+      const max = MAX_SIDE + 2
+      table = new Array<number>(max * STEPS + 1)
+      const r0 = edges(pose(0, card, spread), 0, card).right
+      // between the middle and the first card: two cards half a step either side of the
+      // middle stay GAP apart, so the left edge moves evenly from -r0 to r0 + GAP
+      for (let i = 0; i <= STEPS; i++) {
+        const a = i / STEPS
+        table[i] = placeLeft(pose(a, card, spread), -r0 + a * (2 * r0 + GAP), card)
+      }
+      // further out: each card starts GAP after the one before it ends
+      for (let i = STEPS + 1; i < table.length; i++) {
+        const a = i / STEPS
+        const prev = edges(pose(a - 1, card, spread), table[i - STEPS], card).right
+        table[i] = placeLeft(pose(a, card, spread), prev + GAP, card)
+      }
+      // how far out a card is still on the stage
+      reach = MAX_SIDE + 1
+      for (let i = 0; i < table.length; i++) {
+        const a = i / STEPS
+        if (edges(pose(a, card, spread), table[i], card).left > w / 2) {
+          reach = a
+          break
+        }
+      }
+    }
+    const xAt = (a: number): number => {
+      const f = Math.min(table.length - 1, a * STEPS)
+      const i = Math.floor(f)
+      const j = Math.min(table.length - 1, i + 1)
+      return table[i] + (table[j] - table[i]) * (f - i)
+    }
+    m.unit = (): number => (table.length ? xAt(1) : 160)
+
+    let drawn = { offset: NaN, w: -1, intro: -1 }
     const layout = (): void => {
       const w = el.clientWidth
-      // card width follows the stage, the spacing follows the card
-      const card = Math.max(120, Math.min(240, w / 6.4))
-      // wide windows spread the cards further and sink them less, so the ring fills the width
-      const spread = Math.max(1, Math.min(1.9, w / 1300))
-      const gap = card * 0.6 * spread
-      const depth = 0.4 / spread
-      const side = Math.min(MAX_SIDE, Math.ceil((w / 2 - card) / (gap * 0.7)) + 1)
-      el.style.setProperty('--ring-card', `${card}px`)
+      // resting (pointer over it, or settled): nothing moved, nothing to write
+      if (drawn.offset === m.offset && drawn.w === w && drawn.intro === intro) return
+      drawn = { offset: m.offset, w, intro }
+      if (w !== tableFor) build(w)
       const t = 1 - Math.pow(1 - intro, 3)
       for (let i = 0; i < n; i++) {
         const c = cards.current[i]
         if (!c) continue
         const d = wrap(i - m.offset, n)
         const a = Math.abs(d)
-        if (a > side + 0.5) {
-          c.style.visibility = 'hidden'
+        if (a >= reach) {
+          if (c.style.visibility !== 'hidden') c.style.visibility = 'hidden'
           continue
         }
-        c.style.visibility = 'visible'
-        // the curve: cards spread out, turn towards the middle and sink back the further they are
-        const x = Math.sign(d) * (a < 1 ? a * card * 0.92 : card * 0.92 + (a - 1) * gap * (1 - Math.min(0.35, (a - 1) * 0.04)))
-        const ry = -Math.sign(d) * Math.min(62, a * 22 + (a > 1 ? 18 : 0) * Math.min(1, a - 1))
-        const z = -Math.pow(a, 1.2) * card * depth
-        const s = (1 + Math.max(0, 1 - a) * 0.28) * (0.7 + 0.3 * t)
-        c.style.transform = `translate3d(${(x * t).toFixed(1)}px, 0, ${(z * t).toFixed(1)}px) rotateY(${(ry * t).toFixed(2)}deg) scale(${s.toFixed(3)})`
+        if (c.style.visibility === 'hidden') c.style.visibility = 'visible'
+        const p = pose(a, card, spread)
+        const x = Math.sign(d) * xAt(a)
+        const ry = -Math.sign(d) * p.ry
+        // the opening: cards appear from the middle outwards, already in their places
+        const s = p.s * (0.88 + 0.12 * t)
+        c.style.transform = `translate3d(${x.toFixed(1)}px, 0, ${p.z.toFixed(1)}px) rotateY(${ry.toFixed(2)}deg) scale(${s.toFixed(3)})`
         c.style.zIndex = String(100 - Math.round(a * 10))
-        c.style.opacity = String(Math.max(0, Math.min(1, side + 0.5 - a)) * Math.min(1, t * 1.6 - a * 0.04 * (1 - t)))
+        const edge = Math.max(0, Math.min(1, (reach - a) / 0.6))
+        const reveal = Math.max(0, Math.min(1, (t * (reach + 1) - a) * 1.4))
+        c.style.opacity = String(edge * reveal)
         c.classList.toggle('is-centre', a < 0.5)
       }
       const f = ((Math.round(m.offset) % n) + n) % n
@@ -139,7 +227,7 @@ export function CoverRing({ items, onFocus }: { items: RingItem[]; onFocus?: (it
     let lastX = 0
     let lastT = 0
     let moved = false
-    const unit = (): number => Math.max(120, Math.min(210, el.clientWidth / 6.2)) * 0.62
+    const unit = (): number => m.unit()
 
     const down = (e: PointerEvent): void => {
       if (e.button !== 0) return

@@ -50,7 +50,7 @@ function MonthTile({ m, max, now }: { m: Month; max: number; now: boolean }): Re
       onClick={open}
       onKeyDown={(e) => e.key === 'Enter' && open()}
     >
-      {image && <img className="rmonth__bg" src={image} alt="" draggable={false} />}
+      {image && <img decoding="async" className="rmonth__bg" src={image} alt="" draggable={false} />}
       <span className="rmonth__shade" />
       <header className="rmonth__head">
         <small>Replay{now ? ' · so far' : ''}</small>
@@ -123,7 +123,7 @@ function YearCard({ year, stats, open }: { year: number; stats: Stats; open: boo
       onKeyDown={(e) => e.key === 'Enter' && go()}
     >
       <span className="ryear__glow" aria-hidden="true" />
-      {image && <img className="ryear__bg" src={image} alt="" draggable={false} />}
+      {image && <img decoding="async" className="ryear__bg" src={image} alt="" draggable={false} />}
       <span className="ryear__shade" />
       <header className="ryear__head">
         <small>{open ? 'Your year in music' : 'Your year · coming soon'}</small>

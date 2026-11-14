@@ -55,7 +55,12 @@ function useProblem(): { text: string | null; setup: boolean; recheck: () => voi
 }
 
 export function DjView(): React.JSX.Element {
-  const { active, status, line, set, error } = useDj()
+  // one selector each, so the DJ's chat log growing doesn't redraw the page
+  const active = useDj((s) => s.active)
+  const status = useDj((s) => s.status)
+  const line = useDj((s) => s.line)
+  const set = useDj((s) => s.set)
+  const error = useDj((s) => s.error)
   const navigate = useApp((s) => s.navigate)
   const trackId = usePlayer((s) => s.track?.id)
   const paused = usePlayer((s) => s.paused)

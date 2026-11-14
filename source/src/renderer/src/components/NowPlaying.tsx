@@ -1,4 +1,5 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
+import { useDrift } from '@/lib/drift'
 import { Emo } from '@/components/Emoji'
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
 import { usePlayer } from '@/lib/player'
@@ -66,12 +67,7 @@ export function NowPlaying(): React.JSX.Element {
           transition={{ duration: 0.4 }}
         >
           <div className="np__bg" aria-hidden="true">
-            <div className="np__bg-rot">
-              <CrossfadeImage src={track.artUrl} className="np__bg-art" duration={1.4} />
-            </div>
-            <div className="np__bg-blob np__bg-blob--1" />
-            <div className="np__bg-blob np__bg-blob--2" />
-            <div className="np__bg-blob np__bg-blob--3" />
+            <NpBackdrop art={track.artUrl} />
             <div className="np__bg-shade" />
           </div>
 
@@ -170,5 +166,28 @@ export function NowPlaying(): React.JSX.Element {
         </motion.div>
       )}
     </AnimatePresence>
+  )
+}
+
+/** The moving backdrop behind Now Playing: the artwork turning slowly under drifting colour.
+ *  Driven by lib/drift at a low frame rate, so the glass on top isn't redrawn every frame. */
+function NpBackdrop({ art }: { art: string | null }): React.JSX.Element {
+  const rot = useRef<HTMLDivElement>(null)
+  const a = useRef<HTMLDivElement>(null)
+  const b = useRef<HTMLDivElement>(null)
+  const c = useRef<HTMLDivElement>(null)
+  useDrift(rot, { seconds: 90, spin: true })
+  useDrift(a, { to: [14, 10, 1.15], seconds: 26 })
+  useDrift(b, { to: [-16, 14, 0.9], seconds: 32 })
+  useDrift(c, { to: [12, -16, 1.2], seconds: 40 })
+  return (
+    <>
+      <div ref={rot} className="np__bg-rot">
+        <CrossfadeImage src={art} className="np__bg-art" duration={1.4} soft={{ blur: 90, saturate: 1.6 }} />
+      </div>
+      <div ref={a} className="np__bg-blob np__bg-blob--1" />
+      <div ref={b} className="np__bg-blob np__bg-blob--2" />
+      <div ref={c} className="np__bg-blob np__bg-blob--3" />
+    </>
   )
 }

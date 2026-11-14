@@ -486,9 +486,17 @@
 .slider.is-dragging .slider__track {
   height: 8px;
 }
+/* The thumb rides on a rail as wide as the slider, moved with a transform (no layout). */
+.slider__rail {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  will-change: transform;
+}
 .slider__thumb {
   position: absolute;
   top: 50%;
+  left: 0;
   width: 14px;
   height: 14px;
   margin-left: -7px;
@@ -1701,7 +1709,6 @@
   inset: -20%;
   opacity: 0.9;
   will-change: transform;
-  animation: np-rotate 90s linear infinite;
 }
 .np__bg-art {
   position: absolute;
@@ -1710,6 +1717,9 @@
   height: 100%;
   object-fit: cover;
   filter: blur(90px) saturate(1.6);
+}
+.np__bg-art.is-soft {
+  filter: none;
 }
 .np__bg-blob {
   position: absolute;
@@ -1724,13 +1734,11 @@
   --blob: var(--amb-1);
   top: -30vmax;
   left: -20vmax;
-  animation: drift-a 26s ease-in-out infinite alternate;
 }
 .np__bg-blob--2 {
   --blob: var(--amb-2);
   bottom: -34vmax;
   right: -18vmax;
-  animation: drift-b 32s ease-in-out infinite alternate;
 }
 .np__bg-blob--3 {
   --blob: var(--amb-3);
@@ -1738,7 +1746,6 @@
   right: 10vmax;
   width: 40vmax;
   height: 40vmax;
-  animation: drift-c 40s ease-in-out infinite alternate;
 }
 .np__bg-shade {
   position: absolute;
@@ -2548,9 +2555,6 @@ html.is-mini body {
     gap: 12px;
   }
   /* small window: just the speaker, the pill opens with the slider when you point at it */
-  .playerbar .volume {
-    width: 36px;
-  }
   .playerbar .volume:not(:hover):not(:focus-within):not(:has(.is-dragging)) .slider--volume {
     opacity: 0;
     pointer-events: none;
@@ -3208,10 +3212,6 @@ html.is-mini body {
 }
 .track {
   contain: layout paint;
-}
-.is-scrolling .ambient__blob,
-.is-scrolling .np__bg-rot {
-  animation-play-state: paused;
 }
 
 .shelf__row.fade-right {

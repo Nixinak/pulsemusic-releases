@@ -21,3 +21,7 @@
 - **Import your Spotify data**: drop in the zip Spotify sends you (Account → Privacy → Download your data) and every play since January counts, with covers and photos for your top songs and artists.
 - **Replay for every month**: a card for each month from January to now, and a new one joins on the 1st.
 - **Your year card**: a special card for the whole year opens on 1 December, with its own Recap.
+- **Automatic updates switch** in Settings → System: on, Pulse looks for a new version every hour and downloads it by itself; off, it only updates when you press Check for updates.
+- **A nicer volume control**: in a wide window it simply gets wider and the buttons beside it slide over; in a small window it opens as a light frosted pill instead of a dark box.
+- **Covers never slide over each other**: the cover ring on Home keeps every cover side by side, and the mix show turns its covers in rings into the middle, then closes the new cover in from all sides.
+- **Faster everywhere**: the progress bar moves without redrawing the player, the background drifts at a gentler pace for the glass, blurred backdrops are made once instead of on every frame, and resizing the window no longer stutters.

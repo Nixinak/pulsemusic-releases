@@ -1386,6 +1386,8 @@
   position: absolute;
   left: 0;
   top: 0;
+  width: 150px;
+  height: 150px;
   border-radius: 14px;
   overflow: hidden;
   opacity: 0;
@@ -1399,8 +1401,12 @@
   object-fit: cover;
   display: block;
 }
-.mixshow.is-done .mixshow__card {
-  transition: opacity 0.6s;
+/* when the mix is ready the rings rush into the middle and fade before the tiles arrive */
+.mixshow__swirl {
+  transition: opacity 0.45s ease;
+}
+.mixshow.is-done .mixshow__swirl {
+  opacity: 0;
 }
 .mixshow__close {
   position: absolute;
@@ -1505,14 +1511,14 @@
   object-fit: cover;
   display: block;
   opacity: 0;
-  animation: mixshow-land 1.1s cubic-bezier(0.2, 0.9, 0.25, 1.12) calc(var(--i) * 45ms) both;
+  animation: mixshow-land 0.95s cubic-bezier(0.16, 1, 0.3, 1) calc(0.3s + var(--delay, 0ms)) both;
 }
 @keyframes mixshow-land {
   from {
     opacity: 0;
-    transform: translate(var(--sx), var(--sy)) rotate(var(--sr)) scale(var(--ss));
+    transform: translate(var(--sx), var(--sy));
   }
-  40% {
+  35% {
     opacity: 1;
   }
   to {
@@ -1542,7 +1548,7 @@
     0 40px 90px -20px rgba(0, 0, 0, 0.85),
     0 0 120px -10px color-mix(in srgb, var(--accent) 60%, transparent);
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.18), transparent 40%);
-  animation: mixshow-fade 0.8s ease 1.4s both;
+  animation: mixshow-fade 0.8s ease 1.2s both;
 }
 @keyframes mixshow-fade {
   from {
@@ -1733,7 +1739,10 @@
   backdrop-filter: blur(12px);
 }
 
-/* ---------- Volume in the player bar: a pill that grows over its neighbours ---------- */
+/* ---------- Volume in the player bar ---------- */
+/* It grows while you point at it or drag. With room in the bar it just gets wider and the
+   buttons beside it slide over ([data-room], measured in Volume()); in a small window it opens
+   as a frosted pill over them. */
 .volume {
   position: relative;
 }
@@ -1743,7 +1752,21 @@
   width: 100%;
 }
 .playerbar .volume {
+  --vol-rest: 140px;
+  width: var(--vol-rest);
   height: 40px;
+  flex: none;
+  transition: width 0.42s var(--ease-out);
+}
+@media (max-width: 1180px) {
+  .playerbar .volume {
+    --vol-rest: 100px;
+  }
+}
+@container (max-width: 980px) {
+  .playerbar .volume {
+    --vol-rest: 36px;
+  }
 }
 .playerbar .volume__pill {
   position: absolute;
@@ -1755,21 +1778,55 @@
   padding-right: 6px;
   border-radius: 999px;
   transition:
-    width 0.38s var(--ease-out),
-    padding 0.38s var(--ease-out),
+    width 0.42s var(--ease-out),
+    padding 0.42s var(--ease-out),
     background-color 0.25s,
     box-shadow 0.25s;
 }
-.playerbar .volume:hover .volume__pill,
-.playerbar .volume:focus-within .volume__pill,
-.playerbar .volume:has(.is-dragging) .volume__pill {
+/* small window: a frosted pill over the neighbours, light enough to feel like glass */
+.playerbar .volume:not([data-room]):hover .volume__pill,
+.playerbar .volume:not([data-room]):focus-within .volume__pill,
+.playerbar .volume:not([data-room]):has(.is-dragging) .volume__pill {
   width: 270px;
   padding-right: 16px;
-  background: color-mix(in srgb, var(--bg) 82%, transparent);
-  backdrop-filter: blur(18px) saturate(160%);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.08)),
+    color-mix(in srgb, var(--accent) 22%, color-mix(in srgb, var(--bg) 62%, transparent));
+  backdrop-filter: blur(22px) saturate(180%);
   box-shadow:
-    0 12px 34px -10px rgba(0, 0, 0, 0.55),
-    inset 0 0 0 1px var(--hair, rgba(255, 255, 255, 0.1));
+    0 14px 30px -12px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+/* room in the bar: the control itself gets wider, nothing is covered */
+.playerbar .volume[data-room]:hover,
+.playerbar .volume[data-room]:focus-within,
+.playerbar .volume[data-room]:has(.is-dragging) {
+  width: calc(var(--vol-rest) + var(--vol-grow, 0px));
+}
+.playerbar .volume[data-room] .volume__pill {
+  width: 100%;
+}
+.playerbar .volume[data-room]:hover .volume__pill,
+.playerbar .volume[data-room]:focus-within .volume__pill,
+.playerbar .volume[data-room]:has(.is-dragging) .volume__pill {
+  padding-right: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.06));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+@media (prefers-color-scheme: light) {
+  .playerbar .volume:hover .volume__pill,
+  .playerbar .volume:focus-within .volume__pill,
+  .playerbar .volume:has(.is-dragging) .volume__pill {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.55)),
+      color-mix(in srgb, var(--accent) 10%, transparent);
+    box-shadow:
+      0 14px 30px -14px rgba(20, 22, 30, 0.35),
+      inset 0 0 0 1px rgba(20, 22, 30, 0.08);
+  }
 }
 .playerbar .volume__pill .slider--volume {
   flex: 1;
@@ -1780,8 +1837,9 @@
   width: 0;
   overflow: hidden;
   font-size: var(--fs-xs);
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--text-2);
+  color: var(--text);
   text-align: right;
   opacity: 0;
   transition:
@@ -1792,7 +1850,7 @@
 .playerbar .volume:focus-within .volume__pct,
 .playerbar .volume:has(.is-dragging) .volume__pct {
   width: 30px;
-  opacity: 1;
+  opacity: 0.9;
 }
 /* a thicker track while it's open, easier to hit */
 .playerbar .volume:hover .slider--volume,

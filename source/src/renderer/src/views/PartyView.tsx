@@ -179,7 +179,7 @@ function LinkQr({ url }: { url: string }): React.JSX.Element {
       alive = false
     }
   }, [url])
-  return <div className="pqr">{src ? <img src={src} alt="QR code of the party link" /> : <span className="cmd__spin" />}</div>
+  return <div className="pqr">{src ? <img decoding="async" src={src} alt="QR code of the party link" /> : <span className="cmd__spin" />}</div>
 }
 
 /** Ways to get music going before (or while) guests add theirs. */

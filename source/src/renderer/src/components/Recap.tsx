@@ -62,7 +62,7 @@ function Rise({ text, delay = 0, className = '' }: { text: string; delay?: numbe
 function Art({ src, round, className = '' }: { src: string | null; round?: boolean; className?: string }): React.JSX.Element {
   return (
     <span className={`rc__art ${round ? 'is-round' : ''} ${className}`}>
-      {src ? <img src={src} alt="" draggable={false} /> : <span className="rc__art-empty" />}
+      {src ? <img decoding="async" src={src} alt="" draggable={false} /> : <span className="rc__art-empty" />}
     </span>
   )
 }
@@ -91,7 +91,7 @@ const SLIDES: Slide[] = [
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5 + i * 0.12 }}
             >
-              <img src={a.image ?? ''} alt="" />
+              <img decoding="async" src={a.image ?? ''} alt="" />
             </motion.span>
           ))}
         </motion.div>
@@ -151,7 +151,7 @@ const SLIDES: Slide[] = [
             animate={{ clipPath: 'circle(75% at 50% 50%)', scale: 1 }}
             transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1] }}
           >
-            <img src={a.image ?? ''} alt="" />
+            <img decoding="async" src={a.image ?? ''} alt="" />
           </motion.div>
           <p className="rc__lede">
             <Rise text="Your top artist" delay={0.6} />

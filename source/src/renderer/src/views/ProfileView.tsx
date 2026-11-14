@@ -459,7 +459,7 @@ function Block({
     case 'image':
       return (
         <figure className="pblock__figure">
-          <img src={block.src} alt={block.caption} />
+          <img decoding="async" src={block.src} alt={block.caption} />
           {editing && (
             <button
               className="btn btn--sm pblock__recrop"
@@ -513,7 +513,7 @@ function StatsBlock(): React.JSX.Element {
       <div className="pstats">
         {top ? (
           <div className="pstats__hero" onClick={() => navigate({ name: 'artist', id: top.id })}>
-            {top.image && <img src={top.image} alt="" />}
+            {top.image && <img decoding="async" src={top.image} alt="" />}
             <div>
               <small>Top artist this month</small>
               <b>{top.name}</b>

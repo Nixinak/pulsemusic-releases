@@ -37,7 +37,7 @@ import { ensureEngine, localReady, setupLocal, stopEngine } from './aiSetup'
 import { getArtistPage, getArtistQuick } from './spotifyPage'
 import { relatedArtists, songPreview } from './recs'
 import { connectLastfm, disconnectLastfm, lastfmNowPlaying, lastfmScrobble, lastfmStatus, setLastfmEnabled, startLastfm } from './lastfm'
-import { checkForUpdatesNow, initUpdates, installUpdateNow, updateStatus } from './updater'
+import { checkForUpdatesNow, initUpdates, installUpdateNow, setAutoUpdates, updateStatus } from './updater'
 import { prepareTunnel } from './tunnel'
 import { partyInfo, setPartyNowPlaying, setPartyQueue, startParty, stopParty } from './party'
 import { getSettings, loadSettings, updateSettings } from './settings'
@@ -255,6 +255,7 @@ function applySettings(s: Settings, prev?: Settings): void {
   if (!prev || prev.launchAtStartup !== s.launchAtStartup) {
     if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: s.launchAtStartup })
   }
+  if (prev && prev.autoUpdate !== s.autoUpdate) setAutoUpdates(s.autoUpdate !== false)
 }
 
 function registerIpc(): void {
@@ -516,7 +517,7 @@ app.whenReady().then(async () => {
   createTray()
   startLastfm()
   prepareTunnel()
-  initUpdates(() => mainWindow)
+  initUpdates(() => mainWindow, getSettings().autoUpdate !== false)
 
   nativeTheme.on('updated', () => {
     for (const w of BrowserWindow.getAllWindows()) {

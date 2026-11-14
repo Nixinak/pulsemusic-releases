@@ -10,6 +10,8 @@ export interface Settings {
   /** Adds a "Get Pulse Music" button (GitHub) to the Discord status. */
   discordGetButton: boolean
   launchAtStartup: boolean
+  /** Look for new versions on its own (at start, every hour, when you come back) and download them. */
+  autoUpdate: boolean
   geniusToken: string
   volume: number
   reduceMotion: boolean
@@ -80,6 +82,7 @@ export const DEFAULT_SETTINGS: Settings = {
   discordRpc: true,
   discordGetButton: true,
   launchAtStartup: false,
+  autoUpdate: true,
   geniusToken: '',
   volume: 0.7,
   reduceMotion: false,

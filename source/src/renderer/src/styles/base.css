@@ -281,19 +281,16 @@ a {
   --blob: var(--amb-1);
   top: -24vmax;
   left: -12vmax;
-  animation: drift-a 38s ease-in-out infinite alternate;
 }
 .ambient__blob:nth-child(2) {
   --blob: var(--amb-2);
   top: -10vmax;
   right: -24vmax;
-  animation: drift-b 44s ease-in-out infinite alternate;
 }
 .ambient__blob:nth-child(3) {
   --blob: var(--amb-3);
   bottom: -30vmax;
   left: 10vmax;
-  animation: drift-c 50s ease-in-out infinite alternate;
 }
 .ambient__blob:nth-child(4) {
   --blob: var(--amb-4);
@@ -301,7 +298,6 @@ a {
   right: -10vmax;
   width: 44vmax;
   height: 44vmax;
-  animation: drift-a 56s ease-in-out infinite alternate-reverse;
 }
 .ambient__art {
   position: absolute;
@@ -314,9 +310,16 @@ a {
   filter: blur(90px) saturate(1.6) brightness(0.8);
   opacity: 0.6;
 }
+/* already blurred and saturated on a small canvas (CrossfadeImage `soft`), just scaled up */
+.ambient__art.is-soft {
+  filter: brightness(0.8);
+}
 @media (prefers-color-scheme: light) {
   .ambient__art {
     filter: blur(90px) saturate(1.4) brightness(1.2);
+  }
+  .ambient__art.is-soft {
+    filter: brightness(1.2);
   }
 }
 .ambient__grain {

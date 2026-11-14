@@ -97,7 +97,7 @@ export function StatsView(): React.JSX.Element {
         <>
           <section className="replay">
             <button className="replay__artist" disabled={!hero} onClick={() => hero && navigate({ name: 'artist', id: hero.id })}>
-              {heroImage ? <img src={heroImage} alt="" /> : <span className="replay__blank" />}
+              {heroImage ? <img decoding="async" src={heroImage} alt="" /> : <span className="replay__blank" />}
               <span className="replay__shade" />
               <span className="replay__who">
                 <small>Your top artist, {label.long}</small>

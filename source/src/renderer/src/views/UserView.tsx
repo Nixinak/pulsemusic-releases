@@ -91,7 +91,7 @@ export function UserView({ id }: { id: string }): React.JSX.Element {
     <div className="profile profile--view">
       <header className="profile__hero">
         <div className="profile__banner bleed">
-          {pulse?.banner ? <img src={pulse.banner} alt="" style={{ objectPosition: `50% ${pulse.bannerY ?? 50}%` }} /> : <div className="profile__banner-fallback" />}
+          {pulse?.banner ? <img decoding="async" src={pulse.banner} alt="" style={{ objectPosition: `50% ${pulse.bannerY ?? 50}%` }} /> : <div className="profile__banner-fallback" />}
         </div>
         <div className="profile__id">
           <div className="profile__avatar">
@@ -222,7 +222,7 @@ function ReadBlock({ block, profile }: { block: PulseProfile['blocks'][number]; 
     case 'image':
       return (
         <figure className="pblock__figure">
-          <img src={block.src} alt={block.caption} />
+          <img decoding="async" src={block.src} alt={block.caption} />
           {block.caption && <figcaption>{block.caption}</figcaption>}
         </figure>
       )

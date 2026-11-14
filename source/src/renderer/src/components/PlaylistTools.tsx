@@ -426,7 +426,7 @@ function CoverTab({ playlist, onChanged }: Pick<Props, 'playlist' | 'onChanged'>
   return (
     <div className="tools__cover">
       <div className="tools__cover-art">
-        {current ? <img src={current} alt="" /> : <span className="muted">No cover yet</span>}
+        {current ? <img decoding="async" src={current} alt="" /> : <span className="muted">No cover yet</span>}
       </div>
       <div className="tools__cover-side">
         {scopes !== null && !allowed ? (

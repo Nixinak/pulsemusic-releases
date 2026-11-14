@@ -51,36 +51,41 @@ export function Cover({
   )
 }
 
-/** Re-renders with the interpolated playback position: every frame by default, so progress
- *  bars glide instead of stepping. Pass an interval in ms for something cheaper. */
-export function useLivePosition(intervalMs = 0): number {
+/** The interpolated playback position. Re-renders only when the shown second changes (or the
+ *  player reports a new position), so time labels stay exact without rendering every frame;
+ *  bars that glide use Slider's `live` instead. */
+export function useLivePosition(): number {
   const [, tick] = useState(0)
   const paused = usePlayer((s) => s.paused)
+  // a seek or a new sample re-renders through these
+  usePlayer((s) => s.positionMs)
+  usePlayer((s) => s.track?.id)
   useEffect(() => {
     if (paused) return
-    if (intervalMs > 0) {
-      const t = window.setInterval(() => tick((n) => n + 1), intervalMs)
-      return () => clearInterval(t)
-    }
-    let raf = 0
-    const loop = (): void => {
-      tick((n) => n + 1)
-      raf = requestAnimationFrame(loop)
-    }
-    raf = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(raf)
-  }, [paused, intervalMs])
+    let shown = -1
+    const t = window.setInterval(() => {
+      if (document.hidden) return
+      const sec = Math.floor(livePosition(usePlayer.getState()) / 1000)
+      if (sec !== shown) {
+        shown = sec
+        tick((n) => n + 1)
+      }
+    }, 200)
+    return () => clearInterval(t)
+  }, [paused])
   return livePosition(usePlayer.getState())
 }
 
-/** Pointer-driven horizontal slider (progress and volume). */
+/** Pointer-driven horizontal slider (progress and volume). With `live`, the bar follows that
+ *  value by itself every frame (written straight to the DOM, no React render, no layout). */
 export function Slider({
   value,
   max,
   onCommit,
   onPreview,
   className = '',
-  label
+  label,
+  live
 }: {
   value: number
   max: number
@@ -88,11 +93,39 @@ export function Slider({
   onPreview?: (v: number | null) => void
   className?: string
   label: string
+  live?: () => number
 }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
+  const fill = useRef<HTMLDivElement>(null)
+  const rail = useRef<HTMLDivElement>(null)
   const [drag, setDrag] = useState<number | null>(null)
   const shown = drag ?? value
-  const pct = max > 0 ? Math.max(0, Math.min(1, shown / max)) * 100 : 0
+  const frac = max > 0 ? Math.max(0, Math.min(1, shown / max)) : 0
+  const following = !!live && drag === null
+  const liveRef = useRef(live)
+  liveRef.current = live
+  const maxRef = useRef(max)
+  maxRef.current = max
+
+  useEffect(() => {
+    if (!following) return
+    let raf = 0
+    let last = -1
+    const loop = (): void => {
+      raf = requestAnimationFrame(loop)
+      const get = liveRef.current
+      const m = maxRef.current
+      if (!get || document.hidden) return
+      const f = m > 0 ? Math.max(0, Math.min(1, get() / m)) : 0
+      // under a tenth of a pixel on a wide bar: nothing to redraw
+      if (Math.abs(f - last) < 0.00005) return
+      last = f
+      if (fill.current) fill.current.style.transform = `scaleX(${f})`
+      if (rail.current) rail.current.style.transform = `translateX(${(f * 100).toFixed(3)}%)`
+    }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [following])
 
   const fromEvent = (clientX: number): number => {
     const r = ref.current!.getBoundingClientRect()
@@ -129,6 +162,11 @@ export function Slider({
         onPreview?.(null)
         onCommit(v)
       }}
+      onPointerCancel={() => {
+        if (drag === null) return
+        setDrag(null)
+        onPreview?.(null)
+      }}
       onKeyDown={(e) => {
         const step = max / 20
         if (e.key === 'ArrowRight') onCommit(Math.min(max, value + step))
@@ -136,9 +174,11 @@ export function Slider({
       }}
     >
       <div className="slider__track">
-        <div className="slider__fill" style={{ transform: `scaleX(${pct / 100})` }} />
+        <div ref={fill} className="slider__fill" style={following ? undefined : { transform: `scaleX(${frac})` }} />
       </div>
-      <div className="slider__thumb" style={{ left: `${pct}%` }} />
+      <div ref={rail} className="slider__rail" style={following ? undefined : { transform: `translateX(${(frac * 100).toFixed(3)}%)` }}>
+        <div className="slider__thumb" />
+      </div>
     </div>
   )
 }

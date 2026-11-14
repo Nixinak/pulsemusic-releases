@@ -57,6 +57,7 @@ function Row({ title, hint, children }: { title: string; hint?: React.ReactNode;
 
 /** Version, "Check for updates", download progress and "Restart and update". */
 function UpdatesRow(): React.JSX.Element {
+  const auto = useApp((s) => s.settings.autoUpdate !== false)
   const [version, setVersion] = useState('')
   const [st, setSt] = useState<UpdateStatus>({ state: 'idle' })
   useEffect(() => {
@@ -78,7 +79,9 @@ function UpdatesRow(): React.JSX.Element {
               ? 'You have the newest version.'
               : st.state === 'error'
                 ? `Couldn’t update: ${st.message}`
-                : 'Pulse updates itself in the background.'
+                : auto
+                  ? 'Pulse looks for new versions on its own.'
+                  : 'Press Check for updates to look for a new version.'
   return (
     <Row title={`Pulse Music ${version}`} hint={hint}>
       {st.state === 'ready' ? (
@@ -270,6 +273,16 @@ export function SettingsView({ onSignOut }: { onSignOut: () => void }): React.JS
         <h2>System</h2>
         <Row title="Open at startup" hint="Starts Pulse Music when you sign in to Windows. Works in the installed app.">
           <Toggle label="Open at startup" on={settings.launchAtStartup} onChange={(launchAtStartup) => void update({ launchAtStartup })} />
+        </Row>
+        <Row
+          title="Automatic updates"
+          hint={
+            settings.autoUpdate !== false
+              ? 'Looks for a new version every hour and downloads it in the background. It installs when you restart Pulse.'
+              : 'Off: Pulse only updates when you press Check for updates.'
+          }
+        >
+          <Toggle label="Automatic updates" on={settings.autoUpdate !== false} onChange={(autoUpdate) => void update({ autoUpdate })} />
         </Row>
         <UpdatesRow />
         <Row title="Player" hint={sdkError ?? (sdkReady ? 'Ready. Pulse Music shows up as a device in Spotify Connect.' : 'Starting…')}>

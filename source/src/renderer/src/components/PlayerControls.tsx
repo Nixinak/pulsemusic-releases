@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   cycleRepeat,
+  livePosition,
   nextTrack,
   previousTrack,
   seekTo,
@@ -81,31 +82,75 @@ export function Transport({ big = false }: { big?: boolean }): React.JSX.Element
   )
 }
 
+const livePositionNow = (): number => livePosition(usePlayer.getState())
+
 export function Progress({ className = '' }: { className?: string }): React.JSX.Element {
   const duration = usePlayer((s) => s.track?.durationMs ?? 0)
+  const paused = usePlayer((s) => s.paused)
+  // the labels change once a second; the bar glides on its own (see Slider's `live`)
   const position = useLivePosition()
   const [preview, setPreview] = useState<number | null>(null)
   return (
     <div className={`progress ${className}`}>
       <span className="progress__time">{formatTime(preview ?? position)}</span>
-      <Slider value={position} max={duration} onCommit={(v) => void seekTo(v)} onPreview={setPreview} label="Seek" />
+      <Slider
+        value={position}
+        max={duration}
+        live={paused ? undefined : livePositionNow}
+        onCommit={(v) => void seekTo(v)}
+        onPreview={setPreview}
+        label="Seek"
+      />
       <span className="progress__time progress__time--end">-{formatTime(duration - (preview ?? position))}</span>
     </div>
   )
 }
 
+/** How much wider the volume may grow before it would run into the song controls. */
+const VOLUME_GROW = 130
+
 export function Volume(): React.JSX.Element {
   const volume = usePlayer((s) => s.volume)
   const before = useRef(0.7)
+  const ref = useRef<HTMLDivElement>(null)
   const level = volume === 0 ? 0 : volume < 0.5 ? 0.5 : 1
-  // In the player bar the control is a pill that grows over its neighbours while you point at
-  // it or drag, so the slider is long enough to pick a volume even in a small window.
+
+  // In the player bar the control grows when you point at it or drag, so the slider is long
+  // enough to pick a volume. When the bar has room it simply gets wider and the buttons next
+  // to it move aside; when it doesn't (a small window), it opens as a pill over them.
+  useEffect(() => {
+    const el = ref.current
+    const side = el?.parentElement
+    if (!el || !side?.classList.contains('playerbar__side')) return
+    const measure = (): void => {
+      const rest = parseFloat(getComputedStyle(el).getPropertyValue('--vol-rest')) || el.offsetWidth
+      const gap = parseFloat(getComputedStyle(side).columnGap) || 0
+      let used = rest
+      for (const c of Array.from(side.children)) if (c !== el && c instanceof HTMLElement) used += c.offsetWidth
+      used += gap * Math.max(0, side.children.length - 1)
+      const free = Math.floor(side.clientWidth - used)
+      if (free >= 96) {
+        el.dataset.room = ''
+        el.style.setProperty('--vol-grow', `${Math.min(VOLUME_GROW, free)}px`)
+      } else {
+        delete el.dataset.room
+        el.style.removeProperty('--vol-grow')
+      }
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(side)
+    for (const c of Array.from(side.children)) if (c !== el) ro.observe(c)
+    return () => ro.disconnect()
+  }, [])
+
   return (
     <div
+      ref={ref}
       className="volume"
       onWheel={(e) => {
         const step = e.deltaY < 0 ? 0.05 : -0.05
-        setVolume(Math.round((volume + step) * 20) / 20)
+        setVolume(Math.min(1, Math.max(0, Math.round((volume + step) * 20) / 20)))
       }}
     >
       <div className="volume__pill">

@@ -145,7 +145,7 @@ function LatestRelease({ album }: { album: SAlbumRef }): React.JSX.Element {
       onKeyDown={(e) => e.key === 'Enter' && navigate({ name: 'album', id: album.id })}
     >
       <div className="latest__art">
-        <img src={sp.pickImage(album.images, 640) ?? undefined} alt="" />
+        <img decoding="async" src={sp.pickImage(album.images, 640) ?? undefined} alt="" />
         <button
           className="latest__play"
           aria-label={`Play ${album.name}`}
@@ -250,7 +250,7 @@ function About({
       </header>
       <div className="about__grid">
         <div className="about__photo">
-          {image && <img src={image} alt="" />}
+          {image && <img decoding="async" src={image} alt="" />}
           <div className="about__shade" />
           <div className="about__stats">
             {stats.slice(0, 3).map(([v, k]) => (
@@ -504,7 +504,7 @@ export function ArtistView({ id }: { id: string }): React.JSX.Element {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ type: 'spring', stiffness: 140, damping: 22 }}
         >
-          {photo ? <img src={photo} alt="" /> : <span className="ahero__empty" />}
+          {photo ? <img decoding="async" src={photo} alt="" /> : <span className="ahero__empty" />}
         </motion.div>
         <motion.div className="ahero__text" style={{ y: textY, opacity: textOpacity }}>
           <span className="phead__kind">{info?.from ? `Artist · ${info.from}` : 'Artist'}</span>
