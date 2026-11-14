@@ -37,7 +37,7 @@ import { ensureEngine, localReady, setupLocal, stopEngine } from './aiSetup'
 import { getArtistPage, getArtistQuick } from './spotifyPage'
 import { relatedArtists, songPreview } from './recs'
 import { connectLastfm, disconnectLastfm, lastfmNowPlaying, lastfmScrobble, lastfmStatus, setLastfmEnabled, startLastfm } from './lastfm'
-import { initUpdates, installUpdateNow } from './updater'
+import { checkForUpdatesNow, initUpdates, installUpdateNow, updateStatus } from './updater'
 import { prepareTunnel } from './tunnel'
 import { partyInfo, setPartyNowPlaying, setPartyQueue, startParty, stopParty } from './party'
 import { getSettings, loadSettings, updateSettings } from './settings'
@@ -345,6 +345,8 @@ function registerIpc(): void {
   ipcMain.on('lastfm:now', (_e, t) => t && void lastfmNowPlaying(t))
   ipcMain.on('lastfm:scrobble', (_e, s) => s && void lastfmScrobble(s))
   ipcMain.on('update:install', () => installUpdateNow())
+  ipcMain.handle('update:check', () => checkForUpdatesNow())
+  ipcMain.handle('update:status', () => updateStatus())
   ipcMain.handle('app:version', () => app.getVersion())
   // "Start over": signs out and erases everything Pulse keeps on this computer (settings,
   // history and stats, profile, caches, Last.fm link), then restarts like a fresh install.

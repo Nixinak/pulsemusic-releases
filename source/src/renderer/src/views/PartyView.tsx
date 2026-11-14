@@ -6,7 +6,7 @@ import { startParty, stopParty, useParty } from '@/lib/party'
 import { playFromQueue, removeFromQueue, usePlayer } from '@/lib/player'
 import { useQuery } from '@/lib/useQuery'
 import QRCode from 'qrcode'
-import { CoverTunnel } from '@/components/CoverWalls'
+import { CoverCarousel } from '@/components/CoverWalls'
 import * as sp from '@/lib/spotify'
 import { joinParty, leaveParty, partyControl, remoteAdd, remoteSearch, setListenDevice, setSync, useListenAlong } from '@/lib/listenAlong'
 import type { PartyTrack } from '@shared/types'
@@ -14,7 +14,7 @@ import { Cover, MediaCard, ShelfRow, usePagePalette } from '@/components/common'
 import { startDj } from '@/lib/dj'
 import { playContext } from '@/lib/player'
 import { Glass } from '@/components/Glass'
-import { CloseIcon, ComputerIcon, CopyIcon, MicIcon, NextIcon, PartyIcon, PauseIcon, PhoneIcon, PlayIcon, PrevIcon, SpeakerIcon, UsersIcon } from '@/components/Icons'
+import { CloseIcon, ComputerIcon, CopyIcon, MicIcon, NextIcon, PartyIcon, PauseIcon, PhoneIcon, PlayIcon, PrevIcon, SpeakerIcon } from '@/components/Icons'
 
 function Switch({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }): React.JSX.Element {
   return (
@@ -182,27 +182,6 @@ function LinkQr({ url }: { url: string }): React.JSX.Element {
   return <div className="pqr">{src ? <img src={src} alt="QR code of the party link" /> : <span className="cmd__spin" />}</div>
 }
 
-/** The three steps of a party, shown before one starts. */
-function HowItWorks(): React.JSX.Element {
-  const steps: { icon: React.ReactNode; title: string; text: string }[] = [
-    { icon: <PartyIcon size={22} />, title: 'Start it here', text: 'Your computer plays the music and puts the party online.' },
-    { icon: <PhoneIcon size={22} />, title: 'Friends scan the code', text: 'The page opens in any phone browser. Nothing to install.' },
-    { icon: <UsersIcon size={22} />, title: 'Everyone runs the music', text: 'Guests search, add songs, skip and pause. You see who added what.' }
-  ]
-  return (
-    <ol className="phow">
-      {steps.map((st, i) => (
-        <motion.li key={st.title} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 + i * 0.08, type: 'spring', stiffness: 220, damping: 26 }}>
-          <span className="phow__n">{i + 1}</span>
-          <span className="phow__icon">{st.icon}</span>
-          <b>{st.title}</b>
-          <p className="muted">{st.text}</p>
-        </motion.li>
-      ))}
-    </ol>
-  )
-}
-
 /** Ways to get music going before (or while) guests add theirs. */
 function Starters(): React.JSX.Element {
   const playlists = useApp((s) => s.playlists)
@@ -278,8 +257,8 @@ export function PartyView(): React.JSX.Element {
 
   return (
     <div className="party">
-      <header className="party__hero bleed">
-        <CoverTunnel images={art} />
+      <header className={`party__hero bleed ${!joined && !url ? 'party__hero--start' : ''}`}>
+        <CoverCarousel images={art} />
         <div className="party__hero-text">
           <h1>{joined ? 'You’re at a party' : url ? 'The party is on' : 'Party'}</h1>
           <p>
@@ -289,46 +268,33 @@ export function PartyView(): React.JSX.Element {
                 ? 'Anyone with the link can add songs, skip and pause, from any phone.'
                 : 'Friends open a link on their phone and add songs to your queue. No app, no sign-in.'}
           </p>
+          {!joined && !url && (
+            <div className="party__cta">
+              <button className="btn btn--accent party__go" disabled={busy || !hasDevice} title={hasDevice ? undefined : 'Play any song first'} onClick={() => void start()}>
+                <PartyIcon size={20} />
+                {busy ? 'Starting…' : 'Start the party'}
+              </button>
+              <form
+                className="party__joinrow"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  if (validLink) joinParty(link.trim().replace(/\/$/, ''))
+                }}
+              >
+                <input className="field" placeholder="Or paste a party link" value={link} onChange={(e) => setLink(e.target.value)} spellCheck={false} />
+                <button className="btn" disabled={!validLink}>
+                  Join
+                </button>
+              </form>
+            </div>
+          )}
         </div>
       </header>
 
       {joined ? (
         <GuestParty />
       ) : !url ? (
-        <div className="party__choices">
-          <Glass radius={28} tone="clear" simple className="party__choice party__choice--host">
-            <span className="party__choice-icon" aria-hidden="true">
-              <PartyIcon size={26} />
-            </span>
-            <h2>Host</h2>
-            <p className="muted">Music plays here. You get a link and a QR code to share.</p>
-            <button className="btn btn--accent party__go" disabled={busy || !hasDevice} onClick={() => void start()}>
-              {busy ? 'Starting…' : 'Start the party'}
-            </button>
-            {!hasDevice && <small className="muted">Play any song first, so the party has somewhere to play.</small>}
-          </Glass>
-          <Glass radius={28} tone="clear" simple className="party__choice">
-            <span className="party__choice-icon" aria-hidden="true">
-              <UsersIcon size={26} />
-            </span>
-            <h2>Join</h2>
-            <p className="muted">Paste the link a friend sent you.</p>
-            <form
-              className="party__joinrow"
-              onSubmit={(e) => {
-                e.preventDefault()
-                if (validLink) joinParty(link.trim().replace(/\/$/, ''))
-              }}
-            >
-              <input className="field" placeholder="Party link" value={link} onChange={(e) => setLink(e.target.value)} spellCheck={false} />
-              <button className="btn btn--accent" disabled={!validLink}>
-                Join
-              </button>
-            </form>
-          </Glass>
-          <HowItWorks />
-          <Starters />
-        </div>
+        <Starters />
       ) : (
         <div className="party__live">
           <Glass radius={28} tone="clear" simple className="party__invite">

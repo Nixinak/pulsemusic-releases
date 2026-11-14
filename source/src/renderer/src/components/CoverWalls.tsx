@@ -1,5 +1,6 @@
-// Artwork scenery for page heads: a corridor of covers flowing towards you (Party), and a
-// fanned stack of covers (Mix, Friends). Both are plain CSS 3D, so they cost almost nothing.
+// Artwork scenery for page heads: a corridor of covers flowing towards you, two rings of
+// covers turning like a carousel (Party), and a fanned stack of covers (Mix, Friends).
+// All plain CSS 3D, so they cost almost nothing.
 import { Cover } from './common'
 
 /** Repeats a list until it has at least `min` entries (empty stays empty). */
@@ -75,6 +76,28 @@ export function CoverStack({ images, className = '' }: { images: (string | null)
           </span>
         )
       })}
+    </div>
+  )
+}
+
+/** Two rings of covers turning in opposite directions around the page title, like a disco carousel. */
+export function CoverCarousel({ images, className = '' }: { images: (string | null)[]; className?: string }): React.JSX.Element {
+  const list = fill(images.filter(Boolean), 28).slice(0, 28)
+  const rings = [list.filter((_, i) => i % 2 === 0), list.filter((_, i) => i % 2 === 1)]
+  return (
+    <div className={`carousel ${className}`} aria-hidden="true">
+      {list.length > 0 &&
+        rings.map((ring, k) => (
+          <div key={k} className={`carousel__ring carousel__ring--${k}`} style={{ '--n': ring.length } as React.CSSProperties}>
+            {ring.map((src, i) => (
+              <span key={i} className="carousel__tile" style={{ '--i': i } as React.CSSProperties}>
+                <Cover src={src} radius={10} />
+              </span>
+            ))}
+          </div>
+        ))}
+      <div className="carousel__beams" />
+      <div className="carousel__fog" />
     </div>
   )
 }

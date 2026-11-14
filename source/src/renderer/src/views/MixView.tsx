@@ -1,7 +1,7 @@
 // Mix generator: builds a fresh mix from your own library (liked songs, playlists, top songs)
 // and any artists you pick (also ones you don't have saved), with a mood, an era and artist
 // spacing. Play it or save it as a playlist.
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useApp, errorText } from '@/lib/store'
 import * as sp from '@/lib/spotify'
@@ -11,6 +11,7 @@ import { playUris } from '@/lib/player'
 import { formatDuration, plural } from '@/lib/format'
 import { Cover, Slider, usePagePalette } from '@/components/common'
 import { CoverStack } from '@/components/CoverWalls'
+import { MixMaker, type MixMakerResult } from '@/components/MixMaker'
 import { TrackList } from '@/components/TrackList'
 import { CloseIcon, HeartIcon, PlayIcon, PlusIcon, SearchIcon, ShuffleIcon, SparkleIcon } from '@/components/Icons'
 import { useQuery } from '@/lib/useQuery'
@@ -155,10 +156,10 @@ function describe(text: string): Promise<Described> {
   return p
 }
 
-/** The length slider: the first half goes 10–100 songs in fives, the second 100–500 in 25s. */
-const MAX_SONGS = 500
+/** The length slider: the first half goes 10–100 songs in fives, the second 100–200 in tens. */
+const MAX_SONGS = 200
 const posToCount = (pos: number): number =>
-  pos <= 50 ? Math.max(10, Math.round((10 + (pos / 50) * 90) / 5) * 5) : Math.min(MAX_SONGS, Math.round((100 + ((pos - 50) / 50) * (MAX_SONGS - 100)) / 25) * 25)
+  pos <= 50 ? Math.max(10, Math.round((10 + (pos / 50) * 90) / 5) * 5) : Math.min(MAX_SONGS, Math.round((100 + ((pos - 50) / 50) * (MAX_SONGS - 100)) / 10) * 10)
 const countToPos = (n: number): number => (n <= 100 ? ((n - 10) / 90) * 50 : 50 + ((n - 100) / (MAX_SONGS - 100)) * 50)
 
 const DECADES = [1960, 1970, 1980, 1990, 2000, 2010, 2020]
@@ -276,6 +277,10 @@ export function MixView(): React.JSX.Element {
   const [mix, setMix] = useState<STrack[] | null>(null)
   const [name, setName] = useState('')
   const [saving, setSaving] = useState(false)
+  /** The full-screen show while the mix is made (closing it doesn't stop the mix). */
+  const [showOpen, setShowOpen] = useState(false)
+  const [shown, setShown] = useState<MixMakerResult | null>(null)
+  const [showFailed, setShowFailed] = useState(false)
   usePagePalette(mix?.[0] ? sp.pickImage(mix[0].album?.images, 300) : null)
 
   const playCounts = useMemo(() => {
@@ -319,6 +324,9 @@ export function MixView(): React.JSX.Element {
   const run = async (): Promise<void> => {
     if (sources.length === 0 && picked.length === 0) return toast('Pick at least one source or artist.', 'error')
     setLoading(true)
+    setShown(null)
+    setShowFailed(false)
+    setShowOpen(true)
     try {
       const custom = vibe === 'custom' && feelText.trim().length > 1
       const [base, described] = await Promise.all([loadPool(), custom ? describe(feelText.trim()) : Promise.resolve(null)])
@@ -342,22 +350,32 @@ export function MixView(): React.JSX.Element {
         playCounts,
         topIds
       )
-      if (result.length === 0) toast('No songs match those filters. Try fewer filters.', 'error')
+      if (result.length === 0) {
+        setShowFailed(true)
+        toast('No songs match those filters. Try fewer filters.', 'error')
+      }
       else if (result.length < count) toast(`Only ${result.length} songs fit. Add sources or raise “Same artist” for a longer mix.`)
       setMix(result)
       // bring the new mix into view
       if (result.length) window.setTimeout(() => document.querySelector('.mix__result')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120)
       const vibeLabel = custom ? feelText.trim().replace(/^./, (c) => c.toUpperCase()) : (VIBES.find((v) => v.id === vibe)?.label ?? 'Balanced')
       const date = new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
-      setName(
-        only
-          ? `${picked
-              .slice(0, 3)
-              .map((a) => a.name)
-              .join(', ')}${picked.length > 3 ? ' and more' : ''} mix`
-          : `${vibeLabel} mix, ${date}`
-      )
+      const mixName = only
+        ? `${picked
+            .slice(0, 3)
+            .map((a) => a.name)
+            .join(', ')}${picked.length > 3 ? ' and more' : ''} mix`
+        : `${vibeLabel} mix, ${date}`
+      setName(mixName)
+      if (result.length)
+        setShown({
+          name: mixName,
+          covers: result.map((t) => sp.pickImage(t.album?.images, 300)).filter((x): x is string => !!x),
+          songs: result.length,
+          length: formatDuration(result.reduce((n, t) => n + t.duration_ms, 0))
+        })
     } catch (e) {
+      setShowFailed(true)
       toast(errorText(e), 'error')
     } finally {
       setLoading(false)
@@ -379,6 +397,7 @@ export function MixView(): React.JSX.Element {
   const save = async (): Promise<void> => {
     if (!mix?.length) return
     setSaving(true)
+    setShowOpen(false)
     try {
       const p = await sp.createPlaylist(name || 'Pulse mix', 'Made with the Pulse Music mix generator')
       await sp.addManyToPlaylist(
@@ -395,6 +414,8 @@ export function MixView(): React.JSX.Element {
     }
   }
 
+  const closeShow = useCallback(() => setShowOpen(false), [])
+
   const sourceOptions: { id: string; label: string; image?: string | null; icon?: React.ReactNode }[] = [
     { id: 'liked', label: 'Liked Songs', icon: <HeartIcon size={16} filled /> },
     { id: 'top:short_term', label: 'Top songs, 4 weeks' },
@@ -404,6 +425,31 @@ export function MixView(): React.JSX.Element {
   ]
 
   const total = mix?.reduce((n, t) => n + t.duration_ms, 0) ?? 0
+
+  // Covers for the full-screen show: what you picked first, then songs from everything read.
+  const swirlImages = useMemo(() => {
+    const out: string[] = []
+    for (const id of sources) {
+      const p = playlists.find((x) => x.id === id)
+      const img = p ? sp.pickImage(p.images, 300) : null
+      if (img) out.push(img)
+    }
+    for (const a of picked) if (a.image) out.push(a.image.replace(/(\/image\/ab6761610000)(f178|5174)/, '$1e5eb'))
+    for (const a of topArtists.data?.items ?? []) {
+      const img = sp.pickImage(a.images, 300)
+      if (img) out.push(img)
+    }
+    if (pool?.length) {
+      const seen = new Set<string>()
+      for (let i = 0; i < 400 && seen.size < 80; i++) {
+        const c = pool[Math.floor(Math.random() * pool.length)]
+        const img = c && sp.pickImage(c.track.album?.images, 300)
+        if (img) seen.add(img)
+      }
+      out.push(...seen)
+    }
+    return [...new Set(out)]
+  }, [sources, playlists, picked, topArtists.data, pool])
 
   // What the mix will be made of, in words and covers, for the preview next to the controls.
   const chosen = sourceOptions.filter((o) => sources.includes(o.id))
@@ -424,6 +470,16 @@ export function MixView(): React.JSX.Element {
 
   return (
     <div className="mix">
+      <MixMaker
+        open={showOpen}
+        images={swirlImages}
+        result={shown}
+        failed={showFailed}
+        saving={saving}
+        onClose={closeShow}
+        onPlay={() => mix && void playUris(mix.map((t) => t.uri))}
+        onSave={() => void save()}
+      />
       <header className="mix__top">
         <h1 className="page-title">Mix</h1>
         <p className="muted">A new mix from music you love, made your way.</p>

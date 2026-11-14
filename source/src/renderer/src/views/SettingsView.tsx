@@ -5,7 +5,7 @@ import { motion } from 'motion/react'
 import { useApp } from '@/lib/store'
 import { usePlayer } from '@/lib/player'
 import { pickImage } from '@/lib/spotify'
-import type { FontChoice, GlassQuality, LastfmStatus, ThemeMode, VoiceStatus } from '@shared/types'
+import type { FontChoice, GlassQuality, LastfmStatus, ThemeMode, UpdateStatus, VoiceStatus } from '@shared/types'
 import { FONTS } from '@/components/CommandPalette'
 import { Glass } from '@/components/Glass'
 import { Cover } from '@/components/common'
@@ -52,6 +52,50 @@ function Row({ title, hint, children }: { title: string; hint?: React.ReactNode;
       </div>
       <div className="srow__control">{children}</div>
     </div>
+  )
+}
+
+/** Version, "Check for updates", download progress and "Restart and update". */
+function UpdatesRow(): React.JSX.Element {
+  const [version, setVersion] = useState('')
+  const [st, setSt] = useState<UpdateStatus>({ state: 'idle' })
+  useEffect(() => {
+    void window.pulse.updates.version().then(setVersion)
+    void window.pulse.updates.status().then(setSt)
+    return window.pulse.updates.onStatus(setSt)
+  }, [])
+  const busy = st.state === 'checking' || st.state === 'downloading'
+  const hint =
+    st.state === 'dev'
+      ? 'Updates work in the installed app.'
+      : st.state === 'checking'
+        ? 'Looking for a new version…'
+        : st.state === 'downloading'
+          ? `Downloading ${st.version ?? 'the new version'}… ${st.percent}%`
+          : st.state === 'ready'
+            ? `Version ${st.version} is ready.`
+            : st.state === 'latest'
+              ? 'You have the newest version.'
+              : st.state === 'error'
+                ? `Couldn’t update: ${st.message}`
+                : 'Pulse updates itself in the background.'
+  return (
+    <Row title={`Pulse Music ${version}`} hint={hint}>
+      {st.state === 'ready' ? (
+        <button className="btn btn--accent" onClick={() => window.pulse.updates.install()}>
+          Restart and update
+        </button>
+      ) : (
+        <button className="btn" disabled={busy || st.state === 'dev'} onClick={() => void window.pulse.updates.check().then(setSt)}>
+          {st.state === 'checking' ? 'Checking…' : st.state === 'downloading' ? `${st.percent}%` : 'Check for updates'}
+        </button>
+      )}
+      {st.state === 'downloading' && (
+        <span className="supdate__bar" aria-hidden="true">
+          <i style={{ width: `${st.percent}%` }} />
+        </span>
+      )}
+    </Row>
   )
 }
 
@@ -227,6 +271,7 @@ export function SettingsView({ onSignOut }: { onSignOut: () => void }): React.JS
         <Row title="Open at startup" hint="Starts Pulse Music when you sign in to Windows. Works in the installed app.">
           <Toggle label="Open at startup" on={settings.launchAtStartup} onChange={(launchAtStartup) => void update({ launchAtStartup })} />
         </Row>
+        <UpdatesRow />
         <Row title="Player" hint={sdkError ?? (sdkReady ? 'Ready. Pulse Music shows up as a device in Spotify Connect.' : 'Starting…')}>
           <span className={`status-dot ${sdkError ? 'is-bad' : sdkReady ? 'is-ok' : ''}`} />
         </Row>

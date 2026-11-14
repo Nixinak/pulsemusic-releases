@@ -537,6 +537,10 @@ export interface PulseApi {
     onReady(cb: (version: string) => void): () => void
     install(): void
     version(): Promise<string>
+    /** Looks for a new version now; it downloads by itself when there is one. */
+    check(): Promise<UpdateStatus>
+    status(): Promise<UpdateStatus>
+    onStatus(cb: (s: UpdateStatus) => void): () => void
   }
   /** Spotify users, their public playlists and Pulse profiles. */
   people: {
@@ -650,3 +654,11 @@ export interface PulseApi {
     set(name: 'history', data: unknown): Promise<void>
   }
 }
+
+/** Where the app's own update is. */
+export type UpdateStatus =
+  | { state: 'idle' | 'checking' | 'dev'; version?: string; percent?: number; message?: string }
+  | { state: 'latest'; version: string; percent?: number; message?: string }
+  | { state: 'downloading'; version?: string; percent: number; message?: string }
+  | { state: 'ready'; version: string; percent?: number; message?: string }
+  | { state: 'error'; message: string; version?: string; percent?: number }

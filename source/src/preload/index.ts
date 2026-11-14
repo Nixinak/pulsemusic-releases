@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { PlaybackSnapshot, PlayerCommand, PulseApi, Settings } from '@shared/types'
+import type { PlaybackSnapshot, PlayerCommand, PulseApi, Settings, UpdateStatus } from '@shared/types'
 
 function listen<T>(channel: string, cb: (v: T) => void): () => void {
   const handler = (_e: unknown, v: T): void => cb(v)
@@ -44,7 +44,10 @@ const api: PulseApi = {
   updates: {
     onReady: (cb) => listen('update:ready', cb),
     install: () => ipcRenderer.send('update:install'),
-    version: () => ipcRenderer.invoke('app:version')
+    version: () => ipcRenderer.invoke('app:version'),
+    check: () => ipcRenderer.invoke('update:check'),
+    status: () => ipcRenderer.invoke('update:status'),
+    onStatus: (cb) => listen<UpdateStatus>('update:status', cb)
   },
   people: {
     searchSpotify: (q) => ipcRenderer.invoke('people:search-spotify', q),
