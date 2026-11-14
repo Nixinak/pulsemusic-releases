@@ -116,7 +116,7 @@ export function ListeningTime(): React.JSX.Element | null {
           ) : (
             <>
               <b>Every play counts</b>
-              <span>Songs from your phone and other Spotify apps are added every few minutes. Import your Spotify data for anything older.</span>
+              <span>Songs from your phone and other Spotify apps are added every few minutes while Pulse runs (it starts with Windows and waits in the tray). Import your Spotify data for anything older.</span>
             </>
           )}
         </p>

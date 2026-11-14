@@ -11,6 +11,7 @@ import { Cover, ErrorState, MediaCard, Shelf, usePagePalette, ShelfRow } from '@
 import { HeaderSkeleton } from '@/views/Collections'
 import { Glass } from '@/components/Glass'
 import { PulseBadge } from '@/components/PulseBadge'
+import { ImageWall } from '@/components/ImageWall'
 import { ProfileLinks, ProfileSong } from '@/components/ProfileExtras'
 import { FriendButton } from '@/components/FriendButton'
 import { prefetchUser, pulseServerOn, rememberPeople, usePulseUsers } from '@/lib/people'
@@ -225,6 +226,13 @@ function ReadBlock({ block, profile }: { block: PulseProfile['blocks'][number]; 
           <img decoding="async" src={block.src} alt={block.caption} />
           {block.caption && <figcaption>{block.caption}</figcaption>}
         </figure>
+      )
+    case 'wall':
+      return (
+        <section className="pblock__wall">
+          {block.title && <h2 className="pblock__heading">{block.title}</h2>}
+          <ImageWall images={block.images} />
+        </section>
       )
     case 'top-artists':
       if (!profile.snapshot.topArtists.length) return null

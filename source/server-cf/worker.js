@@ -10,7 +10,10 @@
 // (Those used to be in KV too, but KV is only "eventually" up to date: a friend request could
 // vanish and come back, and two people saving at once could knock each other off the list.)
 
-const MAX_BODY = 3 * 1024 * 1024
+const MAX_BODY = 8 * 1024 * 1024
+/** Someone counts as a Pulse user until 30 days after Pulse last talked to the server for them. */
+const ACTIVE_MS = 30 * 86_400_000
+const active = (e) => !!e && Date.now() - Math.max(e.seenAt ?? 0, e.updatedAt ?? 0) < ACTIVE_MS
 const ID = /^[A-Za-z0-9._-]{1,64}$/
 
 const json = (status, body) =>
@@ -36,6 +39,21 @@ function block(b) {
       return { id, type: 'text', title: str(b.title, 120), text: str(b.text, 4000) }
     case 'image':
       return img(b.src) ? { id, type: 'image', src: img(b.src), caption: str(b.caption, 300) } : null
+    case 'wall': {
+      // a wall of pictures: each with its size on the grid
+      const sizes = ['auto', 'big', 'wide', 'tall', 'small']
+      const images = (Array.isArray(b.images) ? b.images : [])
+        .slice(0, 16)
+        .map((x) => {
+          const src = img(x?.src, 600_000)
+          if (!src) return null
+          const w = Number.isFinite(x?.w) ? Math.max(1, Math.min(10000, Math.round(x.w))) : 1
+          const h = Number.isFinite(x?.h) ? Math.max(1, Math.min(10000, Math.round(x.h))) : 1
+          return { src, w, h, size: sizes.includes(x?.size) ? x.size : 'auto' }
+        })
+        .filter(Boolean)
+      return images.length ? { id, type: 'wall', title: str(b.title, 120), images } : null
+    }
     case 'top-artists':
     case 'top-tracks':
     case 'stats':
@@ -85,20 +103,37 @@ function clean(id, body) {
 
 const tokenCache = new Map()
 
-async function whoIs(req) {
+async function whoIs(req, env) {
   const m = /^Bearer\s+(\S{20,600})$/.exec(req.headers.get('authorization') || '')
   if (!m) return null
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(m[1]))
   const key = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
-  const hit = tokenCache.get(key)
-  if (hit && Date.now() - hit.at < 10 * 60_000) return hit.id
-  const res = await fetch('https://api.spotify.com/v1/me', { headers: { Authorization: `Bearer ${m[1]}` } })
-  if (!res.ok) return null
-  const me = await res.json()
-  if (!ID.test(me?.id ?? '')) return null
-  if (tokenCache.size > 2000) tokenCache.clear()
-  tokenCache.set(key, { id: me.id, at: Date.now() })
-  return me.id
+  let hit = tokenCache.get(key)
+  if (!hit || Date.now() - hit.at >= 10 * 60_000) {
+    const res = await fetch('https://api.spotify.com/v1/me', { headers: { Authorization: `Bearer ${m[1]}` } })
+    if (!res.ok) return null
+    const me = await res.json()
+    if (!ID.test(me?.id ?? '')) return null
+    if (tokenCache.size > 2000) tokenCache.clear()
+    hit = { id: me.id, name: str(me.display_name, 60).trim() || me.id, at: Date.now() }
+    tokenCache.set(key, hit)
+  }
+  if (env) await markSeen(env, hit.id, hit.name)
+  return hit.id
+}
+
+/** Pulse just talked to the server for this person: they keep their Pulse badge for another
+ *  30 days (written at most once an hour per person). */
+const seenCache = new Map()
+async function markSeen(env, id, name) {
+  if (Date.now() - (seenCache.get(id) ?? 0) < 60 * 60_000) return
+  seenCache.set(id, Date.now())
+  if (seenCache.size > 5000) seenCache.clear()
+  try {
+    await hub(env, 'index.seen', { id, displayName: name })
+  } catch (e) {
+    console.warn('seen', e)
+  }
 }
 
 /* ---------- Index (for search and badges) ---------- */
@@ -146,7 +181,7 @@ async function followsView(env, f, index) {
 }
 
 async function friendsRoute(req, env, path) {
-  const me = await whoIs(req)
+  const me = await whoIs(req, env)
   if (!me) return json(401, { error: 'Sign in with Spotify again.' })
   if (path === '/v1/friends' && req.method === 'GET') return json(200, await followsView(env, await readFollows(env, me), await readIndex(env)))
 
@@ -201,7 +236,7 @@ function cleanNow(b) {
 }
 
 async function nowRoute(req, env, path) {
-  const me = await whoIs(req)
+  const me = await whoIs(req, env)
   if (!me) return json(401, { error: 'Sign in with Spotify again.' })
   if (path === '/v1/now' && req.method === 'PUT') {
     await hub(env, 'PUT', { id: me, now: cleanNow(await req.json().catch(() => ({}))) })
@@ -318,16 +353,41 @@ export class Presence {
       }
 
       /* the list of Pulse users */
+      // only people Pulse has seen in the last 30 days count
       case 'index.all':
-        return Response.json(Object.fromEntries(await this.loadIndex()))
+        return Response.json(Object.fromEntries([...(await this.loadIndex())].filter(([, e]) => active(e))))
+      case 'index.get': {
+        const e = (await this.loadIndex()).get(b.id)
+        return Response.json(active(e) ? e : null)
+      }
       case 'index.set': {
-        const e = b.entry
         const index = await this.loadIndex()
+        const e = { ...b.entry, seenAt: Date.now() }
         index.set(e.id, e)
         await this.ctx.storage.put(`i:${e.id}`, e)
+        // publishing a profile undoes "don't show me as a Pulse user"
+        await this.ctx.storage.delete(`o:${e.id}`)
+        return Response.json({ ok: true })
+      }
+      // Pulse talked to the server for someone: keep (or give) them the badge for 30 more days,
+      // unless they chose not to be shown (removed their profile)
+      case 'index.seen': {
+        const index = await this.loadIndex()
+        const e = index.get(b.id)
+        if (e) {
+          if (Date.now() - (e.seenAt ?? 0) > 60 * 60_000) {
+            e.seenAt = Date.now()
+            await this.ctx.storage.put(`i:${b.id}`, e)
+          }
+        } else if (!(await this.ctx.storage.get(`o:${b.id}`))) {
+          const fresh = { id: b.id, displayName: String(b.displayName || b.id).slice(0, 60), thumb: null, updatedAt: 0, seenAt: Date.now() }
+          index.set(b.id, fresh)
+          await this.ctx.storage.put(`i:${b.id}`, fresh)
+        }
         return Response.json({ ok: true })
       }
       case 'index.del': {
+        await this.ctx.storage.put(`o:${b.id}`, Date.now())
         const index = await this.loadIndex()
         index.delete(b.id)
         await this.ctx.storage.delete(`i:${b.id}`)
@@ -374,7 +434,7 @@ async function handle(req, env) {
   if (path === '/v1/health') return json(200, { ok: true, profiles: Object.keys(await readIndex(env)).length })
 
   if (path === '/v1/me' && (req.method === 'PUT' || req.method === 'DELETE')) {
-    const id = await whoIs(req)
+    const id = await whoIs(req, env)
     if (!id) return json(401, { error: 'Sign in with Spotify again.' })
     if (req.method === 'DELETE') {
       await env.PULSE.delete(`p:${id}`)
@@ -398,7 +458,7 @@ async function handle(req, env) {
   // someone's follow lists, for anyone signed in (like on Spotify)
   const fm = /^\/v1\/users\/([^/]+)\/follows$/.exec(path)
   if (fm && req.method === 'GET') {
-    if (!(await whoIs(req))) return json(401, { error: 'Sign in with Spotify again.' })
+    if (!(await whoIs(req, env))) return json(401, { error: 'Sign in with Spotify again.' })
     const id = decodeURIComponent(fm[1])
     if (!ID.test(id)) return json(404, { error: 'Not found' })
     const [f, index] = await Promise.all([readFollows(env, id), readIndex(env)])
@@ -411,8 +471,28 @@ async function handle(req, env) {
     const id = decodeURIComponent(m[1])
     if (!ID.test(id)) return json(404, { error: 'Not a Pulse user.' })
     // the shortest edge cache KV allows, so a new banner or bio is seen within half a minute
-    const p = await env.PULSE.get(`p:${id}`, { type: 'json', cacheTtl: 30 })
-    return p ? json(200, p) : json(404, { error: 'Not a Pulse user.' })
+    const [p, e] = await Promise.all([env.PULSE.get(`p:${id}`, { type: 'json', cacheTtl: 30 }), hub(env, 'index.get', { id })])
+    // not seen for 30 days: not shown as a Pulse user (the profile comes back when they do)
+    if (!e) return json(404, { error: 'Not a Pulse user.' })
+    if (p) return json(200, p)
+    // uses Pulse but hasn't published a profile yet: a bare one, for the badge
+    return json(200, {
+      id,
+      displayName: e.displayName || id,
+      avatar: null,
+      thumb: e.thumb ?? null,
+      banner: null,
+      bio: '',
+      tagline: '',
+      links: [],
+      anthem: null,
+      bannerY: 50,
+      palette: 'auto',
+      customColors: null,
+      blocks: [],
+      snapshot: { topArtists: [], topTracks: [], minutes: null },
+      updatedAt: e.updatedAt || e.seenAt || 0
+    })
   }
 
   if (path === '/v1/lookup' && req.method === 'POST') {

@@ -47,6 +47,11 @@ import type { Profile } from '@shared/types'
 let mainWindow: BrowserWindow | null = null
 let miniWindow: BrowserWindow | null = null
 let tray: Tray | null = null
+/** Quitting for real (Quit in the tray, an update, Windows shutting down). */
+let quitting = false
+let toldAboutTray = false
+/** Opened by Windows at sign-in: start in the tray without showing the window. */
+const startedHidden = process.argv.includes('--hidden')
 let snapshot: PlaybackSnapshot = EMPTY_SNAPSHOT
 
 const isDev = !app.isPackaged && !!process.env['ELECTRON_RENDERER_URL']
@@ -140,7 +145,10 @@ function createMainWindow(): void {
     }
   })
 
-  mainWindow.once('ready-to-show', () => mainWindow?.show())
+  // Started with Windows: stay in the tray (the app still runs and counts plays); otherwise show.
+  mainWindow.once('ready-to-show', () => {
+    if (!startedHidden) mainWindow?.show()
+  })
   const sendMax = (): void => mainWindow?.webContents.send('window:maximized', mainWindow.isMaximized())
   mainWindow.on('maximize', sendMax)
   mainWindow.on('unmaximize', sendMax)
@@ -148,7 +156,29 @@ function createMainWindow(): void {
     void shell.openExternal(url)
     return { action: 'deny' }
   })
-  // Closing the main window quits the app.
+  // Closing the window keeps Pulse running in the tray (Settings → System), so plays on your
+  // other devices keep being counted; Quit in the tray menu ends it.
+  mainWindow.on('close', (e) => {
+    if (quitting || getSettings().closeToTray === false) return
+    e.preventDefault()
+    mainWindow?.hide()
+    if (!toldAboutTray && !getSettings().trayHintShown && tray) {
+      toldAboutTray = true
+      updateSettings({ trayHintShown: true })
+      tray.displayBalloon({
+        title: 'Pulse Music is still running',
+        content: 'It keeps counting what you play in the tray. Right-click the icon to quit.',
+        iconType: 'info'
+      })
+    }
+  })
+  // Windows is shutting down or signing out: let the window close
+  mainWindow.on('query-session-end', () => {
+    quitting = true
+  })
+  mainWindow.on('session-end', () => {
+    quitting = true
+  })
   mainWindow.on('closed', () => {
     mainWindow = null
     app.quit()
@@ -255,7 +285,8 @@ function applySettings(s: Settings, prev?: Settings): void {
   if (!prev || prev.discordRpc !== s.discordRpc) setDiscordEnabled(s.discordRpc)
   setDiscordGetButton(s.discordGetButton ?? true)
   if (!prev || prev.launchAtStartup !== s.launchAtStartup) {
-    if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: s.launchAtStartup })
+    // started by Windows it opens quietly in the tray
+    if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: s.launchAtStartup, args: ['--hidden'] })
   }
   if (prev && prev.autoUpdate !== s.autoUpdate) setAutoUpdates(s.autoUpdate !== false)
 }
@@ -531,6 +562,7 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', () => app.quit())
 
 app.on('before-quit', () => {
+  quitting = true
   stopParty()
   stopEngine()
   setDiscordEnabled(false)

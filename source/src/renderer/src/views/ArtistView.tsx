@@ -196,18 +196,22 @@ function About({
   name,
   info,
   page,
-  image,
+  images,
   genres,
   releases
 }: {
   name: string
   info: ArtistInfo | undefined
   page: PageArtist | null
-  image: string | null
+  /** Pictures to try, best first; the artist's profile picture is last. */
+  images: string[]
   genres: string[]
   releases: SAlbumRef[]
 }): React.JSX.Element | null {
   const [open, setOpen] = useState(false)
+  // a picture that won't load (some sites refuse to be shown elsewhere) gives way to the next one
+  const [failed, setFailed] = useState<string[]>([])
+  const image = images.find((u) => !failed.includes(u)) ?? null
   const [clamped, setClamped] = useState(false)
   const text = useRef<HTMLParagraphElement>(null)
   useEffect(() => {
@@ -250,7 +254,7 @@ function About({
       </header>
       <div className="about__grid">
         <div className="about__photo">
-          {image && <img decoding="async" src={image} alt="" />}
+          {image && <img key={image} decoding="async" src={image} alt="" onError={() => setFailed((f) => [...f, image])} />}
           <div className="about__shade" />
           <div className="about__stats">
             {stats.slice(0, 3).map(([v, k]) => (
@@ -492,7 +496,10 @@ export function ArtistView({ id }: { id: string }): React.JSX.Element {
   ].filter(Boolean)
   const deezer = info?.images.find((i) => i.source === 'deezer')?.url ?? null
   // The About photo: another picture than the banner when there is one.
-  const aboutImage = page?.gallery[0] ?? info?.images.find((i) => i.source === 'genius')?.url ?? deezer ?? page?.avatar ?? photo
+  // (when it doesn't load or there is none, the artist's profile picture)
+  const aboutImages = [page?.gallery[0], info?.images.find((i) => i.source === 'genius')?.url, deezer, page?.avatar, photo, quickQ.data?.avatar].filter(
+    (u, i, l): u is string => !!u && l.indexOf(u) === i
+  )
 
   return (
     <div className="collection artist">
@@ -585,7 +592,7 @@ export function ArtistView({ id }: { id: string }): React.JSX.Element {
       <ReleaseShelf title="Compilations" list={byKind('compilation')} />
       <ReleaseShelf title="Appears on" list={appears} showKind />
 
-      <About name={artist.name} info={info} page={page ?? null} image={aboutImage} genres={genres} releases={releases} />
+      <About name={artist.name} info={info} page={page ?? null} images={aboutImages} genres={genres} releases={releases} />
     </div>
   )
 }

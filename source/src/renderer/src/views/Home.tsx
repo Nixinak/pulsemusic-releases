@@ -16,7 +16,7 @@ import { prefetchUser } from '@/lib/people'
 import { FRESH } from '@/lib/djIntent'
 import { Cover, EqBars, MediaCard, Shelf, Skeleton, usePagePalette } from '@/components/common'
 import { CoverRing, type RingItem } from '@/components/CoverRing'
-import { MadeForYou, MonthCard, MoodRow, NewReleases, QuickTiles, RecentlyPlayed, SavedAlbums, YourMixes } from './HomeExtras'
+import { MadeForYou, YearBanner, MonthCard, MoodRow, NewReleases, QuickTiles, RecentlyPlayed, SavedAlbums, YourMixes } from './HomeExtras'
 import { contextMenuFor } from '@/components/menus'
 import type { SAlbumRef, SArtist, STrack } from '@/lib/types'
 
@@ -179,6 +179,8 @@ export function Home(): React.JSX.Element {
       </section>
 
       {recent.loading && !recent.data ? <div className="ring ring--loading" /> : <CoverRing items={ring} onFocus={onRingFocus} />}
+
+      <YearBanner />
 
       <QuickTiles recent={recent.data?.items ?? []} />
 

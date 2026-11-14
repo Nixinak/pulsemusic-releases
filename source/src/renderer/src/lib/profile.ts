@@ -43,3 +43,28 @@ export function pickImageFile(): Promise<File | null> {
 }
 
 export const newBlockId = (): string => `b-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
+
+/** A picture for a wall: kept in its own shape, at most 1000 px on its long side and small
+ *  enough to publish (null if it can't be read). */
+export async function fileToWallImage(file: File): Promise<{ src: string; w: number; h: number } | null> {
+  try {
+    const bmp = await createImageBitmap(file)
+    const scale = Math.min(1, 1000 / Math.max(bmp.width, bmp.height))
+    const w = Math.max(1, Math.round(bmp.width * scale))
+    const h = Math.max(1, Math.round(bmp.height * scale))
+    const c = document.createElement('canvas')
+    c.width = w
+    c.height = h
+    const ctx = c.getContext('2d')
+    if (!ctx) return null
+    ctx.drawImage(bmp, 0, 0, w, h)
+    bmp.close()
+    for (const q of [0.84, 0.74, 0.62, 0.5]) {
+      const src = c.toDataURL('image/jpeg', q)
+      if (src.length < 420_000) return { src, w, h }
+    }
+    return null
+  } catch {
+    return null
+  }
+}

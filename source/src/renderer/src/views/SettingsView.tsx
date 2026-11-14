@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { AiSetup } from '@/components/AiSetup'
 import { previewVoice, testDj } from '@/lib/dj'
 import { motion } from 'motion/react'
+import { importSpotifyExport, useHistory } from '@/lib/history'
 import { useApp } from '@/lib/store'
 import { usePlayer } from '@/lib/player'
 import { pickImage } from '@/lib/spotify'
@@ -56,6 +57,55 @@ function Row({ title, hint, children }: { title: string; hint?: React.ReactNode;
 }
 
 /** Version, "Check for updates", download progress and "Restart and update". */
+/** Your Spotify data download, for stats from before Pulse (the same import as on Stats). */
+function HistoryImportRow(): React.JSX.Element {
+  const imported = useHistory((s) => s.imported)
+  const count = useHistory((s) => s.plays.length)
+  const toast = useApp((s) => s.toast)
+  const [busy, setBusy] = useState(false)
+  const day = (t: number): string => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  const pick = (): void => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.multiple = true
+    input.accept = '.zip,.json'
+    input.onchange = async () => {
+      const files = [...(input.files ?? [])]
+      if (!files.length) return
+      setBusy(true)
+      try {
+        const r = await importSpotifyExport(files)
+        if (!r.found) toast('No listening history in those files. Pick the zip Spotify sent, or its StreamingHistory files.', 'error')
+        else toast(`Added ${r.added.toLocaleString()} plays from ${day(r.from!)} to ${day(r.to!)}.`)
+      } catch (e) {
+        toast(`Could not read that file: ${e instanceof Error ? e.message : String(e)}`, 'error')
+      } finally {
+        setBusy(false)
+      }
+    }
+    input.click()
+  }
+  return (
+    <>
+      <Row
+        title="Import your Spotify data"
+        hint={
+          imported
+            ? `Imported: ${day(imported.from)} – ${day(imported.to)}. ${count.toLocaleString()} plays counted in all.`
+            : 'Spotify only tells apps your last 50 plays. Its data download has every play: request it on Spotify (Account → Privacy), then pick the zip here.'
+        }
+      >
+        <button className="btn" onClick={() => window.pulse.openExternal('https://www.spotify.com/account/privacy/')}>
+          Request
+        </button>
+        <button className="btn btn--accent" disabled={busy} onClick={pick}>
+          {busy ? 'Importing…' : imported ? 'Import again' : 'Import'}
+        </button>
+      </Row>
+    </>
+  )
+}
+
 function UpdatesRow(): React.JSX.Element {
   const auto = useApp((s) => s.settings.autoUpdate !== false)
   const [version, setVersion] = useState('')
@@ -271,8 +321,11 @@ export function SettingsView({ onSignOut }: { onSignOut: () => void }): React.JS
 
       <section className="sgroup">
         <h2>System</h2>
-        <Row title="Open at startup" hint="Starts Pulse Music when you sign in to Windows. Works in the installed app.">
+        <Row title="Open at startup" hint="Starts quietly in the tray when you sign in to Windows, so your plays are counted from the start. Works in the installed app.">
           <Toggle label="Open at startup" on={settings.launchAtStartup} onChange={(launchAtStartup) => void update({ launchAtStartup })} />
+        </Row>
+        <Row title="Keep running in the tray" hint="Closing the window leaves Pulse in the tray, still counting what you play on your phone and other devices. Quit from the tray icon.">
+          <Toggle label="Keep running in the tray" on={settings.closeToTray !== false} onChange={(closeToTray) => void update({ closeToTray })} />
         </Row>
         <Row
           title="Automatic updates"
@@ -288,6 +341,11 @@ export function SettingsView({ onSignOut }: { onSignOut: () => void }): React.JS
         <Row title="Player" hint={sdkError ?? (sdkReady ? 'Ready. Pulse Music shows up as a device in Spotify Connect.' : 'Starting…')}>
           <span className={`status-dot ${sdkError ? 'is-bad' : sdkReady ? 'is-ok' : ''}`} />
         </Row>
+      </section>
+
+      <section className="sgroup">
+        <h2>Listening history</h2>
+        <HistoryImportRow />
       </section>
 
       <section className="sgroup">

@@ -3108,3 +3108,244 @@
 .main__scroll {
   will-change: scroll-position;
 }
+
+/* ---------- Profile: pictures keep their shape ---------- */
+/* An image block shows the whole picture in its own proportions (a square stays a square)
+   instead of being cut into a wide strip. */
+.pblock__figure img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 640px;
+  object-fit: contain;
+}
+
+/* ---------- Profile: a wall of pictures ---------- */
+.iwall {
+  container-type: inline-size;
+}
+.iwall__grid {
+  --gap: 14px;
+  --cols: 4;
+  display: grid;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  grid-auto-rows: calc((100cqw - (var(--cols) - 1) * var(--gap)) / var(--cols));
+  grid-auto-flow: dense;
+  gap: var(--gap);
+}
+@container (max-width: 560px) {
+  .iwall__grid {
+    --cols: 2;
+    --gap: 10px;
+  }
+}
+.iwall__tile {
+  position: relative;
+  margin: 0;
+  overflow: hidden;
+  border-radius: 18px;
+  background: rgba(127, 127, 127, 0.12);
+  box-shadow: 0 14px 34px -16px rgba(0, 0, 0, 0.55);
+}
+.iwall__tile.is-big {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+.iwall__tile.is-wide {
+  grid-column: span 2;
+}
+.iwall__tile.is-tall {
+  grid-row: span 2;
+}
+.iwall__tile img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.6s var(--ease-out);
+}
+.iwall__tile:hover img {
+  transform: scale(1.04);
+}
+.iwall__tools {
+  position: absolute;
+  inset: auto 8px 8px 8px;
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.iwall__tile:hover .iwall__tools,
+.iwall__tile:focus-within .iwall__tools {
+  opacity: 1;
+}
+.iwall__size,
+.iwall__btn {
+  display: grid;
+  place-items: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+}
+.iwall__btn {
+  padding: 0;
+  font-size: 18px;
+}
+.iwall__size {
+  margin-right: auto;
+}
+.iwall__btn:disabled {
+  opacity: 0.35;
+}
+.iwall__add {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-weight: 700;
+  border: 2px dashed rgba(127, 127, 127, 0.35);
+  box-shadow: none;
+  background: transparent;
+  transition:
+    color 0.2s,
+    border-color 0.2s;
+}
+.iwall__add:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.pblock__wall .pblock__title-input {
+  margin-bottom: 12px;
+}
+
+/* ---------- The year's Replay is out (December–January) ---------- */
+.ryear__ribbon {
+  position: absolute;
+  top: 18px;
+  right: -34px;
+  z-index: 2;
+  width: 130px;
+  padding: 4px 0;
+  rotate: 40deg;
+  text-align: center;
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #120a24;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+}
+.ryear.is-open {
+  animation: ryear-arrive 0.9s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+@keyframes ryear-arrive {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(14px);
+  }
+}
+.yearbanner {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 220px;
+  margin: 26px 0 8px;
+  padding: 28px 30px;
+  overflow: hidden;
+  border-radius: 30px;
+  color: #fff;
+  cursor: pointer;
+  isolation: isolate;
+  background: #0d0a1a;
+  box-shadow: 0 26px 60px -24px rgba(120, 60, 255, 0.6);
+  animation: ryear-arrive 0.9s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+.yearbanner__bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.32;
+  mix-blend-mode: luminosity;
+}
+.yearbanner__shade {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(90deg, rgba(10, 6, 24, 0.75), rgba(10, 6, 24, 0.1) 70%);
+}
+.yearbanner__text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+.yearbanner__text small {
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.yearbanner__text b {
+  margin: 6px 0 4px;
+  font-family: var(--font-display);
+  font-size: clamp(64px, 9vw, 120px);
+  font-weight: 800;
+  letter-spacing: -0.07em;
+}
+.yearbanner__text p {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  opacity: 0.9;
+}
+.yearbanner__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  height: 46px;
+  padding: 0 22px;
+  border-radius: 999px;
+  font-weight: 800;
+  color: #120a24;
+  background: #fff;
+  transition: transform 0.25s var(--ease-out);
+}
+.yearbanner:hover .yearbanner__cta {
+  transform: scale(1.05);
+}
+.yearbanner__x {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  font-size: 20px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.3);
+}
+@container (max-width: 700px) {
+  .yearbanner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+.reduce-motion .yearbanner,
+.reduce-motion .ryear.is-open {
+  animation: none;
+}

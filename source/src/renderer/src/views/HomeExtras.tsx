@@ -8,8 +8,9 @@ import * as sp from '@/lib/spotify'
 import { playContext, playUris, usePlayer } from '@/lib/player'
 import { prefetchAlbum } from '@/lib/loaders'
 import { startDj } from '@/lib/dj'
-import { computeStats, startOfMonth, useHistory } from '@/lib/history'
-import { formatMinutes } from '@/lib/recap'
+import { computeStats, isRealId, startOfMonth, useHistory } from '@/lib/history'
+import { formatMinutes, yearPeriod } from '@/lib/recap'
+import { replayYear } from './ReplayMonths'
 import { useArtistImage } from '@/lib/artistImage'
 import { Cover, EqBars, MediaCard, Shelf, ShelfRow } from '@/components/common'
 import { contextMenuFor } from '@/components/menus'
@@ -427,5 +428,61 @@ export function MadeForYou({ fallback }: { fallback: React.ReactNode }): React.J
         />
       ))}
     </Shelf>
+  )
+}
+
+/* ---------- Your year is here (December and January, like Spotify Wrapped) ---------- */
+
+/** A big card on Home when the year's Replay comes out: from 1 December through January. */
+export function YearBanner(): React.JSX.Element | null {
+  const plays = useHistory((s) => s.plays)
+  const setRecapOpen = useApp((s) => s.setRecapOpen)
+  const y = replayYear()
+  const key = `pulse.replayBanner.${y}`
+  const [hidden, setHidden] = useState(() => {
+    try {
+      return localStorage.getItem(key) === '1'
+    } catch {
+      return false
+    }
+  })
+  const stats = useMemo(() => (y ? computeStats(plays, new Date(y, 0, 1).getTime(), new Date(y + 1, 0, 1).getTime()) : null), [plays, y])
+  const lead = stats?.artists.find((a) => isRealId(a.item.id))?.item
+  const image = useArtistImage(lead?.id, null)
+  if (!y || hidden || !stats || stats.plays < 20) return null
+  const hide = (): void => {
+    setHidden(true)
+    try {
+      localStorage.setItem(key, '1')
+    } catch {
+      /* storage unavailable */
+    }
+  }
+  return (
+    <section className="yearbanner" role="button" tabIndex={0} onClick={() => setRecapOpen(true, yearPeriod(y))} onKeyDown={(e) => e.key === 'Enter' && setRecapOpen(true, yearPeriod(y))}>
+      <span className="ryear__glow" aria-hidden="true" />
+      {image && <img className="yearbanner__bg" src={image} alt="" decoding="async" draggable={false} />}
+      <span className="yearbanner__shade" aria-hidden="true" />
+      <div className="yearbanner__text">
+        <small>Your year in music is here</small>
+        <b>{y}</b>
+        <p>
+          {formatMinutes(Math.round(stats.ms / 60_000))} of music{lead ? `, most of it ${lead.name}` : ''}.
+        </p>
+      </div>
+      <span className="yearbanner__cta">
+        <SparkleIcon size={18} /> Play your {y} Recap
+      </span>
+      <button
+        className="yearbanner__x icon-btn"
+        aria-label="Hide"
+        onClick={(e) => {
+          e.stopPropagation()
+          hide()
+        }}
+      >
+        ×
+      </button>
+    </section>
   )
 }

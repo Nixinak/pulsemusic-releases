@@ -1,7 +1,8 @@
 // Replay by month (like Apple Music Replay): a sideways row with a card for every month of this
-// year, January to now, with minutes, your top artist and song; each opens that month's Recap. A new month
-// joins on the 1st. The year gets a card of its own: locked until December, then your whole
-// year (and in January, last year's card waits at the start of the row).
+// year, January to now, with minutes, your top artist and song; each opens that month's Recap.
+// A new month joins on the 1st. Like Spotify Wrapped, the year gets its own card only at the
+// end of the year: it appears on 1 December at the end of the row (where the row opens) and stays through
+// January (then as last year's card).
 import { useMemo } from 'react'
 import { motion } from 'motion/react'
 import { useApp } from '@/lib/store'
@@ -18,8 +19,12 @@ interface Month {
 }
 
 const HUES = [12, 330, 280, 220, 190, 150, 95, 45, 25, 350, 260, 200]
-/** The year card opens on 1 December. */
+/** The year card comes out on 1 December, like Spotify Wrapped. */
 const YEAR_OPENS = 11
+/** This year's card is out (December). */
+export const yearIsOut = (d = new Date()): boolean => d.getMonth() >= YEAR_OPENS
+/** The year being celebrated right now: this year in December, last year in January. */
+export const replayYear = (d = new Date()): number | null => (d.getMonth() >= YEAR_OPENS ? d.getFullYear() : d.getMonth() === 0 ? d.getFullYear() - 1 : null)
 
 const topUris = (stats: Stats, n = 25): string[] =>
   stats.songs
@@ -125,6 +130,7 @@ function YearCard({ year, stats, open }: { year: number; stats: Stats; open: boo
       <span className="ryear__glow" aria-hidden="true" />
       {image && <img decoding="async" className="ryear__bg" src={image} alt="" draggable={false} />}
       <span className="ryear__shade" />
+      {open && <span className="ryear__ribbon">New</span>}
       <header className="ryear__head">
         <small>{open ? 'Your year in music' : 'Your year · coming soon'}</small>
         <b>{year}</b>
@@ -237,7 +243,7 @@ export function ReplayMonths(): React.JSX.Element | null {
         {data.months.map((m) => (
           <MonthTile key={m.start.getTime()} m={m} max={max} now={m.start.getMonth() === now.getMonth()} />
         ))}
-        <YearCard year={year} stats={data.thisYear} open={now.getMonth() >= YEAR_OPENS} />
+        {yearIsOut() && <YearCard year={year} stats={data.thisYear} open />}
       </ShelfRow>
     </section>
   )

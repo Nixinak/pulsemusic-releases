@@ -34,3 +34,9 @@
 - **Stats: Last week, This year and All time.** The week and the year are counted from everything you played, in Pulse and in your other Spotify apps. Replay months are a row you can slide through.
 - **Smoother scrolling**: the mouse wheel is handled by the graphics card now, so pages glide even while the app is busy.
 - The search field and back buttons line up with the page, and in a small window the volume slider no longer opens over visible buttons.
+- **Picture walls on your profile**: add a wall of pictures laid out like a mosaic. Each one can be big, wide, tall or small, or left on Auto, which fills the wall without gaps.
+- **Pictures keep their shape**: a square picture in an image block stays square instead of being cut into a wide strip.
+- **The Pulse badge stays**: anyone who used Pulse in the last 30 days shows as a Pulse user, online or not (needs the server update).
+- **Artist pages always have an About picture**: when the usual one doesn't load, the artist's profile picture is used.
+- **Every play counts, like on stats.fm**: Pulse starts quietly with Windows and keeps running in the tray when you close it, picking up what you play on your phone and other devices. Both can be switched off in Settings → System, and your Spotify data download can be imported in Settings → Listening history.
+- **Your year in music arrives in December**, like Spotify Wrapped: a big card on Home and a special card in Replay, through January.

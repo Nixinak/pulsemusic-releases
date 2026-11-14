@@ -12,6 +12,10 @@ export interface Settings {
   launchAtStartup: boolean
   /** Look for new versions on its own (at start, every hour, when you come back) and download them. */
   autoUpdate: boolean
+  /** Closing the window keeps Pulse running in the tray (so plays keep being counted). */
+  closeToTray: boolean
+  /** The "still running in the tray" notice was shown once. */
+  trayHintShown?: boolean
   geniusToken: string
   volume: number
   reduceMotion: boolean
@@ -83,11 +87,12 @@ export const DEFAULT_SETTINGS: Settings = {
   discordGetButton: true,
   launchAtStartup: false,
   autoUpdate: true,
+  closeToTray: true,
   geniusToken: '',
   volume: 0.7,
   reduceMotion: false,
   crossfade: false,
-  settingsVersion: 3,
+  settingsVersion: 4,
   fadeSeconds: 0,
   bgPalette: 'artwork',
   customColors: ['#ff4f8b', '#b03cff', '#4a5cff', '#2ad1c9'],
@@ -106,6 +111,8 @@ export const DEFAULT_SETTINGS: Settings = {
 export type ProfileBlock =
   | { id: string; type: 'text'; title: string; text: string }
   | { id: string; type: 'image'; src: string; caption: string }
+  /** A wall of pictures, laid out like a mosaic. */
+  | { id: string; type: 'wall'; title: string; images: WallImage[] }
   | { id: string; type: 'top-artists' }
   | { id: string; type: 'top-tracks' }
   | { id: string; type: 'playlist'; playlistId: string }
@@ -113,6 +120,15 @@ export type ProfileBlock =
   | { id: string; type: 'favorites'; title: string; kind: FavoriteKind; items: FavoriteItem[] }
 
 export type FavoriteKind = 'artist' | 'album' | 'track'
+
+/** One picture on a wall: its own size (so it can be shown whole) and how big it is on the
+ *  wall ('auto' picks from its shape). */
+export interface WallImage {
+  src: string
+  w: number
+  h: number
+  size: 'auto' | 'big' | 'wide' | 'tall' | 'small'
+}
 
 /** A pinned favourite, stored with enough data to render without asking Spotify. */
 export interface FavoriteItem {

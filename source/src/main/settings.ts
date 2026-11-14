@@ -30,6 +30,14 @@ export function loadSettings(): Settings {
         current.settingsVersion = 3
         writeFileSync(file(), JSON.stringify(current, null, 2))
       }
+      // v4: Pulse starts with Windows (quietly, in the tray) and keeps running there when the
+      // window is closed, so it can count what you play everywhere, like stats.fm does.
+      if ((saved.settingsVersion ?? 1) < 4) {
+        current.launchAtStartup = true
+        current.closeToTray = true
+        current.settingsVersion = 4
+        writeFileSync(file(), JSON.stringify(current, null, 2))
+      }
     }
   } catch (e) {
     console.error('[settings] could not read settings, using defaults', e)

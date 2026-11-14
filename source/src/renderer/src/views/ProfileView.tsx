@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FavoriteItem, FavoriteKind, ProfileBlock } from '@shared/types'
 import { useApp, errorText } from '@/lib/store'
-import { useProfile, imageFileToDataUrl, newBlockId, pickImageFile } from '@/lib/profile'
+import { useProfile, imageFileToDataUrl, newBlockId, pickImageFile, fileToWallImage } from '@/lib/profile'
 import { useQuery } from '@/lib/useQuery'
 import * as sp from '@/lib/spotify'
 import { playContext, playUris } from '@/lib/player'
@@ -19,6 +19,7 @@ import { TrackList } from '@/components/TrackList'
 import { ChevronDown, CloseIcon, EditIcon, MoreIcon, PlayIcon, PlusIcon, SearchIcon, ShareIcon, SparkleIcon } from '@/components/Icons'
 import { ShareSheet } from '@/components/ShareSheet'
 import { PulseBadge } from '@/components/PulseBadge'
+import { ImageWall } from '@/components/ImageWall'
 import { pulseServerOn } from '@/lib/people'
 import { useFriends } from '@/lib/friends'
 import { FollowCounts } from './FollowsView'
@@ -101,6 +102,23 @@ export function ProfileView(): React.JSX.Element {
           if (!file) return
           const src = await imageFileToDataUrl(file, 1400, null, { title: 'Crop image', shapes: true })
           if (src) add({ id: newBlockId(), type: 'image', src, caption: '' })
+        }
+      },
+      {
+        label: 'Picture wall',
+        onSelect: () => {
+          // pick the pictures straight away; more can be added on the wall
+          const input = document.createElement('input')
+          input.type = 'file'
+          input.multiple = true
+          input.accept = 'image/png,image/jpeg,image/webp,image/gif'
+          input.onchange = async () => {
+            const files = [...(input.files ?? [])].slice(0, 16)
+            if (!files.length) return
+            const made = (await Promise.all(files.map(fileToWallImage))).filter((x): x is NonNullable<typeof x> => !!x)
+            if (made.length) add({ id: newBlockId(), type: 'wall', title: '', images: made.map((m) => ({ ...m, size: 'auto' as const })) })
+          }
+          input.click()
         }
       },
       { label: 'Your month in numbers', onSelect: () => add({ id: newBlockId(), type: 'stats' }) },
@@ -479,6 +497,17 @@ function Block({
             block.caption && <figcaption>{block.caption}</figcaption>
           )}
         </figure>
+      )
+    case 'wall':
+      return (
+        <section className="pblock__wall">
+          {editing ? (
+            <input className="pblock__title-input" value={block.title} placeholder="Title (optional)" onChange={(e) => onPatch({ title: e.target.value })} />
+          ) : (
+            block.title && <h2 className="pblock__heading">{block.title}</h2>
+          )}
+          <ImageWall images={block.images} editing={editing} onChange={(images) => onPatch({ images })} />
+        </section>
       )
     case 'top-artists':
       return <TopArtistsBlock />
