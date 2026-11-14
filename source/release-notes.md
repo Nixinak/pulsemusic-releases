@@ -17,3 +17,7 @@
 - **Follower lists open faster**: they start loading as soon as you open a profile, and show last time's list straight away.
 - **Covers for every song** on artist pages, also for brand new singles.
 - **Crop images in profile blocks**: pick a shape (Square, 4:5, 3:2, 16:9) and crop an image again any time with the Crop button.
+- **Stats count all your listening**: the total time for the year adds up Pulse and every other Spotify app (phone, web, car), split into "In Pulse" and "In Spotify apps". Plays from other devices come in every few minutes.
+- **Import your Spotify data**: drop in the zip Spotify sends you (Account → Privacy → Download your data) and every play since January counts, with covers and photos for your top songs and artists.
+- **Replay for every month**: a card for each month from January to now, and a new one joins on the 1st.
+- **Your year card**: a special card for the whole year opens on 1 December, with its own Recap.

@@ -6,7 +6,7 @@ import * as sp from './spotify'
 import type { SAlbumRef, STrack } from './types'
 import { useApp } from './store'
 import { useProfile } from './profile'
-import { computeStats, useHistory } from './history'
+import { computeStats, isRealId, useHistory } from './history'
 import { duck, livePosition, nextTrack, onUserPlay, playContext, playUris, setDjContinuation, setPresenceMode, takeDjContinuation, usePlayer } from './player'
 import { loadArtistPopular } from './loaders'
 import { FRESH, albumRequest, findMood, norm as normKeep, segmentKnown, splitNames, type Mood } from './djIntent'
@@ -814,7 +814,7 @@ async function findTrack(title: string, artist = ''): Promise<STrack | null> {
 /** Artists the listener actually plays or saved, by id, so look-alike names resolve to theirs. */
 async function knownArtists(): Promise<Map<string, string>> {
   const out = new Map<string, string>()
-  for (const p of useHistory.getState().plays) for (const a of p.artists) out.set(a.id, a.name)
+  for (const p of useHistory.getState().plays) for (const a of p.artists) if (isRealId(a.id)) out.set(a.id, a.name)
   likedCache ??= sp.getAllSavedTracks(600).then((r) => r.map((i) => i.track)).catch(() => [])
   for (const t of await likedCache) for (const a of t?.artists ?? []) out.set(a.id, a.name)
   return out

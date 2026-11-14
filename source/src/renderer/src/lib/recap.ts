@@ -2,11 +2,11 @@
 // Local history (what Pulse Music saw you play) gives minutes, hours and play counts;
 // Spotify's own top lists fill in while the local history is still short.
 import * as sp from './spotify'
-import { computeStats, startOfMonth, startOfYear, useHistory, type Stats } from './history'
+import { artistKey, computeStats, isRealId, startOfMonth, startOfYear, useHistory, type Stats } from './history'
 import type { SArtist, STrack } from './types'
 
-/** This month, this year, all time, or one month (`m:2026-10`). */
-export type Period = 'month' | 'year' | 'all' | `m:${string}`
+/** This month, this year, all time, one month (`m:2026-10`) or one whole year (`y:2025`). */
+export type Period = 'month' | 'year' | 'all' | `m:${string}` | `y:${string}`
 
 /** The `m:` period of the month that contains `t`. */
 export const monthPeriod = (t: number | Date = new Date()): Period => {
@@ -17,10 +17,18 @@ const monthOf = (p: Period): Date | null => {
   const m = /^m:(\d{4})-(\d{2})$/.exec(p)
   return m ? new Date(Number(m[1]), Number(m[2]) - 1, 1) : null
 }
+/** The `y:` period of a whole year. */
+export const yearPeriod = (year: number): Period => `y:${year}`
+const yearOf = (p: Period): number | null => {
+  const m = /^y:(\d{4})$/.exec(p)
+  return m ? Number(m[1]) : null
+}
 /** Where the period ends (exclusive). */
 export const periodEnd = (p: Period): number => {
   const d = monthOf(p)
-  return d ? new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime() : Number.MAX_SAFE_INTEGER
+  if (d) return new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime()
+  const y = yearOf(p)
+  return y !== null ? new Date(y + 1, 0, 1).getTime() : Number.MAX_SAFE_INTEGER
 }
 
 export interface RecapArtist {
@@ -66,6 +74,8 @@ export interface Recap {
 export const periodStart = (p: Period): number => {
   const d = monthOf(p)
   if (d) return d.getTime()
+  const y = yearOf(p)
+  if (y !== null) return new Date(y, 0, 1).getTime()
   return p === 'month' ? startOfMonth() : p === 'year' ? startOfYear() : 0
 }
 
@@ -73,6 +83,8 @@ export function periodLabel(p: Period): string {
   const now = new Date()
   const d = monthOf(p)
   if (d) return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+  const y = yearOf(p)
+  if (y !== null) return String(y)
   if (p === 'month') return now.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
   if (p === 'year') return String(now.getFullYear())
   return 'All time'
@@ -112,10 +124,10 @@ export async function buildRecap(period: Period): Promise<Recap> {
   const from = periodStart(period)
   const to = periodEnd(period)
   const stats = computeStats(plays, from, to)
-  // a past month: only what Pulse saw then counts (Spotify's ranges don't fit it)
-  const pastMonth = period.startsWith('m:') && to <= Date.now()
-  const before = new Set(plays.filter((p) => p.at < from).flatMap((p) => p.artists.map((a) => a.id)))
-  const newArtists = from > 0 ? stats.artists.filter((a) => !before.has(a.item.id)).length : stats.artists.length
+  // a month or a whole year: only the history counts (Spotify's ranges don't fit it)
+  const pastMonth = (period.startsWith('m:') || period.startsWith('y:')) && (to <= Date.now() || period.startsWith('y:'))
+  const before = new Set(plays.filter((p) => p.at < from).flatMap((p) => p.artists.map(artistKey)))
+  const newArtists = from > 0 ? stats.artists.filter((a) => !before.has(artistKey(a.item))).length : stats.artists.length
 
   let topArtists: RecapArtist[]
   let topTracks: RecapTrack[]
@@ -123,18 +135,18 @@ export async function buildRecap(period: Period): Promise<Recap> {
 
   if (stats.plays >= ENOUGH || (pastMonth && stats.plays > 0)) {
     const ids = stats.artists.slice(0, 5)
-    const full = await Promise.all(ids.map((a) => artistById(a.item.id)))
+    const full = await Promise.all(ids.map((a) => (isRealId(a.item.id) ? artistById(a.item.id) : Promise.resolve(null))))
     topArtists = ids.map((a, i) => ({
       id: a.item.id,
       name: a.item.name,
       image: sp.pickImage(full[i]?.images, 640),
-      uri: `spotify:artist:${a.item.id}`,
+      uri: isRealId(a.item.id) ? `spotify:artist:${a.item.id}` : '',
       plays: a.plays,
       minutes: Math.round(a.ms / 60_000)
     }))
     topTracks = stats.songs.slice(0, 5).map((s) => ({
       id: s.item.id,
-      uri: `spotify:track:${s.item.id}`,
+      uri: isRealId(s.item.id) ? `spotify:track:${s.item.id}` : '',
       name: s.item.name,
       artist: s.item.artists.map((a) => a.name).join(', '),
       image: s.item.art,
@@ -144,8 +156,8 @@ export async function buildRecap(period: Period): Promise<Recap> {
   } else {
     source = 'spotify'
     const [a, t] = await Promise.all([
-      sp.getTopArtists(RANGE[period.startsWith('m:') ? 'month' : (period as 'month' | 'year' | 'all')], 10).catch(() => null),
-      sp.getTopTracks(RANGE[period.startsWith('m:') ? 'month' : (period as 'month' | 'year' | 'all')], 10).catch(() => null)
+      sp.getTopArtists(RANGE[period.startsWith('m:') ? 'month' : period.startsWith('y:') ? 'year' : (period as 'month' | 'year' | 'all')], 10).catch(() => null),
+      sp.getTopTracks(RANGE[period.startsWith('m:') ? 'month' : period.startsWith('y:') ? 'year' : (period as 'month' | 'year' | 'all')], 10).catch(() => null)
     ])
     topArtists = (a?.items ?? []).slice(0, 5).map(fromSpotifyArtist)
     topTracks = (t?.items ?? []).slice(0, 5).map(fromSpotifyTrack)

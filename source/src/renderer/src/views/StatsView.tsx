@@ -1,8 +1,9 @@
-// Your stats, straight from Spotify: your top artists and songs for the last 4 weeks, 6 months
-// or all time (Spotify's own rankings), what those lists say about you, and your last 50 plays
-// (Spotify keeps exact times for those). Nothing here is estimated by Pulse.
+// Your stats: how long you've listened this year on Spotify and Pulse together, Replay for every
+// month, your top artists and songs for the last 4 weeks, 6 months or all time (Spotify's own
+// rankings), what those lists say about you, and your last 50 plays.
 import { Emo } from '@/components/Emoji'
 import { ReplayMonths } from './ReplayMonths'
+import { ListeningTime } from './ListeningTime'
 import { useMemo, useState } from 'react'
 import { motion } from 'motion/react'
 import { useApp } from '@/lib/store'
@@ -154,6 +155,7 @@ export function StatsView(): React.JSX.Element {
             </div>
           </section>
 
+          <ListeningTime />
           <ReplayMonths />
 
           <div className="stats__cols">

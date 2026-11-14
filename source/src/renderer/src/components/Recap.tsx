@@ -462,7 +462,7 @@ function Summary({ r, onReplay, onShare }: { r: Recap; onReplay: () => void; onS
           <ShareIcon size={18} /> Share
         </button>
         {r.topTracks.length > 0 && (
-          <button className="rc__btn" onClick={() => void playUris(r.topTracks.map((t) => t.uri))}>
+          <button className="rc__btn" onClick={() => void playUris(r.topTracks.map((t) => t.uri).filter(Boolean))}>
             <PlayIcon size={18} /> Play top songs
           </button>
         )}
@@ -490,9 +490,12 @@ function songFor(r: Recap, slideId: string | null): { uri: string; context?: boo
     const a = r.topArtists[i]
     if (!a) return null
     const own = byArtist(a.name)
-    return own ? { uri: own } : { uri: a.uri, context: true }
+    return own ? { uri: own } : a.uri ? { uri: a.uri, context: true } : null
   }
-  const song = (i: number): { uri: string } | null => (t[i] ?? t[0] ? { uri: (t[i] ?? t[0]).uri } : null)
+  const song = (i: number): { uri: string } | null => {
+    const pick = t[i]?.uri || t.find((x) => x.uri)?.uri
+    return pick ? { uri: pick } : null
+  }
   switch (slideId) {
     case 'intro':
       return song(0)
@@ -715,7 +718,7 @@ export function RecapStories(): React.JSX.Element {
             </div>
             <div className="rc__controls">
               <div className="rc__periods">
-                {[...(period.startsWith('m:') ? [period] : startPeriod.startsWith('m:') ? [startPeriod] : []), 'month', 'year', 'all'].map((p) => (
+                {[...(/^[my]:/.test(period) ? [period] : /^[my]:/.test(startPeriod) ? [startPeriod] : []), 'month', 'year', 'all'].map((p) => (
                   <button key={p} className={period === p ? 'is-on' : ''} onClick={() => setPeriod(p as Period)}>
                     {p === 'month' ? 'This month' : p === 'year' ? 'This year' : p === 'all' ? 'All time' : periodLabel(p as Period)}
                   </button>
