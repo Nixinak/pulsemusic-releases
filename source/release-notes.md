@@ -1,30 +1,5 @@
-## Pulse Music 1.6.0
+## Pulse Music 1.6.1
 
-- **A show while your mix is made**: covers from your library swirl into the middle and get mixed, then the chosen songs fly together into the new playlist. Press Esc or the cross to close it, the mix keeps being made.
-- **Check for updates** in Settings → System, with the download progress and a "Restart and update" button.
-- **A new Party page**: two rings of covers turning around the title under club lights, and Start the party / Join right at the top.
-- **Mixes go up to 200 songs.**
-- **Sharp pictures on the Friends page**: song covers and profile pictures were blurry, now they are full quality.
-- **Updates come faster**: Pulse looks for a new version every hour and when you come back to the app.
-- **Volume that feels right**: low settings are really quiet now (the slider follows how loud it sounds, not a straight line). In a small window the volume grows into a big slider when you point at it, and the mouse wheel changes it too.
-- **Smooth scrolling in long playlists.**
-- **The AI DJ never plays the same song twice**, and its list shows only the artists (click one to open them).
-- A cleaner DJ badge in the player bar.
-- **Your friends know when you listen along**: they get a notice with your picture in sound rings, and your face stays under the song in their player bar while you're with them.
-- **Nothing covers the lyrics or the queue any more**: notices, the "Listening with" bar and the DJ subtitles stay in the free space, and stack above each other instead of overlapping.
-- **Profiles look tidy**: the picture, buttons, bio and what they play all line up, and the Pulse badge sits with the counts.
-- **Profiles stay fresh**: a friend's new banner or bio shows up within a minute.
-- **Follower lists open faster**: they start loading as soon as you open a profile, and show last time's list straight away.
-- **Covers for every song** on artist pages, also for brand new singles.
-- **Crop images in profile blocks**: pick a shape (Square, 4:5, 3:2, 16:9) and crop an image again any time with the Crop button.
-- **Stats count all your listening**: the total time for the year adds up Pulse and every other Spotify app (phone, web, car), split into "In Pulse" and "In Spotify apps". Plays from other devices come in every few minutes.
-- **Import your Spotify data**: drop in the zip Spotify sends you (Account → Privacy → Download your data) and every play since January counts, with covers and photos for your top songs and artists.
-- **Replay for every month**: a card for each month from January to now, and a new one joins on the 1st.
-- **Your year card**: a special card for the whole year opens on 1 December, with its own Recap.
-- **Automatic updates switch** in Settings → System: on, Pulse looks for a new version every hour and downloads it by itself; off, it only updates when you press Check for updates.
-- **A nicer volume control**: in a wide window it simply gets wider and the buttons beside it slide over; in a small window it opens as a light frosted pill instead of a dark box.
-- **Covers never slide over each other**: the cover ring on Home keeps every cover side by side, and the mix show turns its covers in rings into the middle, then closes the new cover in from all sides.
-- **Faster everywhere**: the progress bar moves without redrawing the player, the background drifts at a gentler pace for the glass, blurred backdrops are made once instead of on every frame, and resizing the window no longer stutters.
 - **Made for you**: Daily Mixes (new every day, named by the AI DJ when it's set up), On Repeat, Discover Weekly and Release Radar (new every Monday), each with its own cover made for you. They're put together quietly in the background and show up on Home when they're ready.
 - **A new update card**: Pulse tells you as soon as there's a new version, downloads it in the background and asks whether to restart now or later.
 - **A nicer installer**: Pulse artwork on the welcome and finish pages, a banner in between, and an option to open Pulse when it's done.
@@ -36,7 +11,8 @@
 - The search field and back buttons line up with the page, and in a small window the volume slider no longer opens over visible buttons.
 - **Picture walls on your profile**: add a wall of pictures laid out like a mosaic. Each one can be big, wide, tall or small, or left on Auto, which fills the wall without gaps.
 - **Pictures keep their shape**: a square picture in an image block stays square instead of being cut into a wide strip.
-- **The Pulse badge stays**: anyone who used Pulse in the last 30 days shows as a Pulse user, online or not (needs the server update).
+- **The Pulse badge stays**: anyone who used Pulse in the last 30 days shows as a Pulse user, online or not.
 - **Artist pages always have an About picture**: when the usual one doesn't load, the artist's profile picture is used.
 - **Every play counts, like on stats.fm**: Pulse starts quietly with Windows and keeps running in the tray when you close it, picking up what you play on your phone and other devices. Both can be switched off in Settings → System, and your Spotify data download can be imported in Settings → Listening history.
 - **Your year in music arrives in December**, like Spotify Wrapped: a big card on Home and a special card in Replay, through January.
+- Now Playing: the turning background always fills the window (no more dark corners sliding in).
