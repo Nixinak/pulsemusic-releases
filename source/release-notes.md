@@ -1,4 +1,4 @@
-## Pulse Music 1.5.1
+## Pulse Music 1.6.0
 
 - **A show while your mix is made**: covers from your library swirl into the middle and get mixed, then the chosen songs fly together into the new playlist. Press Esc or the cross to close it, the mix keeps being made.
 - **Check for updates** in Settings → System, with the download progress and a "Restart and update" button.
