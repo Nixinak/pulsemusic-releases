@@ -1,0 +1,18 @@
+# Pulse server on Cloudflare Workers. See README.md.
+name = "pulse-server"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+[[kv_namespaces]]
+binding = "PULSE"
+# Workers KV namespace "PULSE"
+id = "9eb8073d1ea048be8470923c4597e7ce"
+
+# What people are playing right now (a SQLite Durable Object; included in the free plan)
+[[durable_objects.bindings]]
+name = "PRESENCE"
+class_name = "Presence"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Presence"]

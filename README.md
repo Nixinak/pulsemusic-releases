@@ -11,7 +11,8 @@ A free Spotify app for Windows with an AI DJ that talks, word-by-word lyrics, pa
 <a href="https://github.com/Nixinak/pulsemusic-releases/releases/latest/download/PulseMusic-Setup.exe"><b>Download</b></a> &nbsp;•&nbsp;
 <a href="#-features"><b>Features</b></a> &nbsp;•&nbsp;
 <a href="#-install"><b>Install</b></a> &nbsp;•&nbsp;
-<a href="#-faq"><b>FAQ</b></a>
+<a href="#-faq"><b>FAQ</b></a> &nbsp;•&nbsp;
+<a href="source/"><b>Source code</b></a>
 
 <br>
 
@@ -173,6 +174,12 @@ No. Everything is built in. Last.fm is optional and connects in one click.
 <br>
 Not yet. Pulse Music is made for Windows 10 and 11.
 </details>
+
+<br>
+
+## 🛠️ Source code
+
+The full source of the app lives in [`source/`](source/): Electron + React + TypeScript. See [`source/README.md`](source/README.md) for how to build and run it yourself.
 
 <br>
 

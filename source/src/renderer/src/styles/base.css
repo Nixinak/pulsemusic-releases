@@ -1,0 +1,531 @@
+/* ============ Tokens ============ */
+/* Registered so colour changes interpolate: everything that uses them (background, logo,
+   accents, glass tints) fades to the new song's colours together instead of jumping. */
+@property --amb-1 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #ff4f8b;
+}
+@property --amb-2 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #b03cff;
+}
+@property --amb-3 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #4a5cff;
+}
+@property --amb-4 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #2ad1c9;
+}
+@property --accent-dark {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #ff5c93;
+}
+@property --accent-light {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #d81b60;
+}
+:root {
+  --font-ui: 'Figtree Variable', 'Segoe UI Variable Text', system-ui, sans-serif;
+  --font-display: 'Bricolage Grotesque Variable', 'Figtree Variable', system-ui, sans-serif;
+
+  /* Type scale (1.25 modular, rounded) */
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-md: 15px;
+  --fs-lg: 18px;
+  --fs-xl: 24px;
+  --fs-2xl: 34px;
+  --fs-3xl: 56px;
+  --fs-4xl: 84px;
+
+  /* Ambient palette, replaced from the current artwork */
+  --amb-1: #ff4f8b;
+  --amb-2: #b03cff;
+  --amb-3: #4a5cff;
+  --amb-4: #2ad1c9;
+  --accent-dark: #ff5c93;
+  --accent-light: #d81b60;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  transition:
+    --amb-1 1.6s ease,
+    --amb-2 1.6s ease,
+    --amb-3 1.6s ease,
+    --amb-4 1.6s ease,
+    --accent-dark 1.6s ease,
+    --accent-light 1.6s ease;
+  --sidebar-w: 248px;
+  --gutter: 32px;
+
+  color-scheme: dark;
+  --bg: #0d0e13;
+  --bg-deep: #08090c;
+  --text: #f5f5f7;
+  --text-2: rgba(235, 235, 245, 0.64);
+  --text-3: rgba(235, 235, 245, 0.4);
+  --hair: rgba(255, 255, 255, 0.09);
+  --hover: rgba(255, 255, 255, 0.07);
+  --press: rgba(255, 255, 255, 0.12);
+  --glass-tint: rgba(30, 32, 44, 0.32);
+  --glass-tint-thick: rgba(22, 24, 34, 0.62);
+  --glass-rim-a: rgba(255, 255, 255, 0.55);
+  --glass-rim-b: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 18px 50px rgba(0, 0, 0, 0.38), 0 2px 8px rgba(0, 0, 0, 0.22);
+  --accent: var(--accent-dark);
+  --on-accent: #0d0e13;
+  --amb-opacity: 0.5;
+  --scrim: rgba(13, 14, 19, 0.52);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --bg: #eceef4;
+    --bg-deep: #e2e5ee;
+    --text: #111217;
+    --text-2: rgba(28, 30, 40, 0.64);
+    --text-3: rgba(28, 30, 40, 0.42);
+    --hair: rgba(20, 22, 30, 0.1);
+    --hover: rgba(20, 22, 30, 0.055);
+    --press: rgba(20, 22, 30, 0.1);
+    --glass-tint: rgba(255, 255, 255, 0.4);
+    --glass-tint-thick: rgba(250, 251, 255, 0.72);
+    --glass-rim-a: rgba(255, 255, 255, 0.95);
+    --glass-rim-b: rgba(255, 255, 255, 0.25);
+    --glass-shadow: 0 18px 50px rgba(40, 44, 70, 0.16), 0 2px 8px rgba(40, 44, 70, 0.08);
+    --accent: var(--accent-light);
+    --on-accent: #ffffff;
+    --amb-opacity: 0.34;
+    --scrim: rgba(236, 238, 244, 0.5);
+  }
+}
+
+/* ============ Reset ============ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+  font-feature-settings: 'ss01', 'cv11';
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+img {
+  display: block;
+  -webkit-user-drag: none;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--hair);
+  border: 4px solid transparent;
+  background-clip: padding-box;
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-3);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+/* ============ Glass ============ */
+.glass {
+  position: relative;
+  isolation: isolate;
+  background: var(--glass-tint);
+  box-shadow: var(--glass-shadow);
+  transition: background-color 0.3s var(--ease-out);
+}
+.glass--thick {
+  background: var(--glass-tint-thick);
+}
+.glass--clear {
+  background: color-mix(in srgb, var(--glass-tint) 45%, transparent);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+}
+.glass__defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+/* Specular rim: bright top-left edge, faint bottom-right return */
+.glass__rim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  padding: 1px;
+  background: linear-gradient(
+    145deg,
+    var(--glass-rim-a) 0%,
+    var(--glass-rim-b) 28%,
+    transparent 50%,
+    var(--glass-rim-b) 76%,
+    color-mix(in srgb, var(--glass-rim-a) 60%, transparent) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.glass__rim::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.35),
+    inset 0 -6px 14px rgba(255, 255, 255, 0.04);
+}
+.glass--interactive {
+  transition:
+    transform 0.35s var(--ease-out),
+    background-color 0.25s var(--ease-out);
+}
+.glass--interactive:hover {
+  background: color-mix(in srgb, var(--glass-tint) 70%, var(--hover));
+}
+.glass--interactive:active {
+  transform: scale(0.97);
+}
+
+/* ============ Ambient background ============ */
+.ambient {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--bg);
+  /* Its own compositor layer: scrolling the page never repaints the background. */
+  contain: strict;
+  will-change: transform;
+}
+.ambient__blob {
+  position: absolute;
+  width: 62vmax;
+  height: 62vmax;
+  border-radius: 50%;
+  /* Soft radial gradients instead of a 90 px blur filter: same look, far cheaper to draw. */
+  background: radial-gradient(circle closest-side, var(--blob) 0%, color-mix(in srgb, var(--blob) 40%, transparent) 45%, transparent 100%);
+  opacity: var(--amb-opacity);
+  will-change: transform;
+}
+.ambient__blob:nth-child(1) {
+  --blob: var(--amb-1);
+  top: -24vmax;
+  left: -12vmax;
+  animation: drift-a 38s ease-in-out infinite alternate;
+}
+.ambient__blob:nth-child(2) {
+  --blob: var(--amb-2);
+  top: -10vmax;
+  right: -24vmax;
+  animation: drift-b 44s ease-in-out infinite alternate;
+}
+.ambient__blob:nth-child(3) {
+  --blob: var(--amb-3);
+  bottom: -30vmax;
+  left: 10vmax;
+  animation: drift-c 50s ease-in-out infinite alternate;
+}
+.ambient__blob:nth-child(4) {
+  --blob: var(--amb-4);
+  bottom: -26vmax;
+  right: -10vmax;
+  width: 44vmax;
+  height: 44vmax;
+  animation: drift-a 56s ease-in-out infinite alternate-reverse;
+}
+.ambient__art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.35);
+  will-change: transform, opacity;
+  filter: blur(90px) saturate(1.6) brightness(0.8);
+  opacity: 0.6;
+}
+@media (prefers-color-scheme: light) {
+  .ambient__art {
+    filter: blur(90px) saturate(1.4) brightness(1.2);
+  }
+}
+.ambient__grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+.ambient__veil {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 0%, var(--scrim) 70%);
+}
+
+@keyframes drift-a {
+  to {
+    transform: translate3d(14vmax, 10vmax, 0) scale(1.15);
+  }
+}
+@keyframes drift-b {
+  to {
+    transform: translate3d(-16vmax, 14vmax, 0) scale(0.9);
+  }
+}
+@keyframes drift-c {
+  to {
+    transform: translate3d(12vmax, -16vmax, 0) scale(1.2);
+  }
+}
+
+/* ============ Shared controls ============ */
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: var(--text-2);
+  transition:
+    color 0.2s,
+    background-color 0.2s,
+    transform 0.25s var(--ease-out);
+}
+.icon-btn:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+.icon-btn:active {
+  transform: scale(0.9);
+}
+.icon-btn {
+  position: relative;
+}
+/* Toggles: off is clearly dimmed, on gets a tinted pill and a dot underneath. */
+.icon-btn[aria-pressed='false'] {
+  color: var(--text-3);
+}
+.icon-btn[aria-pressed='true'] {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.icon-btn[aria-pressed='true']::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.icon-btn:disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 20px;
+  border-radius: 999px;
+  font-weight: 650;
+  font-size: var(--fs-md);
+  background: var(--hover);
+  transition:
+    transform 0.25s var(--ease-out),
+    background-color 0.2s,
+    filter 0.2s;
+}
+.btn:hover {
+  background: var(--press);
+}
+.btn:active {
+  transform: scale(0.96);
+}
+.btn--accent {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.btn--accent:hover {
+  background: var(--accent);
+  filter: brightness(1.08);
+}
+.btn--danger {
+  background: #e5484d;
+  color: #fff;
+}
+.btn--danger:hover {
+  background: #e5484d;
+  filter: brightness(1.08);
+}
+.btn:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.play-fab {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--accent) 45%, transparent);
+  transition:
+    transform 0.3s var(--ease-out),
+    filter 0.2s;
+}
+.play-fab:hover {
+  transform: scale(1.05);
+  filter: brightness(1.06);
+}
+.play-fab:active {
+  transform: scale(0.94);
+}
+
+.field {
+  width: 100%;
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid var(--hair);
+  background: var(--hover);
+  outline: none;
+  transition:
+    border-color 0.2s,
+    background-color 0.2s;
+}
+.field:focus {
+  border-color: var(--accent);
+  background: transparent;
+}
+textarea.field {
+  height: 96px;
+  padding: 12px 16px;
+  resize: none;
+}
+
+.link {
+  cursor: pointer;
+  text-decoration: none;
+}
+.link:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.muted {
+  color: var(--text-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient__blob {
+    animation: none;
+  }
+}
+.reduce-motion .ambient__blob {
+  animation: none;
+}
+
+/* ============ Font choice ============ */
+:root[data-font='bricolage'] {
+  --font-ui: 'Bricolage Grotesque Variable', 'Figtree Variable', system-ui, sans-serif;
+}
+:root[data-font='inter'] {
+  --font-ui: 'Inter Variable', 'Segoe UI Variable Text', system-ui, sans-serif;
+}
+:root[data-font='manrope'] {
+  --font-ui: 'Manrope Variable', 'Segoe UI Variable Text', system-ui, sans-serif;
+}
+:root[data-font='outfit'] {
+  --font-ui: 'Outfit Variable', 'Segoe UI Variable Text', system-ui, sans-serif;
+  --font-display: 'Outfit Variable', system-ui, sans-serif;
+}
+:root[data-font='system'] {
+  --font-ui: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+}
+
+/* ============ Compact mode ============ */
+:root[data-density='compact'] {
+  --sidebar-w: 220px;
+  --gutter: 22px;
+  --fs-md: 14px;
+  --fs-sm: 12.5px;
+  --fs-3xl: 46px;
+  --fs-4xl: 68px;
+}

@@ -1,0 +1,80 @@
+appId: gg.nix.pulsemusic
+productName: Pulse Music
+copyright: Copyright © 2026 Nix.gg
+directories:
+  buildResources: build
+  output: dist
+files:
+  - out/**
+  - package.json
+  - '!**/*.map'
+  # The voice engine ships builds for every system; keep only Windows x64.
+  - '!node_modules/onnxruntime-node/bin/napi-v*/darwin/**'
+  - '!node_modules/onnxruntime-node/bin/napi-v*/linux/**'
+  - '!node_modules/onnxruntime-node/bin/napi-v*/win32/arm64/**'
+  - '!node_modules/onnxruntime-web/**'
+  # The voice library runs on onnxruntime-node: its browser builds and WebAssembly aren't used.
+  - '!node_modules/@huggingface/transformers/dist/*.wasm'
+  - '!node_modules/@huggingface/transformers/dist/ort-wasm*'
+  - '!node_modules/@huggingface/transformers/dist/transformers.js'
+  - '!node_modules/@huggingface/transformers/dist/transformers.min.js'
+  - '!node_modules/@huggingface/transformers/dist/transformers.web*'
+  - '!node_modules/@huggingface/transformers/src/**'
+  - '!node_modules/@huggingface/transformers/types/**'
+  - '!node_modules/kokoro-js/dist/kokoro.web.js'
+  # Only the six voices the DJ offers (src/main/voice.ts).
+  - '!node_modules/kokoro-js/voices/{af_alloy,af_aoede,af_jessica,af_kore,af_nicole,af_nova,af_river,af_sarah,af_sky,am_adam,am_echo,am_eric,am_liam,am_onyx,am_puck,am_santa,bf_alice,bf_isabella,bf_lily,bm_daniel,bm_fable,bm_lewis,ef_dora,em_alex,em_santa,ff_siwis,hf_alpha,hf_beta,hm_omega,hm_psi,if_sara,im_nicola,jf_alpha,jf_gongitsune,jf_nezumi,jf_tebukuro,jm_kumo,pf_dora,pm_alex,pm_santa,zf_xiaobei,zf_xiaoni,zf_xiaoxiao,zf_xiaoyi,zm_yunjian,zm_yunxi,zm_yunxia,zm_yunyang}.bin'
+# The app is in English: Chromium's other 54 languages aren't needed.
+electronLanguages:
+  - en-US
+# The AI DJ engine (scripts/fetch-llama.cjs) and the installer's model download script.
+extraResources:
+  - from: resources/bin/cloudflared.exe
+    to: bin/cloudflared.exe
+  - from: resources/llama
+    to: llama
+  - from: resources/setup-ai.ps1
+    to: setup-ai.ps1
+# Native parts of the DJ voice (ONNX runtime, image library) can't load from inside the asar.
+asarUnpack:
+  - node_modules/onnxruntime-node/**
+  - node_modules/onnxruntime-common/**
+  - node_modules/sharp/**
+  - node_modules/@img/**
+# Use the castLabs Electron (Widevine) that npm installed instead of downloading stock Electron.
+electronDist: node_modules/electron/dist
+electronVersion: 44.9.3
+# Packaged apps must be VMP-signed by castLabs EVS (after code signing on Windows) or Spotify playback is refused.
+afterSign: scripts/evs-sign.cjs
+# Automatic updates: installers and latest.yml are published to this public repository.
+publish:
+  provider: github
+  owner: Nixinak
+  repo: pulsemusic-releases
+  releaseType: release
+# pulsemusic:// links from the party page open the installed app
+protocols:
+  - name: Pulse Music
+    schemes:
+      - pulsemusic
+win:
+  target:
+    - target: nsis
+      arch: x64
+  icon: build/icon.ico
+  executableName: PulseMusic
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Pulse Music
+  # Adds the optional "Download the AI DJ" page (about 2 GB).
+  include: build/installer.nsh
+  deleteAppDataOnUninstall: false
+  artifactName: PulseMusic-Setup.exe
+
+# Shown on the GitHub release page
+releaseInfo:
+  releaseNotesFile: build/release-notes.md

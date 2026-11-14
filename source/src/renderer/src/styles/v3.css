@@ -1,0 +1,979 @@
+/* Pulse 1.6: home shelves, search field, library sections, monthly Replay, mix prompt,
+   follow lists and the profile menu. */
+
+/* ---------- Library ---------- */
+.library__h {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 26px 0 14px;
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+.library__h:first-of-type {
+  margin-top: 6px;
+}
+
+/* ---------- Search field ---------- */
+.search-pill {
+  width: 220px;
+  padding: 0 6px 0 4px;
+  gap: 4px;
+  transition:
+    width 0.45s cubic-bezier(0.2, 0.9, 0.25, 1),
+    box-shadow 0.35s ease,
+    background-color 0.35s ease;
+}
+.search-pill.is-open,
+.search-pill:focus-within {
+  width: min(460px, 46vw);
+}
+.search-pill:focus-within {
+  outline: none;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent),
+    0 0 0 6px color-mix(in srgb, var(--accent) 14%, transparent),
+    0 10px 36px -10px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.search-pill__icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  color: var(--text-2);
+  transition:
+    color 0.25s ease,
+    transform 0.35s cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+.search-pill:focus-within .search-pill__icon {
+  color: var(--accent);
+  transform: scale(1.08) rotate(-8deg);
+}
+.search-pill input {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  caret-color: var(--accent);
+}
+
+/* ---------- Home: quick tiles ---------- */
+.qtiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
+  margin: 4px 0 30px;
+}
+.qtile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 56px;
+  padding-right: 12px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--hover) 140%, transparent);
+  backdrop-filter: blur(14px) saturate(1.4);
+  cursor: pointer;
+  transition:
+    background-color 0.25s ease,
+    transform 0.18s var(--ease-out);
+}
+.qtile:hover,
+.qtile.is-on {
+  background: color-mix(in srgb, var(--text) 14%, transparent);
+}
+.qtile:active {
+  transform: scale(0.98);
+}
+.qtile .cover,
+.qtile__liked {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  box-shadow: 6px 0 18px rgba(0, 0, 0, 0.25);
+}
+.qtile__liked {
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background:
+    radial-gradient(circle at 25% 20%, rgba(255, 255, 255, 0.35), transparent 45%),
+    linear-gradient(135deg, #5b5cff, #b03cff 50%, #ff4f8b);
+}
+.qtile b {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.qtile__play {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: #0b0b0f;
+  background: var(--accent);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  transform: translateY(4px) scale(0.9);
+  transition:
+    opacity 0.2s ease,
+    transform 0.25s var(--ease-out);
+}
+.qtile:hover .qtile__play {
+  opacity: 1;
+  transform: none;
+}
+.qtile__eq {
+  flex: none;
+  color: var(--accent);
+}
+
+/* ---------- Home: mixes ---------- */
+.mixcard {
+  min-width: 0;
+  cursor: pointer;
+}
+.mixcard__art {
+  position: relative;
+  aspect-ratio: 1;
+  margin-bottom: 10px;
+  overflow: hidden;
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 80% 15%, hsl(calc(var(--h) + 40) 95% 70% / 0.85), transparent 55%),
+    radial-gradient(circle at 10% 90%, hsl(calc(var(--h) - 30) 90% 45% / 0.9), transparent 60%),
+    linear-gradient(150deg, hsl(var(--h) 85% 55%), hsl(calc(var(--h) + 25) 70% 22%));
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.22);
+  transition:
+    transform 0.4s var(--ease-out),
+    box-shadow 0.4s var(--ease-out);
+}
+.mixcard:hover .mixcard__art {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.3);
+}
+.mixcard__faces {
+  position: absolute;
+  inset: 14% 10% 30%;
+}
+.mixcard__face {
+  position: absolute;
+  top: calc(var(--i) * 12%);
+  left: calc(var(--i) * 26%);
+  width: 52%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  outline: 3px solid rgba(255, 255, 255, 0.9);
+  transition: transform 0.45s var(--ease-out);
+}
+.mixcard__face .cover {
+  width: 100%;
+  height: 100%;
+}
+.mixcard:hover .mixcard__face {
+  transform: translateY(calc(var(--i) * -4px)) rotate(calc((var(--i) - 1) * 4deg));
+}
+.mixcard__label {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: #fff;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.35);
+}
+.mixcard__play {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: #0b0b0f;
+  background: #fff;
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 0.2s ease,
+    transform 0.3s var(--ease-out);
+}
+.mixcard:hover .mixcard__play {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---------- Home: moods ---------- */
+.moods {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
+}
+.mood {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  height: 92px;
+  padding: 14px 16px;
+  overflow: hidden;
+  border-radius: 18px;
+  color: #fff;
+  text-align: left;
+  background: linear-gradient(135deg, var(--a), var(--b));
+  box-shadow: 0 10px 26px -12px var(--b);
+  transition:
+    transform 0.3s var(--ease-out),
+    box-shadow 0.3s var(--ease-out);
+}
+.mood:hover {
+  transform: translateY(-3px) scale(1.01);
+  box-shadow: 0 18px 34px -12px var(--b);
+}
+.mood:active {
+  transform: scale(0.97);
+}
+.mood b {
+  position: relative;
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+.mood svg {
+  position: relative;
+  opacity: 0.85;
+}
+.mood__glow {
+  position: absolute;
+  inset: -40% -20% auto auto;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.45), transparent 65%);
+  transition: transform 0.6s var(--ease-out);
+}
+.mood:hover .mood__glow {
+  transform: translate(-30px, 20px) scale(1.2);
+}
+
+/* Mood illustrations (MoodArt.tsx): white line art on the right of each card. */
+.mood b,
+.mood > svg:not(.moodart) {
+  z-index: 1;
+}
+.mood b {
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.18);
+}
+.mood .moodart {
+  position: absolute;
+  top: 50%;
+  right: 34px;
+  width: 84px;
+  height: 84px;
+  margin-top: -44px;
+  opacity: 0.92;
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.22));
+  transform: rotate(-6deg);
+  transition:
+    transform 0.5s var(--ease-out),
+    opacity 0.3s;
+  pointer-events: none;
+}
+.mood:hover .moodart {
+  opacity: 1;
+  transform: rotate(0deg) scale(1.08);
+}
+.mood .moodart--chill {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
+}
+.moodart * {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+/* Hover animations, one per mood */
+.mood:hover .ma-lift {
+  animation: ma-lift 0.9s var(--ease-out) infinite;
+}
+.mood:hover .ma-pump {
+  animation: ma-blink 0.9s steps(2) infinite;
+}
+.mood:hover .ma-twinkle {
+  animation: ma-twinkle 1.4s ease-in-out infinite;
+}
+.mood:hover .ma-road {
+  animation: ma-road 0.6s linear infinite;
+}
+.mood:hover .ma-moon {
+  animation: ma-float 2.4s ease-in-out infinite;
+}
+.mood:hover .ma-waves {
+  animation: ma-waves 1.6s linear infinite;
+}
+.mood:hover .ma-sun {
+  animation: ma-float 2.4s ease-in-out infinite;
+}
+.moodart .ma-sway {
+  transform-box: view-box;
+  transform-origin: 40px 2px;
+}
+.mood:hover .ma-sway {
+  animation: ma-sway 1.6s ease-in-out infinite;
+}
+.mood:hover .ma-confetti {
+  animation: ma-confetti 1.2s ease-in-out infinite;
+}
+.mood:hover .ma-arrow {
+  animation: ma-thunk 1.4s var(--ease-out) infinite;
+}
+.mood:hover .ma-drop {
+  animation: ma-drop 0.9s linear infinite;
+}
+.mood:hover .ma-reel {
+  animation: ma-spin 1.2s linear infinite;
+}
+.mood:hover .ma-spin {
+  animation: ma-spin 6s linear infinite;
+}
+.moodart .ma-d2 {
+  animation-delay: -0.3s !important;
+}
+.moodart .ma-d3 {
+  animation-delay: -0.6s !important;
+}
+.moodart .ma-d4 {
+  animation-delay: -0.45s !important;
+}
+.moodart .ma-d5 {
+  animation-delay: -0.15s !important;
+}
+@keyframes ma-lift {
+  0%,
+  100% {
+    transform: translateY(4px);
+  }
+  45% {
+    transform: translateY(-7px);
+  }
+}
+@keyframes ma-blink {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.2;
+  }
+}
+@keyframes ma-twinkle {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.45) rotate(45deg);
+    opacity: 0.55;
+  }
+}
+@keyframes ma-road {
+  to {
+    stroke-dashoffset: -9;
+  }
+}
+@keyframes ma-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+@keyframes ma-waves {
+  to {
+    transform: translateX(-24px);
+  }
+}
+@keyframes ma-sway {
+  0%,
+  100% {
+    transform: rotate(-7deg);
+  }
+  50% {
+    transform: rotate(7deg);
+  }
+}
+@keyframes ma-confetti {
+  0%,
+  100% {
+    transform: translateY(-2px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(3px) rotate(12deg);
+  }
+}
+@keyframes ma-thunk {
+  0% {
+    transform: translate(14px, -14px);
+    opacity: 0;
+  }
+  30% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+  36% {
+    transform: translate(1.5px, -1.5px);
+  }
+  42%,
+  100% {
+    transform: translate(0, 0);
+  }
+}
+@keyframes ma-drop {
+  0% {
+    transform: translate(1px, -4px);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-2px, 8px);
+    opacity: 0;
+  }
+}
+@keyframes ma-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mood:hover .moodart,
+  .mood:hover .moodart * {
+    animation: none !important;
+  }
+}
+
+/* ---------- Home: month so far ---------- */
+.monthcard {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  margin: 10px 0 34px;
+  padding: 18px;
+  border-radius: 26px;
+  background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 22%, transparent), color-mix(in srgb, var(--hover) 120%, transparent));
+  backdrop-filter: blur(18px) saturate(1.4);
+}
+.monthcard__mosaic {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  flex: none;
+  width: 150px;
+  height: 150px;
+  overflow: hidden;
+  border-radius: 18px;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3);
+}
+.monthcard__mosaic .cover {
+  width: 100%;
+  height: 100%;
+}
+.monthcard__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.monthcard__text small {
+  color: var(--accent);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: var(--fs-xs);
+}
+.monthcard__text b {
+  font-family: var(--font-display);
+  font-size: clamp(36px, 5vw, 56px);
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+.monthcard__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+@container (max-width: 620px) {
+  .monthcard {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* ---------- Stats: Replay by month ---------- */
+.rmonths {
+  margin: 34px 0 10px;
+}
+.rmonths .stats__colhead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.rmonths__row.shelf__row {
+  grid-auto-columns: 230px;
+}
+.rmonth {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 310px;
+  padding: 18px;
+  overflow: hidden;
+  border-radius: 26px;
+  color: #fff;
+  cursor: pointer;
+  background:
+    radial-gradient(circle at 85% 10%, hsl(calc(var(--h) + 35) 95% 65% / 0.9), transparent 55%),
+    linear-gradient(160deg, hsl(var(--h) 85% 50%), hsl(calc(var(--h) - 20) 75% 18%));
+  box-shadow: 0 16px 34px -14px hsl(var(--h) 80% 40%);
+}
+.rmonth__bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.55;
+  mix-blend-mode: luminosity;
+  transition: transform 0.8s var(--ease-out);
+}
+.rmonth:hover .rmonth__bg {
+  transform: scale(1.06);
+}
+.rmonth__shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, hsl(var(--h) 80% 30% / 0.15), hsl(var(--h) 70% 12% / 0.88) 70%);
+}
+.rmonth__head,
+.rmonth__body,
+.rmonth__play {
+  position: relative;
+}
+.rmonth__head {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+.rmonth__head small {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.85;
+}
+.rmonth__head b {
+  margin-top: 6px;
+  font-family: var(--font-display);
+  font-size: 58px;
+  font-weight: 800;
+  letter-spacing: -0.06em;
+}
+.rmonth__head span {
+  font-weight: 700;
+  opacity: 0.75;
+}
+.rmonth__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rmonth__minutes b {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.rmonth__minutes i {
+  display: block;
+  height: 4px;
+  margin-top: 4px;
+  border-radius: 4px;
+  background: #fff;
+}
+.rmonth__body p {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rmonth__body small {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.7;
+}
+.rmonth__song {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+}
+.rmonth__song span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rmonth__play {
+  position: absolute !important;
+  top: 16px;
+  right: 16px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: #0b0b0f;
+  background: #fff;
+  opacity: 0;
+  transform: scale(0.85);
+  transition:
+    opacity 0.2s ease,
+    transform 0.3s var(--ease-out);
+}
+.rmonth:hover .rmonth__play {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---------- Mix: typed feel ---------- */
+.mix__feel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  height: 52px;
+  padding: 0 10px 0 16px;
+  border-radius: 18px;
+  color: var(--text-2);
+  background: var(--hover);
+  cursor: text;
+  transition:
+    background-color 0.2s,
+    box-shadow 0.2s;
+}
+.mix__feel input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+.mix__feel input::placeholder {
+  color: var(--text-3);
+  font-weight: 500;
+}
+.mix__feel:focus-within,
+.mix__feel.is-on {
+  color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 16%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+/* ---------- Party: the invite card no longer floats over what's below it ---------- */
+.party__live .party__invite {
+  position: relative;
+  top: auto;
+}
+.party__live {
+  align-items: start;
+}
+.party__queue {
+  min-width: 0;
+}
+.party__queue .party__starters {
+  grid-column: auto;
+  margin-top: 30px;
+}
+.party__queue .party__starters .shelf__head h2 {
+  margin: 0;
+}
+
+/* ---------- Profiles: counts and follow lists ---------- */
+.profile__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+}
+.followcounts {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+}
+.followcounts button {
+  color: inherit;
+  font-size: var(--fs-md);
+  transition: color 0.2s;
+}
+.followcounts button b {
+  color: var(--text);
+  font-weight: 750;
+}
+.followcounts button:hover {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.profile__share {
+  align-items: center;
+}
+.follows__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin: 26px 0 26px;
+}
+.follows__who {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.follows__who b {
+  font-family: var(--font-display);
+  font-size: var(--fs-2xl);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.follows__find,
+.friends__find {
+  align-self: flex-start;
+  margin-top: 26px;
+}
+.follows__more {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 22px 0 0;
+}
+
+/* ---------- Recap: music toggle ---------- */
+.rc__icon.is-off {
+  opacity: 0.6;
+}
+
+/* ---------- Even rows (quick tiles, moods) ---------- */
+.qtiles-wrap {
+  margin: 14px 0 34px;
+}
+.qtiles-wrap .qtiles {
+  margin: 0;
+}
+.qtiles--row.shelf__row {
+  grid-auto-columns: 240px;
+  gap: 10px;
+}
+.moods--row.shelf__row {
+  grid-auto-columns: 180px;
+  gap: 12px;
+}
+
+/* ---------- Like button (LikeButton.tsx) ---------- */
+.like {
+  --like-a: color-mix(in srgb, var(--accent) 70%, #ff4f8b);
+  --like-b: var(--accent);
+  --like-glow: color-mix(in srgb, var(--accent) 65%, transparent);
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  color: var(--text-3);
+  transition:
+    color 0.2s,
+    background-color 0.25s;
+}
+.like:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+.like:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.like__heart {
+  overflow: visible;
+  transition:
+    filter 0.35s var(--ease-out),
+    translate 0.3s var(--ease-out);
+}
+.like:hover .like__heart {
+  translate: 0 -1px;
+}
+.like:active .like__heart {
+  scale: 0.86;
+}
+.like__outline {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  transition: stroke 0.25s;
+}
+.like__fill {
+  transform-box: fill-box;
+  transform-origin: 50% 60%;
+  transform: scale(0.2);
+  opacity: 0;
+  transition:
+    transform 0.45s cubic-bezier(0.34, 1.7, 0.5, 1),
+    opacity 0.2s;
+}
+.like__shine {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  opacity: 0;
+  transition: opacity 0.3s 0.1s;
+}
+/* Liked: filled gradient heart with a soft glow, no pill behind it. */
+.like.is-liked {
+  color: var(--like-b);
+}
+.like.is-liked:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.like.is-liked .like__outline {
+  stroke: var(--like-b);
+}
+.like.is-liked .like__fill {
+  transform: none;
+  opacity: 1;
+}
+.like.is-liked .like__shine {
+  opacity: 0.75;
+}
+.like.is-liked .like__heart {
+  filter: drop-shadow(0 0 6px var(--like-glow)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.25));
+}
+/* Now Playing sits on artwork colours: white heart. */
+.like--np {
+  --like-a: #fff;
+  --like-b: #ffe1ec;
+  --like-glow: rgba(255, 255, 255, 0.55);
+  width: 44px;
+  height: 44px;
+  color: rgba(255, 255, 255, 0.55);
+}
+.like--np:hover,
+.like--np.is-liked:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+}
+.like--np.is-liked .like__shine {
+  stroke: var(--accent);
+  opacity: 0.5;
+}
+
+/* Burst when you like a song: a ring and eight sparks flying out. */
+.like__burst {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.like__ring {
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  border: 2px solid var(--like-b);
+  opacity: 0;
+  animation: like-ring 0.55s ease-out forwards;
+}
+.like__spark {
+  --a: calc(var(--i) * 45deg + 22.5deg);
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  border-radius: 50%;
+  background: var(--like-a);
+  opacity: 0;
+  animation: like-spark 0.7s cubic-bezier(0.15, 0.6, 0.3, 1) 0.08s forwards;
+}
+.like__spark:nth-child(odd) {
+  width: 4px;
+  height: 4px;
+  background: var(--like-b);
+}
+.like__spark:nth-child(3n) {
+  background: #fff;
+}
+@keyframes like-ring {
+  0% {
+    transform: scale(0.4);
+    opacity: 0.9;
+    border-width: 6px;
+  }
+  100% {
+    transform: scale(1.45);
+    opacity: 0;
+    border-width: 0.5px;
+  }
+}
+@keyframes like-spark {
+  0% {
+    transform: rotate(var(--a)) translateY(-6px) scale(1.2);
+    opacity: 1;
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(var(--a)) translateY(-24px) scale(0.2);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .like__fill {
+    transition: opacity 0.2s;
+  }
+}

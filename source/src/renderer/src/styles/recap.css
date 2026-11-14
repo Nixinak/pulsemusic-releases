@@ -1,0 +1,620 @@
+/* ============ Recap stories ============ */
+@property --c1 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #ff2e88;
+}
+@property --c2 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #ff9a3c;
+}
+@property --c3 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #7b2cff;
+}
+@property --c4 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #ffd23f;
+}
+@property --ink {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #ffffff;
+}
+
+.rc {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  overflow: hidden;
+  color: var(--ink);
+  background: var(--c1);
+  font-family: var(--font-display);
+  transition:
+    --c1 0.9s ease,
+    --c2 0.9s ease,
+    --c3 0.9s ease,
+    --c4 0.9s ease,
+    --ink 0.5s ease;
+  -webkit-app-region: no-drag;
+}
+.rc__bg {
+  position: absolute;
+  inset: -20%;
+  filter: blur(70px) saturate(1.3);
+}
+.rc__bg span {
+  position: absolute;
+  width: 62vmax;
+  height: 62vmax;
+  border-radius: 50%;
+  mix-blend-mode: normal;
+  will-change: transform;
+}
+.rc__bg span:nth-child(1) {
+  left: -10%;
+  top: -15%;
+  background: var(--c2);
+  animation: rc-orbit-a 13s ease-in-out infinite alternate;
+}
+.rc__bg span:nth-child(2) {
+  right: -15%;
+  top: 10%;
+  background: var(--c3);
+  animation: rc-orbit-b 17s ease-in-out infinite alternate;
+}
+.rc__bg span:nth-child(3) {
+  left: 10%;
+  bottom: -25%;
+  background: var(--c4);
+  animation: rc-orbit-c 11s ease-in-out infinite alternate;
+  opacity: 0.85;
+}
+.rc__bg span:nth-child(4) {
+  right: 5%;
+  bottom: -10%;
+  width: 38vmax;
+  height: 38vmax;
+  background: var(--c1);
+  animation: rc-orbit-a 9s ease-in-out infinite alternate-reverse;
+}
+@keyframes rc-orbit-a {
+  to {
+    transform: translate(18vw, 14vh) scale(1.25);
+  }
+}
+@keyframes rc-orbit-b {
+  to {
+    transform: translate(-22vw, 20vh) scale(0.8);
+  }
+}
+@keyframes rc-orbit-c {
+  to {
+    transform: translate(14vw, -26vh) scale(1.15);
+  }
+}
+/* Fine noise keeps the big gradients from banding. */
+.rc__grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.16;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  pointer-events: none;
+}
+
+.rc__top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  padding: 18px 28px 0;
+}
+.rc__progress {
+  display: flex;
+  gap: 6px;
+  margin-right: 140px;
+}
+.rc__seg {
+  position: relative;
+  flex: 1;
+  height: 4px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--ink) 28%, transparent);
+}
+.rc__seg-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--ink);
+  transform-origin: 0 50%;
+}
+.rc__controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+.rc__periods {
+  display: flex;
+  gap: 4px;
+  margin-right: auto;
+  padding: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+  backdrop-filter: blur(10px);
+}
+.rc__periods button {
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font: 700 13px/1 var(--font-ui);
+  color: var(--ink);
+  opacity: 0.7;
+}
+.rc__periods button.is-on {
+  opacity: 1;
+  color: var(--c1);
+  background: var(--ink);
+}
+.rc__icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 14%, transparent);
+  backdrop-filter: blur(10px);
+}
+.rc__icon:hover {
+  background: color-mix(in srgb, var(--ink) 24%, transparent);
+}
+
+.rc__tap {
+  position: absolute;
+  top: 110px;
+  bottom: 0;
+  z-index: 2;
+  width: 50%;
+  cursor: pointer;
+}
+.rc__tap--prev {
+  left: 0;
+  cursor: w-resize;
+}
+.rc__tap--next {
+  right: 0;
+  cursor: e-resize;
+}
+.rc__stage {
+  position: absolute;
+  inset: 110px 0 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.rc__slide {
+  width: min(1100px, 92vw);
+  max-height: 100%;
+}
+
+/* Type */
+.rc__mega,
+.rc__giant,
+.rc__name,
+.rc__title {
+  margin: 0;
+  font-weight: 800;
+  line-height: 0.9;
+  letter-spacing: -0.045em;
+}
+.rc__mega {
+  font-size: clamp(72px, 12vw, 190px);
+  font-stretch: 78%;
+}
+.rc__giant {
+  font-size: clamp(110px, 20vw, 300px);
+  line-height: 0.82;
+}
+.rc__name {
+  font-size: clamp(56px, 8.5vw, 132px);
+  font-stretch: 85%;
+  text-wrap: balance;
+}
+.rc__name.is-long {
+  font-size: clamp(42px, 6vw, 92px);
+}
+.rc__title {
+  font-size: clamp(44px, 6vw, 84px);
+  margin-bottom: 26px;
+}
+.rc__lede {
+  margin: 0;
+  font: 700 clamp(18px, 1.8vw, 26px) / 1.3 var(--font-ui);
+}
+.rc__lede--big {
+  font-family: var(--font-display);
+  font-size: clamp(30px, 3.6vw, 52px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.rc__fine {
+  margin: 0;
+  font: 600 15px/1.45 var(--font-ui);
+  opacity: 0.8;
+}
+.rc__rise {
+  display: inline;
+}
+.rc__rise-mask {
+  display: inline-block;
+  overflow: hidden;
+  padding: 0.06em 0.04em 0.1em;
+  margin: -0.06em 0 -0.1em;
+  vertical-align: bottom;
+}
+.rc__rise-mask + .rc__rise-mask {
+  margin-left: 0.24em;
+}
+.rc__rise-mask > span {
+  display: inline-block;
+}
+.rc__count {
+  display: inline-flex;
+  align-items: baseline;
+}
+.rc__count > span:first-child {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Layouts */
+.rc__center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  text-align: center;
+}
+.rc__stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+}
+.rc__stack--artist {
+  position: relative;
+  min-height: 62vh;
+  justify-content: flex-end;
+  padding: 0 0 4vh;
+}
+.rc__hero-img {
+  position: absolute;
+  right: -2vw;
+  top: -4vh;
+  width: min(54vh, 46vw);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 40px 120px rgba(0, 0, 0, 0.35);
+}
+.rc__hero-img img,
+.rc__art img,
+.rc__disc-slice img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.rc__disc {
+  position: relative;
+  width: min(34vh, 300px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
+  animation: rc-spin 18s linear infinite;
+}
+.rc__disc::after {
+  content: '';
+  position: absolute;
+  inset: 40%;
+  border-radius: 50%;
+  background: var(--c1);
+  box-shadow: 0 0 0 10px color-mix(in srgb, var(--ink) 40%, transparent);
+}
+.rc__disc-slice {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 50%;
+  height: 50%;
+  transform-origin: 0 100%;
+  overflow: hidden;
+}
+@keyframes rc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.rc__bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 70px;
+  margin: 10px 0 4px;
+}
+.rc__bar {
+  width: 10px;
+  height: 100%;
+  border-radius: 6px;
+  background: var(--ink);
+  transform-origin: 50% 100%;
+  animation: rc-eq 1.2s ease-in-out infinite alternate;
+}
+@keyframes rc-eq {
+  0% {
+    clip-path: inset(70% 0 0 0 round 6px);
+  }
+  100% {
+    clip-path: inset(0 0 0 0 round 6px);
+  }
+}
+
+.rc__art {
+  display: block;
+  flex: none;
+  width: 72px;
+  height: 72px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--ink) 20%, transparent);
+}
+.rc__art.is-round {
+  border-radius: 50%;
+}
+.rc__rank {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rc__rank li {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+.rc__rank li:first-child .rc__art {
+  width: 104px;
+  height: 104px;
+}
+.rc__rank-n {
+  width: 1.1em;
+  font-size: clamp(40px, 4.4vw, 64px);
+  font-weight: 800;
+  font-stretch: 75%;
+  letter-spacing: -0.04em;
+  opacity: 0.55;
+}
+.rc__rank-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.rc__rank-text b {
+  font-size: clamp(24px, 2.8vw, 40px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rc__rank li:first-child .rc__rank-text b {
+  font-size: clamp(34px, 4vw, 58px);
+}
+.rc__rank-text small {
+  font: 600 15px/1.4 var(--font-ui);
+  opacity: 0.75;
+}
+
+.rc__vinyl {
+  position: relative;
+  width: min(38vh, 330px);
+  aspect-ratio: 1;
+  margin-right: 12vh;
+}
+.rc__vinyl-disc {
+  position: absolute;
+  inset: 4%;
+  left: 40%;
+  right: -32%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, var(--c3) 0 13%, #111 14% 15%, transparent 16%),
+    repeating-radial-gradient(circle, #151515 0 2px, #222 3px 4px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  animation: rc-spin 2.4s linear infinite;
+}
+.rc__vinyl-sleeve {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+}
+
+.rc__clock {
+  width: min(44vh, 380px);
+  overflow: visible;
+}
+.rc__clock-face {
+  fill: color-mix(in srgb, var(--ink) 10%, transparent);
+}
+.rc__clock line {
+  stroke: var(--ink);
+  stroke-width: 9;
+  stroke-linecap: round;
+  opacity: 0.6;
+}
+.rc__clock line.is-peak {
+  stroke: var(--c2);
+  opacity: 1;
+  stroke-width: 12;
+}
+.rc__clock text {
+  fill: var(--ink);
+  font: 800 34px var(--font-display);
+}
+
+.rc__grid3 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+}
+.rc__tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 28px 30px;
+  border-radius: 34px;
+  background: color-mix(in srgb, #fff 42%, transparent);
+  backdrop-filter: blur(14px);
+}
+.rc__tile:nth-child(2) {
+  background: color-mix(in srgb, var(--c3) 55%, transparent);
+}
+.rc__tile:nth-child(3) {
+  background: color-mix(in srgb, var(--c4) 55%, transparent);
+}
+.rc__tile-n {
+  font-size: clamp(64px, 8vw, 120px);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 0.95;
+}
+.rc__tile-l {
+  font: 700 18px/1.3 var(--font-ui);
+}
+
+.rc__summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  pointer-events: auto;
+}
+.rc__sum-card {
+  width: min(560px, 90vw);
+  padding: 30px;
+  border-radius: 36px;
+  color: #15121c;
+  background: #fffaf3;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.35);
+}
+.rc__sum-head {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 22px;
+}
+.rc__sum-head .rc__art {
+  width: 96px;
+  height: 96px;
+  border-radius: 22px;
+}
+.rc__sum-head h2 {
+  margin: 0;
+  font-size: 54px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+.rc__sum-head p {
+  margin: 4px 0 0;
+  font: 700 15px var(--font-ui);
+  opacity: 0.6;
+}
+.rc__sum-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 14px;
+}
+.rc__sum-cols h3 {
+  margin: 0 0 6px;
+  font: 700 13px var(--font-ui);
+  opacity: 0.55;
+}
+.rc__sum-cols ol {
+  margin: 0;
+  padding-left: 1.3em;
+  font: 700 16px/1.6 var(--font-ui);
+}
+.rc__sum-cols li {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rc__sum-cols strong {
+  font-size: 46px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+.rc__sum-cols strong.is-small {
+  font-size: 28px;
+  letter-spacing: -0.02em;
+}
+.rc__sum-actions {
+  display: flex;
+  gap: 10px;
+}
+.rc__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 22px;
+  border-radius: 999px;
+  font: 700 15px var(--font-ui);
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 16%, transparent);
+  backdrop-filter: blur(10px);
+  transition: transform 0.2s var(--ease-out);
+}
+.rc__btn:hover {
+  transform: translateY(-2px);
+}
+.rc__btn--solid {
+  color: #15121c;
+  background: #fff;
+}
+.rc__note {
+  max-width: 520px;
+  text-align: center;
+}
+.rc__loader {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  border: 5px solid color-mix(in srgb, var(--ink) 25%, transparent);
+  border-top-color: var(--ink);
+}
+.reduce-motion .rc__bg span,
+.reduce-motion .rc__disc,
+.reduce-motion .rc__vinyl-disc,
+.reduce-motion .rc__bar {
+  animation: none;
+}
