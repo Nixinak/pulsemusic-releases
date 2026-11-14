@@ -255,15 +255,19 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 /* ---------- Sections ---------- */
 section { position: relative; }
 section[id] { scroll-margin-top: 84px; }
-.chapter { padding: clamp(80px, 11vh, 130px) 0; }
-.split { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: clamp(32px, 6vw, 88px); align-items: center; }
-.split--flip { grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr); }
-.split--flip > .copy { order: 2; }
-@media (max-width: 900px) { .split, .split--flip { grid-template-columns: 1fr; } .split--flip > .copy { order: 0; } }
+.chapter { padding: clamp(64px, 9vh, 110px) 0; }
+/* Every chapter reads the same way: the heading across the top, then the words on the left
+   and the thing to try on the right (like the screens tour). */
+.chead { margin-bottom: 44px; }
+.chead h2 { margin: 0; }
+.chead .new { margin-bottom: 16px; }
+.split { display: grid; grid-template-columns: minmax(0, 0.42fr) minmax(0, 1fr); gap: clamp(28px, 4vw, 60px); align-items: center; }
+.split > :last-child { justify-self: end; width: 100%; }
+@media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
 h2 { margin: 0 0 22px; font: 800 clamp(42px, 5.6vw, 82px)/0.95 var(--display); letter-spacing: -0.045em; text-wrap: balance; }
 .copy p { margin: 0 0 18px; max-width: 42ch; color: var(--mist); font-size: 18px; }
 .copy p strong { color: var(--paper); font-weight: 600; }
-.new { display: inline-block; margin-bottom: 18px; padding: 5px 12px; border-radius: 999px; font-weight: 700; font-size: 14px; background: var(--paper); color: var(--base); }
+.new { display: table; margin-bottom: 18px; padding: 5px 12px; border-radius: 999px; font-weight: 700; font-size: 14px; background: var(--paper); color: var(--base); }
 .note { font-size: 15px !important; color: var(--faint) !important; }
 
 /* ---------- Lyrics demo ---------- */
@@ -527,9 +531,10 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
 
   <!-- Lyrics -->
   <section class="chapter" id="lyrics">
-    <div class="wrap split">
+    <div class="wrap">
+      <header class="chead"><h2>Lyrics that follow the singer.</h2></header>
+      <div class="split">
       <div class="copy">
-        <h2>Lyrics that follow the singer.</h2>
         <p>Synced lyrics light up word by word, over a background painted from the cover. Click any line to jump there.</p>
         <p>Open them full screen, or dock them at the side and keep browsing.</p>
       </div>
@@ -537,14 +542,16 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
         <div class="lyr__head"><span id="lyrCover"></span><div><b>Northern Static</b><span>Nordlys</span></div></div>
         <div class="lyr__view"><div class="lyr__lines" id="lyrLines"></div></div>
       </div>
+      </div>
     </div>
   </section>
 
   <!-- AI DJ -->
   <section class="chapter" id="dj">
-    <div class="wrap split split--flip">
+    <div class="wrap">
+      <header class="chead"><h2>A DJ that knows your music.</h2></header>
+      <div class="split">
       <div class="copy">
-        <h2>A DJ that knows your music.</h2>
         <p>Ask for a mood, an artist or a song. It builds a set from music you like, adds a few you haven't heard yet, and says a few words before the next song.</p>
         <p><strong>It runs on your own computer,</strong> so it's free and there's no account to make. The installer sets it up for you.</p>
       </div>
@@ -561,15 +568,16 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
         <p class="queue__head">Up next</p>
         <ul class="queue" id="djQueue"></ul>
       </div>
+      </div>
     </div>
   </section>
 
   <!-- Friends / listen along -->
   <section class="chapter" id="friends">
-    <div class="wrap split">
+    <div class="wrap">
+      <header class="chead"><span class="new">New in 1.4</span><h2>Listen along with friends.</h2></header>
+      <div class="split">
       <div class="copy">
-        <span class="new">New in 1.4</span>
-        <h2>Listen along with friends.</h2>
         <p>Follow anyone on Spotify from their profile. When you follow each other, you're friends.</p>
         <p>If a friend uses Pulse too, you see what they're playing right now. <strong>One click puts you in the same song, at the same second,</strong> and you stay in step until you pick something else.</p>
       </div>
@@ -590,14 +598,16 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
           <div id="withSlot"></div>
         </div>
       </div>
+      </div>
     </div>
   </section>
 
   <!-- Party -->
   <section class="chapter" id="party">
-    <div class="wrap split split--flip">
+    <div class="wrap">
+      <header class="chead"><h2>A party where everyone picks.</h2></header>
+      <div class="split">
       <div class="copy">
-        <h2>A party where everyone picks.</h2>
         <p>Friends scan a code or open a link on their phones. They search, add songs to your queue, and can play, pause and skip too. Nothing to install.</p>
         <p>Try it: add a song from the phone, then press skip.</p>
       </div>
@@ -621,15 +631,16 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
           <ol id="hostQueue"></ol>
         </div>
       </div>
+      </div>
     </div>
   </section>
 
   <!-- Discord -->
   <section class="chapter" id="discord">
-    <div class="wrap split">
+    <div class="wrap">
+      <header class="chead"><span class="new">Upgraded</span><h2>Your Discord, in sync.</h2></header>
+      <div class="split">
       <div class="copy">
-        <span class="new">Upgraded</span>
-        <h2>Your Discord, in sync.</h2>
         <p>Friends see the song you're playing with its cover in full size, a live progress bar and a button to listen on Spotify. The title opens the song, the artist opens their page.</p>
         <p>The little badge on the cover changes with you: <strong>paused, a song you liked, the AI DJ on air or a party running.</strong></p>
         <p class="fine">Try it: press pause or pick another song up top.</p>
@@ -663,6 +674,7 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
           <span class="dcmember__av">N<i></i></span>
           <div class="dcmember__text"><b>Nix</b><span><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 18.5a3 3 0 1 1-2-2.83V5.6c0-.5.37-.93.87-.99l10-1.25A1 1 0 0 1 19 4.35v11.15a3 3 0 1 1-2-2.83V7.4l-8 1v10.1Z"/></svg>Listening to <em id="dcMember"></em></span></div>
         </div>
+      </div>
       </div>
     </div>
   </section>
@@ -813,8 +825,10 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
   const player = { i: 0, t: 0, len: SONGS[0].len, playing: false, listeners: new Set() }
   const emit = () => player.listeners.forEach((f) => f())
 
+  // While the screens tour is on screen, the page takes the colours of the screenshot shown.
+  let paletteOverride = null
   function paint() {
-    const [b, a, c, d] = SONGS[player.i].pal
+    const [b, a, c, d] = paletteOverride ?? SONGS[player.i].pal
     root.style.setProperty('--base', b)
     root.style.setProperty('--c1', a)
     root.style.setProperty('--c2', c)
@@ -1276,22 +1290,30 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
 
   /* ---------- Screens tour ---------- */
   const SCREENS = [
-    ['home', 'Home', 'Your recent music, what you play on repeat, and a greeting in the colours of the last cover.'],
-    ['recommended', 'Recommended', 'Under every playlist, songs matched by artist, tempo and key. Press play and they keep going.'],
-    ['mix', 'Mix generator', 'Pick a few artists and a mood, and Pulse makes the playlist.'],
-    ['stats', 'Your stats', 'Listening time, top songs and artists, and a story-style Recap you can share.'],
-    ['party', 'Party', 'A QR code for your friends, and the songs they added, right in your queue.'],
-    ['light-home', 'Light mode', 'Follows Windows, or pick your own theme, background and font.']
+    ['home', 'Home', 'Your recent music, what you play on repeat, and a greeting in the colours of the last cover.', ['#04110f', '#1fb39b', '#21607a', '#d99a6c']],
+    ['recommended', 'Recommended', 'Under every playlist, songs matched by artist, tempo and key. Press play and they keep going.', ['#14070f', '#b0347f', '#8e5a7a', '#e2a3c4']],
+    ['mix', 'Mix generator', 'Pick a few artists and a mood, and Pulse makes the playlist.', ['#020f09', '#0f9a5a', '#2f7d5e', '#9be35a']],
+    ['stats', 'Your stats', 'Listening time, top songs and artists, and a story-style Recap you can share.', ['#040a1c', '#2f5bff', '#1a3aa8', '#8fa6ff']],
+    ['party', 'Party', 'A QR code for your friends, and the songs they added, right in your queue.', ['#10070b', '#b0405f', '#5a3a8f', '#ff7a9a']],
+    ['light-home', 'Light mode', 'Follows Windows, or pick your own theme, background and font.', ['#0a1418', '#7fc8c4', '#b9d6e0', '#4a8fa3']]
   ]
   $('#tabs').innerHTML = SCREENS.map(([k, t, d], i) => `<button class="tab" role="tab" id="tab-${k}" aria-selected="${i === 0}" aria-controls="screen" data-i="${i}"><b>${t}</b><span>${d}</span></button>`).join('')
   $('#stack').innerHTML = SCREENS.map(([k, t], i) => `<img src="assets/${k}.jpg" alt="Pulse Music: ${t}" loading="${i ? 'lazy' : 'eager'}" class="${i === 0 ? 'is-on' : ''}" width="1600" height="1011">`).join('')
   $('#screen').setAttribute('role', 'tabpanel')
   let screenAt = 0
+  let tourInView = false
   function showScreen(i) {
     screenAt = i
+    if (tourInView) { paletteOverride = SCREENS[i][3]; paint() }
     $$('.tab').forEach((t, k) => t.setAttribute('aria-selected', String(k === i)))
     $$('#stack img').forEach((im, k) => im.classList.toggle('is-on', k === i))
   }
+  // the colours follow the screenshot while the tour is on screen, and the song again after
+  new IntersectionObserver(([e]) => {
+    tourInView = e.isIntersecting
+    paletteOverride = tourInView ? SCREENS[screenAt][3] : null
+    paint()
+  }, { rootMargin: '-35% 0px -35% 0px' }).observe($('#screens .tour'))
   $$('.tab').forEach((t) => {
     t.addEventListener('click', () => showScreen(+t.dataset.i))
     if (fine) t.addEventListener('pointerenter', () => showScreen(+t.dataset.i))
