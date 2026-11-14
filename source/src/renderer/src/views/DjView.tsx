@@ -1,5 +1,6 @@
-// Pulse DJ: one calm column. The orb and the DJ's words up top, a request bar, and what's
-// coming up. No inner scroll areas and no heavy effects, so the page scrolls smoothly.
+// Pulse DJ: a radio studio. The orb in a ring of sound bars (they move with the DJ's voice) and
+// an ON AIR sign, the DJ's words and the request bar beside it, moods to start a show with,
+// and what's coming up. No inner scroll areas and no heavy effects, so the page scrolls smoothly.
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useApp } from '@/lib/store'
@@ -7,13 +8,17 @@ import { startDj, stopDj, useDj, voiceLevel } from '@/lib/dj'
 import { playUris, usePlayer } from '@/lib/player'
 import { ArtistLinks, Cover, EqBars } from '@/components/common'
 import { SparkleIcon } from '@/components/Icons'
+import { MOODS, MoodTile } from './HomeExtras'
 import { SpokenLine } from '@/components/DjVoice'
 import { AiSetup } from '@/components/AiSetup'
 
-const IDEAS = ['Late night drive', 'Gym energy', 'Deep focus', 'What’s new', 'Surprise me']
 
-/** The orb only animates its size while the DJ talks; otherwise it slowly turns (CSS only). */
-function Orb({ speaking }: { speaking: boolean }): React.JSX.Element {
+/** Bars around the orb: how far each one reaches when the DJ speaks (fixed, so it looks like a
+ *  real level meter rather than noise). */
+const BARS = Array.from({ length: 56 }, (_, i) => 0.35 + 0.65 * Math.abs(Math.sin(i * 2.399 + Math.sin(i * 0.7))))
+
+/** The orb and its ring only follow the voice while the DJ talks; otherwise they breathe (CSS). */
+function Orb({ speaking, thinking }: { speaking: boolean; thinking: boolean }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const el = ref.current
@@ -33,7 +38,12 @@ function Orb({ speaking }: { speaking: boolean }): React.JSX.Element {
     return () => cancelAnimationFrame(raf)
   }, [speaking])
   return (
-    <div ref={ref} className={`djorb ${speaking ? 'is-speaking' : ''}`} aria-hidden="true">
+    <div ref={ref} className={`djorb djx__orb ${speaking ? 'is-speaking' : ''} ${thinking ? 'is-thinking' : ''}`} aria-hidden="true">
+      <span className="djx__bars">
+        {BARS.map((k, i) => (
+          <i key={i} style={{ ['--a' as string]: `${(i / BARS.length) * 360}deg`, ['--k' as string]: k.toFixed(3) }} />
+        ))}
+      </span>
       <span className="djorb__glow" />
       <span className="djorb__ball" />
     </div>
@@ -80,87 +90,101 @@ export function DjView(): React.JSX.Element {
   const upcoming = showAll ? set : set.slice(Math.max(0, current), Math.max(0, current) + 6)
 
   return (
-    <div className="djv">
-      <section className="djv__hero">
-        <Orb speaking={status === 'speaking'} />
-        <span className={`djv__status djv__status--${status}`}>
-          <i />
-          {statusText}
-        </span>
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.p
-            key={line || `${active}`}
-            className={`djv__line ${line ? '' : 'is-quiet'}`}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.3 }}
-          >
-            {line ? (
-              <SpokenLine text={line} live={status === 'speaking'} />
-            ) : active ? (
-              'Ask for something, or just listen.'
-            ) : (
-              'Your own radio host. It picks songs from your library and talks between them.'
-            )}
-          </motion.p>
-        </AnimatePresence>
-        {status === 'error' && error && <p className="djv__error">{error}</p>}
-        {!active ? (
-          <button className="btn btn--accent djv__start" disabled={busy || !!problem} onClick={() => send('')}>
-            <SparkleIcon size={18} /> Start the DJ
-          </button>
-        ) : (
-          <button className="btn djv__stop" onClick={() => stopDj()}>
-            Stop
-          </button>
-        )}
-        {problem && (
-          <div className="djv__problem">
-            <p>
-              {problem}{' '}
-              {!needsSetup && (
-                <button className="link" onClick={() => navigate({ name: 'settings' })}>
-                  Open settings
-                </button>
+    <div className="djx">
+      <section className={`djx__studio djx__studio--${status}`}>
+        <span className="djx__studio-glow" aria-hidden="true" />
+        <div className="djx__left">
+          <Orb speaking={status === 'speaking'} thinking={busy} />
+          <span className={`djx__onair ${status === 'speaking' ? 'is-live' : active ? 'is-on' : ''}`}>
+            <i />
+            {status === 'speaking' ? 'On air' : statusText}
+          </span>
+        </div>
+        <div className="djx__right">
+          <small className="djx__eyebrow">Pulse DJ</small>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.p
+              key={line || `${active}`}
+              className={`djx__line ${line ? '' : 'is-quiet'}`}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.3 }}
+            >
+              {line ? (
+                <SpokenLine text={line} live={status === 'speaking'} />
+              ) : active ? (
+                'Ask for something, or just listen.'
+              ) : (
+                'Your own radio host. It picks songs from your library and talks between them.'
               )}
-            </p>
-            {needsSetup && <AiSetup onReady={recheck} />}
+            </motion.p>
+          </AnimatePresence>
+          {status === 'error' && error && <p className="djv__error">{error}</p>}
+          <form
+            className="djx__ask"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (text.trim()) send(text)
+            }}
+          >
+            <input
+              id="dj-request"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Ask for a song, artists or a mood…"
+              disabled={busy || !!problem}
+              autoComplete="off"
+            />
+            <button className="djx__send" aria-label="Ask the DJ" disabled={busy || !text.trim()}>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 19V5M5.5 11.5L12 5l6.5 6.5" />
+              </svg>
+            </button>
+          </form>
+          <div className="djx__actions">
+            {!active ? (
+              <button className="btn btn--accent djx__start" disabled={busy || !!problem} onClick={() => send('')}>
+                <SparkleIcon size={18} /> {busy ? 'Picking songs…' : 'Start the DJ'}
+              </button>
+            ) : (
+              <button className="btn djx__stop" onClick={() => stopDj()}>
+                Stop the show
+              </button>
+            )}
+            <button className="btn djx__surprise" disabled={busy || !!problem} onClick={() => send('Surprise me')}>
+              Surprise me
+            </button>
           </div>
-        )}
+          {problem && (
+            <div className="djv__problem">
+              <p>
+                {problem}{' '}
+                {!needsSetup && (
+                  <button className="link" onClick={() => navigate({ name: 'settings' })}>
+                    Open settings
+                  </button>
+                )}
+              </p>
+              {needsSetup && <AiSetup onReady={recheck} />}
+            </div>
+          )}
+        </div>
       </section>
 
-      <form
-        className="djv__ask"
-        onSubmit={(e) => {
-          e.preventDefault()
-          if (text.trim()) send(text)
-        }}
-      >
-        <input
-          id="dj-request"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="A song, artists, an album or a mood, like “riad and calin” or “late night drive”"
-          disabled={busy || !!problem}
-          autoComplete="off"
-        />
-        <button className="djv__send" aria-label="Ask the DJ" disabled={busy || !text.trim()}>
-          ↑
-        </button>
-      </form>
-      <div className="djv__ideas">
-        {IDEAS.map((i) => (
-          <button key={i} className="pill" disabled={busy || !!problem} onClick={() => send(i)}>
-            {i}
-          </button>
-        ))}
-      </div>
+      <section className="djx__moods">
+        <h2 className="djx__h">Start a show</h2>
+        <div className="djx__moodgrid">
+          {MOODS.map((m) => (
+            <MoodTile key={m.ask} m={m} disabled={busy || !!problem} />
+          ))}
+        </div>
+      </section>
 
       {set.length > 0 && (
-        <section className="djv__next">
+        <section className="djx__next">
           <header>
-            <h2>{current >= 0 ? 'Up next' : 'On the show'}</h2>
+            <h2 className="djx__h">{current >= 0 ? 'Up next' : 'On the show'}</h2>
             {set.length > 6 && (
               <button className="link" onClick={() => setShowAll((v) => !v)}>
                 {showAll ? 'Show less' : `All ${set.length}`}
@@ -172,13 +196,14 @@ export function DjView(): React.JSX.Element {
               const now = p.id === trackId
               return (
                 <li key={`${p.id}-${i}`} className={now ? 'is-now' : ''} onDoubleClick={() => void playUris(set.slice(set.indexOf(p)).map((x) => x.uri), undefined, { source: 'dj' })}>
-                  <Cover src={p.image} size={44} radius={8} />
+                  <span className="djx__num">{now ? <EqBars playing={!paused} /> : set.indexOf(p) + 1}</span>
+                  <Cover src={p.image} size={52} radius={10} />
                   <span className="djv__song">
                     <b>{p.name}</b>
                     <small>{p.artists?.length ? <ArtistLinks artists={p.artists} onOpen={(id) => navigate({ name: 'artist', id })} /> : p.artist}</small>
                   </span>
                   {p.discovered && <span className="djv__new">New</span>}
-                  {now && <EqBars playing={!paused} />}
+                  {now && <span className="djx__nowtag">Playing</span>}
                 </li>
               )
             })}

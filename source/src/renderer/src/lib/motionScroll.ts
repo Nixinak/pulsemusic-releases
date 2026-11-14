@@ -1,74 +1,8 @@
-// Smooth scrolling helpers: eased mouse-wheel scrolling, click-and-drag rows with inertia,
-// and a flag while the main view scrolls.
+// Smooth scrolling helpers: click-and-drag rows with inertia, and a flag while the main view
+// scrolls. The mouse wheel is left to Chromium: its own smooth scrolling runs off the main
+// thread (it keeps gliding even while the page is busy), which the old eased wheel handler
+// here couldn't do, because it had to catch every wheel event on the main thread first.
 import { useEffect, type RefObject } from 'react'
-
-const reduced = (): boolean =>
-  document.documentElement.classList.contains('reduce-motion') ||
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-/**
- * Eases mouse-wheel scrolling: each notch moves a target and the view glides toward it.
- * Precision touchpads already scroll smoothly, so small pixel deltas pass straight through.
- */
-export function useSmoothWheel(ref: RefObject<HTMLElement | null>): void {
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    let target = el.scrollTop
-    let raf = 0
-    let animating = false
-
-    const step = (): void => {
-      const diff = target - el.scrollTop
-      if (Math.abs(diff) < 0.5) {
-        el.scrollTop = target
-        animating = false
-        return
-      }
-      el.scrollTop += diff * 0.16
-      raf = requestAnimationFrame(step)
-    }
-
-    const onWheel = (e: WheelEvent): void => {
-      if (e.ctrlKey || e.shiftKey || reduced()) return
-      // Let nested scroll areas (lyrics, menus, drawers) scroll themselves.
-      const inner = (e.target as HTMLElement).closest('[data-own-scroll]')
-      if (inner && inner !== el) return
-      const delta = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY
-      // Touchpads send many tiny deltas and are already smooth.
-      if (Math.abs(delta) < 40 && e.deltaMode === 0 && !animating) return
-      e.preventDefault()
-      if (!animating) target = el.scrollTop
-      target = Math.max(0, Math.min(el.scrollHeight - el.clientHeight, target + delta))
-      if (!animating) {
-        animating = true
-        raf = requestAnimationFrame(step)
-      }
-    }
-
-    // Keep the target in sync when something else scrolls (keyboard, scrollTo, scrollbar).
-    const onScroll = (): void => {
-      if (!animating) target = el.scrollTop
-    }
-
-    // A new page: stop any glide still heading for a spot on the old page.
-    const onReset = (): void => {
-      cancelAnimationFrame(raf)
-      animating = false
-      target = 0
-    }
-
-    el.addEventListener('wheel', onWheel, { passive: false })
-    el.addEventListener('scroll', onScroll, { passive: true })
-    el.addEventListener('pulse:scroll-reset', onReset)
-    return () => {
-      el.removeEventListener('pulse:scroll-reset', onReset)
-      cancelAnimationFrame(raf)
-      el.removeEventListener('wheel', onWheel)
-      el.removeEventListener('scroll', onScroll)
-    }
-  }, [ref])
-}
 
 /** Click-and-drag horizontal scrolling with momentum (no motion blur). With `loop` (the width
  *  of one copy of the row's cards, the row holding three copies), the row has no ends: it

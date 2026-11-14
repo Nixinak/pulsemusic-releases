@@ -1,5 +1,5 @@
-// Replay by month (like Apple Music Replay): a card for every month of this year, January to
-// now, with minutes, your top artist and song; each opens that month's Recap. A new month
+// Replay by month (like Apple Music Replay): a sideways row with a card for every month of this
+// year, January to now, with minutes, your top artist and song; each opens that month's Recap. A new month
 // joins on the 1st. The year gets a card of its own: locked until December, then your whole
 // year (and in January, last year's card waits at the start of the row).
 import { useMemo } from 'react'
@@ -9,7 +9,7 @@ import { computeStats, isRealId, useHistory, type Stats } from '@/lib/history'
 import { formatMinutes, monthPeriod, yearPeriod } from '@/lib/recap'
 import { useArtistImage } from '@/lib/artistImage'
 import { playUris } from '@/lib/player'
-import { Cover } from '@/components/common'
+import { Cover, ShelfRow } from '@/components/common'
 import { PlayIcon, SparkleIcon } from '@/components/Icons'
 
 interface Month {
@@ -231,13 +231,14 @@ export function ReplayMonths(): React.JSX.Element | null {
           {formatMinutes(Math.round(data.thisYear.ms / 60_000))} in {year}
         </span>
       </header>
-      <div className="rmonths__grid">
+      {/* oldest to newest, opened at this month; drag or scroll sideways for the rest */}
+      <ShelfRow className="rmonths__row" loop={false} startAtEnd>
         {data.lastYear && data.lastYear.plays > 0 && <YearCard year={year - 1} stats={data.lastYear} open />}
         {data.months.map((m) => (
           <MonthTile key={m.start.getTime()} m={m} max={max} now={m.start.getMonth() === now.getMonth()} />
         ))}
         <YearCard year={year} stats={data.thisYear} open={now.getMonth() >= YEAR_OPENS} />
-      </div>
+      </ShelfRow>
     </section>
   )
 }

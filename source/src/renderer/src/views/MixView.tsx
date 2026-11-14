@@ -11,7 +11,7 @@ import { playUris } from '@/lib/player'
 import { formatDuration, plural } from '@/lib/format'
 import { Cover, Slider, usePagePalette } from '@/components/common'
 import { CoverStack } from '@/components/CoverWalls'
-import { MixMaker, type MixMakerResult } from '@/components/MixMaker'
+import { MixMaker, type MixMakerResult, type MixSong } from '@/components/MixMaker'
 import { TrackList } from '@/components/TrackList'
 import { CloseIcon, HeartIcon, PlayIcon, PlusIcon, SearchIcon, ShuffleIcon, SparkleIcon } from '@/components/Icons'
 import { useQuery } from '@/lib/useQuery'
@@ -372,7 +372,14 @@ export function MixView(): React.JSX.Element {
           name: mixName,
           covers: result.map((t) => sp.pickImage(t.album?.images, 300)).filter((x): x is string => !!x),
           songs: result.length,
-          length: formatDuration(result.reduce((n, t) => n + t.duration_ms, 0))
+          length: formatDuration(result.reduce((n, t) => n + t.duration_ms, 0)),
+          tracks: result.map((t) => ({
+            uri: t.uri,
+            name: t.name,
+            artist: t.artists.map((a) => a.name).join(', '),
+            image: sp.pickImage(t.album?.images, 64),
+            durationMs: t.duration_ms
+          }))
         })
     } catch (e) {
       setShowFailed(true)
@@ -426,30 +433,32 @@ export function MixView(): React.JSX.Element {
 
   const total = mix?.reduce((n, t) => n + t.duration_ms, 0) ?? 0
 
-  // Covers for the full-screen show: what you picked first, then songs from everything read.
-  const swirlImages = useMemo(() => {
-    const out: string[] = []
-    for (const id of sources) {
-      const p = playlists.find((x) => x.id === id)
-      const img = p ? sp.pickImage(p.images, 300) : null
-      if (img) out.push(img)
+  // Songs for the show to look through: a shuffled handful of everything read.
+  const showItems = useMemo<MixSong[]>(() => {
+    if (!pool?.length) return []
+    const out: MixSong[] = []
+    const seen = new Set<string>()
+    for (let i = 0; i < 600 && out.length < 120; i++) {
+      const c = pool[Math.floor(Math.random() * pool.length)]
+      const img = c && sp.pickImage(c.track.album?.images, 300)
+      if (!c || !img || seen.has(c.track.id)) continue
+      seen.add(c.track.id)
+      out.push({ image: img, name: c.track.name, artist: c.track.artists.map((a) => a.name).join(', ') })
     }
-    for (const a of picked) if (a.image) out.push(a.image.replace(/(\/image\/ab6761610000)(f178|5174)/, '$1e5eb'))
-    for (const a of topArtists.data?.items ?? []) {
-      const img = sp.pickImage(a.images, 300)
-      if (img) out.push(img)
-    }
-    if (pool?.length) {
-      const seen = new Set<string>()
-      for (let i = 0; i < 400 && seen.size < 80; i++) {
-        const c = pool[Math.floor(Math.random() * pool.length)]
-        const img = c && sp.pickImage(c.track.album?.images, 300)
-        if (img) seen.add(img)
+    return out
+  }, [pool])
+
+  // Ctrl+Enter makes the mix from anywhere on the page
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !loading) {
+        e.preventDefault()
+        void run()
       }
-      out.push(...seen)
     }
-    return [...new Set(out)]
-  }, [sources, playlists, picked, topArtists.data, pool])
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
 
   // What the mix will be made of, in words and covers, for the preview next to the controls.
   const chosen = sourceOptions.filter((o) => sources.includes(o.id))
@@ -472,12 +481,13 @@ export function MixView(): React.JSX.Element {
     <div className="mix">
       <MixMaker
         open={showOpen}
-        images={swirlImages}
+        items={showItems}
         result={shown}
         failed={showFailed}
         saving={saving}
         onClose={closeShow}
         onPlay={() => mix && void playUris(mix.map((t) => t.uri))}
+        onPlayAt={(i) => mix?.[i] && void playUris(mix.map((t) => t.uri), mix[i].uri)}
         onSave={() => void save()}
       />
       <header className="mix__top">
@@ -617,17 +627,24 @@ export function MixView(): React.JSX.Element {
         <aside className="mix__preview">
           <CoverStack images={previewArt} className="mix__stack" />
           <p className="mix__summary">{summary}</p>
-          <button className="btn btn--accent mix__make" disabled={loading} onClick={() => void run()}>
-            {loading ? (
-              <>
-                <span className="cmd__spin" /> Reading your library…
-              </>
-            ) : (
-              <>
-                <ShuffleIcon size={18} /> {mix ? 'Make another' : 'Make my mix'}
-              </>
-            )}
+          <button className={`mixgo ${loading ? 'is-busy' : ''}`} disabled={loading} onClick={() => void run()}>
+            <span className="mixgo__sheen" aria-hidden="true" />
+            <span className="mixgo__icon" aria-hidden="true">
+              {loading ? <span className="cmd__spin" /> : <ShuffleIcon size={20} />}
+            </span>
+            <span className="mixgo__text">
+              <b>{loading ? 'Reading your library…' : mix ? 'Make another' : 'Make my mix'}</b>
+              <small>
+                {plural(count, 'song')} · {vibe === 'custom' && feelText.trim() ? feelText.trim() : (VIBES.find((v) => v.id === vibe)?.label ?? 'Balanced')}
+              </small>
+            </span>
+            <span className="mixgo__arrow" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+            </span>
           </button>
+          <small className="mixgo__hint">or press Ctrl + Enter</small>
           {pool && <small className="muted">{plural(pool.length, 'song')} to choose from</small>}
         </aside>
       </div>

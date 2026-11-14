@@ -25,6 +25,37 @@ export function updateStatus(): UpdateStatus {
   return app.isPackaged ? status : { state: 'dev' }
 }
 
+/** The headlines of a release's notes (the bold start of each point), for the update card. */
+function highlights(notes: unknown): string[] {
+  const text = Array.isArray(notes)
+    ? notes.map((n) => (n && typeof n === 'object' && 'note' in n ? String((n as { note: unknown }).note ?? '') : '')).join('\n')
+    : typeof notes === 'string'
+      ? notes
+      : ''
+  if (!text) return []
+  const items = text.match(/<li[^>]*>[\s\S]*?<\/li>/gi) ?? text.split('\n').filter((l) => /^\s*[-*]\s+/.test(l))
+  const plain = (s: string): string =>
+    s
+      .replace(/<[^>]+>/g, '')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;|&apos;/g, "'")
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/\*\*/g, '')
+      .replace(/^\s*[-*]\s+/, '')
+      .trim()
+  return items
+    .map((li) => {
+      const bold = /<strong>([\s\S]*?)<\/strong>|\*\*([^*]+)\*\*/i.exec(li)
+      const head = plain(bold ? (bold[1] ?? bold[2] ?? '') : li.split(/:\s/)[0])
+      return head.replace(/[:.]$/, '')
+    })
+    .filter((h) => h.length > 2 && h.length < 90)
+    .slice(0, 4)
+}
+let notes: string[] = []
+
 let checkingSince = 0
 /** Busy or done: another check would only get in the way (a check stuck for 2 minutes isn't). */
 const settled = (): boolean =>
@@ -86,13 +117,17 @@ export function initUpdates(getWindow: () => BrowserWindow | null, autoOn: boole
   autoUpdater.on('checking-for-update', () => {
     if (status.state !== 'downloading' && status.state !== 'ready') set({ state: 'checking' })
   })
-  autoUpdater.on('update-available', (info) => set({ state: 'downloading', version: info.version, percent: 0 }))
+  autoUpdater.on('update-available', (info) => {
+    notes = highlights(info.releaseNotes)
+    set({ state: 'downloading', version: info.version, percent: 0, notes })
+  })
   autoUpdater.on('update-not-available', () => set({ state: 'latest', version: app.getVersion() }))
   autoUpdater.on('download-progress', (p) =>
-    set({ state: 'downloading', version: status.version, percent: Math.max(0, Math.min(100, Math.round(p.percent))) })
+    set({ state: 'downloading', version: status.version, percent: Math.max(0, Math.min(100, Math.round(p.percent))), notes })
   )
   autoUpdater.on('update-downloaded', (info) => {
-    set({ state: 'ready', version: info.version })
+    const n = highlights(info.releaseNotes)
+    set({ state: 'ready', version: info.version, notes: n.length ? n : notes })
     const w = getWindow()
     if (w && !w.isDestroyed()) w.webContents.send('update:ready', info.version)
   })

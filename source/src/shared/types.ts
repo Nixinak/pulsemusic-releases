@@ -667,8 +667,8 @@ export interface PulseApi {
   }
   /** Small JSON documents kept in the user data folder. */
   store: {
-    get<T>(name: 'history'): Promise<T | null>
-    set(name: 'history', data: unknown): Promise<void>
+    get<T>(name: 'history' | 'mixes'): Promise<T | null>
+    set(name: 'history' | 'mixes', data: unknown): Promise<void>
   }
 }
 
@@ -676,6 +676,6 @@ export interface PulseApi {
 export type UpdateStatus =
   | { state: 'idle' | 'checking' | 'dev'; version?: string; percent?: number; message?: string }
   | { state: 'latest'; version: string; percent?: number; message?: string }
-  | { state: 'downloading'; version?: string; percent: number; message?: string }
-  | { state: 'ready'; version: string; percent?: number; message?: string }
+  | { state: 'downloading'; version?: string; percent: number; message?: string; notes?: string[] }
+  | { state: 'ready'; version: string; percent?: number; message?: string; notes?: string[] }
   | { state: 'error'; message: string; version?: string; percent?: number }

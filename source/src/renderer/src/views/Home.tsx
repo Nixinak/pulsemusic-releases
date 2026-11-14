@@ -1,5 +1,6 @@
 // Home: a greeting with a line to the AI DJ, the cover ring of what you played lately (it
-// loops forever), friends listening right now, your songs on repeat, new releases from the
+// loops forever), friends listening right now, the mixes made for you (Daily Mixes, Discover
+// Weekly…), your songs on repeat, new releases from the
 // artists you play, then your artists and playlists.
 import { Emo } from '@/components/Emoji'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -15,7 +16,7 @@ import { prefetchUser } from '@/lib/people'
 import { FRESH } from '@/lib/djIntent'
 import { Cover, EqBars, MediaCard, Shelf, Skeleton, usePagePalette } from '@/components/common'
 import { CoverRing, type RingItem } from '@/components/CoverRing'
-import { MonthCard, MoodRow, NewReleases, QuickTiles, RecentlyPlayed, SavedAlbums, YourMixes } from './HomeExtras'
+import { MadeForYou, MonthCard, MoodRow, NewReleases, QuickTiles, RecentlyPlayed, SavedAlbums, YourMixes } from './HomeExtras'
 import { contextMenuFor } from '@/components/menus'
 import type { SAlbumRef, SArtist, STrack } from '@/lib/types'
 
@@ -183,7 +184,9 @@ export function Home(): React.JSX.Element {
 
       <FriendsNow />
 
-      <YourMixes artists={artists.data?.items ?? []} tracks={[...topTracks, ...(mixTracks.data?.items ?? [])].filter((t, i, l) => t?.id && l.findIndex((x) => x.id === t.id) === i)} />
+      <MadeForYou
+        fallback={<YourMixes artists={artists.data?.items ?? []} tracks={[...topTracks, ...(mixTracks.data?.items ?? [])].filter((t, i, l) => t?.id && l.findIndex((x) => x.id === t.id) === i)} />}
+      />
 
       {topTracks.length > 0 && (
         <section className="shelf">

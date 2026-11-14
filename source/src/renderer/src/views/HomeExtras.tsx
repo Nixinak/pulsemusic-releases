@@ -15,6 +15,7 @@ import { Cover, EqBars, MediaCard, Shelf, ShelfRow } from '@/components/common'
 import { contextMenuFor } from '@/components/menus'
 import { HeartIcon, PlayIcon, SparkleIcon } from '@/components/Icons'
 import { MoodArt, type MoodArtKind } from '@/components/MoodArt'
+import { useMadeForYou } from '@/lib/madeForYou'
 import type { SAlbumRef, SArtist, STrack } from '@/lib/types'
 
 type RecentItem = { track: STrack; played_at: string; context?: { type?: string; uri?: string } | null }
@@ -231,7 +232,7 @@ export function YourMixes({ artists, tracks }: { artists: SArtist[]; tracks: STr
 
 /* ---------- Moods for the DJ ---------- */
 
-const MOODS: { label: string; ask: string; a: string; b: string; art: MoodArtKind }[] = [
+export const MOODS: { label: string; ask: string; a: string; b: string; art: MoodArtKind }[] = [
   { label: 'Late night drive', ask: 'late night drive', a: '#1b1f5e', b: '#7a2cff', art: 'drive' },
   { label: 'Gym', ask: 'gym', a: '#ff3d2e', b: '#ff9f1c', art: 'gym' },
   { label: 'Chill', ask: 'something chill', a: '#0c7c8c', b: '#7bdff2', art: 'chill' },
@@ -242,16 +243,21 @@ const MOODS: { label: string; ask: string; a: string; b: string; art: MoodArtKin
   { label: 'What’s new', ask: 'what’s new', a: '#5a1fd1', b: '#00d1ff', art: 'new' }
 ]
 
-export function MoodRow(): React.JSX.Element {
-  const grid = useEvenGrid(MOODS.length, 170, 12, 2)
-  const mood = (m: (typeof MOODS)[number]): React.JSX.Element => (
-    <button key={m.ask} className="mood" style={{ ['--a' as string]: m.a, ['--b' as string]: m.b }} onClick={() => void startDj(m.ask)}>
+/** One mood card: tap it and the DJ starts a show in that mood. */
+export function MoodTile({ m, disabled = false }: { m: (typeof MOODS)[number]; disabled?: boolean }): React.JSX.Element {
+  return (
+    <button className="mood" disabled={disabled} style={{ ['--a' as string]: m.a, ['--b' as string]: m.b }} onClick={() => void startDj(m.ask)}>
       <span className="mood__glow" aria-hidden="true" />
       <MoodArt kind={m.art} />
       <b>{m.label}</b>
       <SparkleIcon size={16} />
     </button>
   )
+}
+
+export function MoodRow(): React.JSX.Element {
+  const grid = useEvenGrid(MOODS.length, 170, 12, 2)
+  const mood = (m: (typeof MOODS)[number]): React.JSX.Element => <MoodTile key={m.ask} m={m} />
   return (
     <section className="shelf">
       <header className="shelf__head">
@@ -394,6 +400,30 @@ export function SavedAlbums(): React.JSX.Element | null {
           onOpen={() => navigate({ name: 'album', id: a.id })}
           onPrefetch={() => prefetchAlbum(a.id)}
           onPlay={() => void playContext(a.uri)}
+        />
+      ))}
+    </Shelf>
+  )
+}
+
+/* ---------- Made for you: Daily Mixes, Discover Weekly, Release Radar, On Repeat ---------- */
+
+/** The mixes Pulse made in the background (lib/madeForYou). Until the first ones are ready the
+ *  simple artist mixes stand in, so nothing on Home says it's still working on them. */
+export function MadeForYou({ fallback }: { fallback: React.ReactNode }): React.JSX.Element {
+  const mixes = useMadeForYou((s) => s.mixes)
+  const navigate = useApp((s) => s.navigate)
+  if (!mixes.length) return <>{fallback}</>
+  return (
+    <Shelf title="Made for you">
+      {mixes.map((m) => (
+        <MediaCard
+          key={m.id}
+          image={m.cover || sp.pickImage(m.tracks[0]?.album?.images, 300)}
+          title={m.title}
+          subtitle={m.title === m.label ? m.subtitle : `${m.label} · ${m.subtitle}`}
+          onOpen={() => navigate({ name: 'made', id: m.id })}
+          onPlay={() => void playUris(m.tracks.map((t) => t.uri))}
         />
       ))}
     </Shelf>

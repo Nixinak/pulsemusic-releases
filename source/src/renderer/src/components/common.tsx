@@ -217,17 +217,34 @@ export function Shelf({
  *  Every horizontal row in the app uses this one, so they all look and move the same.
  *  When the cards don't fit, the row loops: it holds three copies and keeps you in the
  *  middle one, so you can scroll round and round without reaching an end. */
-export function ShelfRow({ children, className = '' }: { children: ReactNode; className?: string }): React.JSX.Element {
+export function ShelfRow({
+  children,
+  className = '',
+  loop = true,
+  startAtEnd = false
+}: {
+  children: ReactNode
+  className?: string
+  /** false: a plain row with a start and an end (for things in order, like months). */
+  loop?: boolean
+  /** Open scrolled to the last card (the newest, in a row that runs oldest to newest). */
+  startAtEnd?: boolean
+}): React.JSX.Element {
   const rowRef = useRef<HTMLDivElement>(null)
   const loopWidth = useRef(0)
   const [looping, setLooping] = useState(false)
   useDragScroll(rowRef, loopWidth)
   const count = Children.count(children)
 
+  useLayoutEffect(() => {
+    const el = rowRef.current
+    if (el && startAtEnd && !loop) el.scrollLeft = el.scrollWidth
+  }, [startAtEnd, loop, count])
+
   // Loop only when one copy is wider than the row.
   useLayoutEffect(() => {
     const el = rowRef.current
-    if (!el) return
+    if (!el || !loop) return
     const measure = (): void => {
       if (!looping) {
         if (count >= 3 && el.scrollWidth > el.clientWidth + 24) setLooping(true)

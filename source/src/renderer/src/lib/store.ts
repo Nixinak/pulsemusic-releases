@@ -23,6 +23,8 @@ export type Route =
   | { name: 'user'; id: string }
   | { name: 'friends' }
   | { name: 'follows'; id: string; kind: 'followers' | 'following' }
+  /** A playlist Pulse made for you (lib/madeForYou). */
+  | { name: 'made'; id: string }
 
 /** What Now Playing shows next to the cover; 'none' centres the cover. */
 export type NpPanel = 'lyrics' | 'queue' | 'none'

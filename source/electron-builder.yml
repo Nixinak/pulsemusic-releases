@@ -70,6 +70,17 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: Pulse Music
+  # The installer's look: the Pulse artwork beside the welcome and finish pages, a banner on
+  # the pages between, and the app icon on the installer itself (build/*.bmp, drawn by
+  # scripts/installer-art.py).
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerSidebar: build/installerSidebar.bmp
+  uninstallerSidebar: build/uninstallerSidebar.bmp
+  installerHeader: build/installerHeader.bmp
+  uninstallDisplayName: Pulse Music
+  # The finish page offers to open Pulse Music straight away.
+  runAfterFinish: true
   # Adds the optional "Download the AI DJ" page (about 2 GB).
   include: build/installer.nsh
   deleteAppDataOnUninstall: false

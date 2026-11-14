@@ -60,6 +60,8 @@ app.userAgentFallback = app.userAgentFallback
 app.commandLine.appendSwitch('enable-gpu-rasterization')
 app.commandLine.appendSwitch('enable-zero-copy')
 app.commandLine.appendSwitch('ignore-gpu-blocklist')
+// Animated mouse-wheel scrolling, done by the compositor (smooth even while the page is busy).
+app.commandLine.appendSwitch('enable-smooth-scrolling')
 
 if (!app.requestSingleInstanceLock()) {
   app.quit()

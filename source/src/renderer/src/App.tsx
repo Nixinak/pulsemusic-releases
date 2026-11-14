@@ -12,7 +12,7 @@ import { PRESETS, paletteFromColors, setChosenPalette } from '@/lib/colors'
 import { TrackChangeFX } from '@/components/TrackChangeFX'
 import { TransitionCard } from '@/components/TransitionCard'
 import { useTransitionDriver } from '@/lib/transition'
-import { useScrollingFlag, useSmoothWheel } from '@/lib/motionScroll'
+import { useScrollingFlag } from '@/lib/motionScroll'
 import { Sidebar } from '@/components/Sidebar'
 import { TopBar } from '@/components/TopBar'
 import { PlayerBar } from '@/components/PlayerBar'
@@ -45,6 +45,8 @@ import { CommandPalette } from '@/components/CommandPalette'
 import { RecapStories } from '@/components/Recap'
 import { DjVoiceOverlay } from '@/components/DjVoice'
 import { startHistory } from '@/lib/history'
+import { startMadeForYou } from '@/lib/madeForYou'
+import { MadeView } from '@/views/MadeView'
 
 function useTheme(): void {
   const settings = useApp((s) => s.settings)
@@ -100,6 +102,8 @@ function Page({ route, onSignOut }: { route: Route; onSignOut: () => void }): Re
       return <FriendsView />
     case 'follows':
       return <FollowsView id={route.id} kind={route.kind} />
+    case 'made':
+      return <MadeView id={route.id} />
   }
 }
 
@@ -114,7 +118,6 @@ function Shell({ onSignOut }: { onSignOut: () => void }): React.JSX.Element {
   const scroller = useRef<HTMLDivElement>(null)
   const started = useRef(false)
   useTransitionDriver()
-  useSmoothWheel(scroller)
   useScrollingFlag(scroller)
 
   useEffect(() => {
@@ -169,6 +172,8 @@ function Shell({ onSignOut }: { onSignOut: () => void }): React.JSX.Element {
     const stopProfileSync = startProfileSync()
     const stopFriendsSync = startFriendsSync()
     const stopHistory = startHistory()
+    // Daily Mixes, Discover Weekly…: made quietly in the background, shown on Home when ready
+    const stopMadeForYou = startMadeForYou()
     void pruneSaved()
     void resumeParty()
     // party links opened from a browser ("Open in Pulse Music")
@@ -179,6 +184,7 @@ function Shell({ onSignOut }: { onSignOut: () => void }): React.JSX.Element {
       stopProfileSync()
       stopFriendsSync()
       stopHistory()
+      stopMadeForYou()
       disposePlayer()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -10,6 +10,7 @@ import { ChevronRight, CloseIcon } from './Icons'
 import { QueueList } from './QueueList'
 import { Lyrics } from './Lyrics'
 import { usePlayer } from '@/lib/player'
+import type { UpdateStatus } from '@shared/types'
 
 const pop = { type: 'spring' as const, stiffness: 520, damping: 34 }
 
@@ -266,24 +267,89 @@ export function Modals(): React.JSX.Element {
 
 /* ---------- Toasts ---------- */
 
-/** A new version was downloaded in the background: offer to restart into it. */
+/** A new version: a card says so as soon as one is found (while it downloads in the
+ *  background), then asks whether to restart into it now or later. Later hides it; the update
+ *  then installs itself when Pulse is closed. */
 export function UpdateNotice(): React.JSX.Element | null {
-  const [version, setVersion] = useState<string | null>(null)
-  const [later, setLater] = useState(false)
-  useEffect(() => window.pulse.updates?.onReady((v) => setVersion(v)), [])
-  if (!version || later) return null
+  const [st, setSt] = useState<UpdateStatus | null>(null)
+  /** The version the listener put off, so the card stays away until a newer one. */
+  const [dismissed, setDismissed] = useState<string | null>(null)
+  useEffect(() => {
+    if (!window.pulse.updates) return
+    void window.pulse.updates.status().then(setSt)
+    const off1 = window.pulse.updates.onStatus(setSt)
+    const off2 = window.pulse.updates.onReady((v) => setSt((p) => (p?.state === 'ready' ? p : { state: 'ready', version: v })))
+    return () => {
+      off1()
+      off2()
+    }
+  }, [])
+  const show = (st?.state === 'downloading' || st?.state === 'ready') && st.version !== dismissed
+  const ready = st?.state === 'ready'
+  const notes = st && (st.state === 'downloading' || st.state === 'ready') ? (st.notes ?? []) : []
   return (
-    <div className="update" role="status">
-      <span>
-        Pulse Music <b>{version}</b> is ready.
-      </span>
-      <button className="btn btn--accent btn--sm" onClick={() => window.pulse.updates.install()}>
-        Restart now
-      </button>
-      <button className="btn btn--sm" onClick={() => setLater(true)}>
-        Later
-      </button>
-    </div>
+    <AnimatePresence>
+      {show && st && (
+        <motion.aside
+          key="update"
+          className={`upd ${ready ? 'is-ready' : ''}`}
+          role="status"
+          initial={{ opacity: 0, y: 24, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 16, scale: 0.97 }}
+          transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+        >
+          <span className="upd__glow" aria-hidden="true" />
+          <header className="upd__head">
+            <span className="upd__badge" aria-hidden="true">
+              {ready ? (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12.5l4.2 4.2L19 7" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" />
+                </svg>
+              )}
+            </span>
+            <span className="upd__title">
+              <small>{ready ? 'Update ready' : 'New update'}</small>
+              <b>Pulse Music {st.version}</b>
+            </span>
+            <button className="upd__x icon-btn" aria-label="Hide" onClick={() => setDismissed(st.version ?? '')}>
+              <CloseIcon size={16} />
+            </button>
+          </header>
+          {notes.length > 0 && (
+            <ul className="upd__notes">
+              {notes.map((n) => (
+                <li key={n}>{n}</li>
+              ))}
+            </ul>
+          )}
+          {ready ? (
+            <>
+              <p className="upd__text">Restart now to switch to it, or keep listening: it installs itself when you close Pulse.</p>
+              <div className="upd__btns">
+                <button className="btn btn--accent" onClick={() => window.pulse.updates.install()}>
+                  Restart now
+                </button>
+                <button className="btn" onClick={() => setDismissed(st.version)}>
+                  Later
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="upd__progress">
+              <span className="upd__bar">
+                <i style={{ transform: `scaleX(${(st.state === 'downloading' ? st.percent : 0) / 100})` }} />
+              </span>
+              <small>Downloading in the background… {st.state === 'downloading' ? st.percent : 0}%</small>
+            </div>
+          )}
+        </motion.aside>
+      )}
+    </AnimatePresence>
   )
 }
 
