@@ -99,7 +99,7 @@ export function ProfileView(): React.JSX.Element {
         onSelect: async () => {
           const file = await pickImageFile()
           if (!file) return
-          const src = await imageFileToDataUrl(file, 1400, null, { title: 'Crop image' })
+          const src = await imageFileToDataUrl(file, 1400, null, { title: 'Crop image', shapes: true })
           if (src) add({ id: newBlockId(), type: 'image', src, caption: '' })
         }
       },
@@ -460,6 +460,19 @@ function Block({
       return (
         <figure className="pblock__figure">
           <img src={block.src} alt={block.caption} />
+          {editing && (
+            <button
+              className="btn btn--sm pblock__recrop"
+              onClick={async () => {
+                // crop the picture again (from the one saved in the block)
+                const blob = await fetch(block.src).then((r) => r.blob())
+                const src = await imageFileToDataUrl(new File([blob], 'image', { type: blob.type || 'image/jpeg' }), 1400, null, { title: 'Crop image', shapes: true })
+                if (src) onPatch({ src })
+              }}
+            >
+              Crop
+            </button>
+          )}
           {editing ? (
             <input className="pblock__caption-input" value={block.caption} placeholder="Caption (optional)" onChange={(e) => onPatch({ caption: e.target.value })} />
           ) : (

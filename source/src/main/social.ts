@@ -306,7 +306,7 @@ export async function getSpotifyFollows(id: string, kind: 'followers' | 'followi
         settledAt = Date.now()
         return false
       }
-      return n > 0 ? Date.now() - settledAt > 1200 : Date.now() - settledAt > 3500
+      return n > 0 ? Date.now() - settledAt > 700 : Date.now() - settledAt > 2500
     },
     10_000,
     true

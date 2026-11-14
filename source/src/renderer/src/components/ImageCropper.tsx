@@ -15,7 +15,17 @@ export interface CropOptions {
   /** longest side of the result in pixels */
   maxWidth?: number
   title?: string
+  /** offer shapes to pick from (Original, Square, 4:5, 3:2, 16:9) */
+  shapes?: boolean
 }
+
+const SHAPES: { label: string; aspect: number | null }[] = [
+  { label: 'Original', aspect: null },
+  { label: 'Square', aspect: 1 },
+  { label: '4:5', aspect: 4 / 5 },
+  { label: '3:2', aspect: 3 / 2 },
+  { label: '16:9', aspect: 16 / 9 }
+]
 
 interface Job {
   bitmap: ImageBitmap
@@ -54,7 +64,8 @@ function Cropper({ job }: { job: Job }): React.JSX.Element {
   const { bitmap, url, opts } = job
   const iw = bitmap.width
   const ih = bitmap.height
-  const aspect = opts.aspect ?? iw / ih
+  const [shape, setShape] = useState<number | null>(opts.aspect)
+  const aspect = shape ?? iw / ih
   // frame size on screen
   const [box, setBox] = useState({ w: 520, h: 520 })
   useLayoutEffect(() => {
@@ -172,6 +183,23 @@ function Cropper({ job }: { job: Job }): React.JSX.Element {
           />
           <div className="cropper__guide" />
         </div>
+        {opts.shapes && (
+          <div className="pills cropper__shapes" role="group" aria-label="Shape">
+            {SHAPES.map((sh) => (
+              <button
+                key={sh.label}
+                className={`pill ${shape === sh.aspect ? 'is-on' : ''}`}
+                onClick={() => {
+                  setShape(sh.aspect)
+                  setZoom(1)
+                  setPos({ x: 0, y: 0 })
+                }}
+              >
+                {sh.label}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="cropper__zoom">
           <span className="muted">Zoom</span>
           <input

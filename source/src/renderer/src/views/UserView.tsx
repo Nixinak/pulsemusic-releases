@@ -2,7 +2,7 @@
 // from Spotify.
 import { useEffect, useState } from 'react'
 import { useApp } from '@/lib/store'
-import { useQuery } from '@/lib/useQuery'
+import { prefetch, useQuery } from '@/lib/useQuery'
 import * as sp from '@/lib/spotify'
 import { playContext, playUris } from '@/lib/player'
 import { prefetchArtist } from '@/lib/loaders'
@@ -30,6 +30,21 @@ export function UserView({ id }: { id: string }): React.JSX.Element {
   const [serverOn, setServerOn] = useState(false)
   useEffect(() => void pulseServerOn().then(setServerOn), [])
   const pulseQ = useQuery(`pulse-user:${id}`, () => window.pulse.people.pulseProfile(id))
+  // keep their profile fresh while it's open (a new banner, bio or blocks show up within a minute)
+  useEffect(() => {
+    const t = window.setInterval(() => !document.hidden && pulseQ.reload(), 60_000)
+    return () => window.clearInterval(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
+  // the follower lists from their Spotify page take a few seconds: start reading them now,
+  // so they're ready when the counts are clicked
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      prefetch(`sp-follows:followers:${id}`, () => window.pulse.people.spotifyFollows(id, 'followers'))
+      prefetch(`sp-follows:following:${id}`, () => window.pulse.people.spotifyFollows(id, 'following'))
+    }, 1500)
+    return () => window.clearTimeout(t)
+  }, [id])
   const spotifyQ = useQuery(`spotify-user:${id}`, () => window.pulse.people.spotifyUser(id))
   const pulse = pulseQ.data ?? null
   const followsQ = useQuery(serverOn ? `follows-of:${id}` : null, () => window.pulse.people.followsOf(id))
@@ -73,7 +88,7 @@ export function UserView({ id }: { id: string }): React.JSX.Element {
   const playlists = page?.playlists ?? []
 
   return (
-    <div className="profile">
+    <div className="profile profile--view">
       <header className="profile__hero">
         <div className="profile__banner bleed">
           {pulse?.banner ? <img src={pulse.banner} alt="" style={{ objectPosition: `50% ${pulse.bannerY ?? 50}%` }} /> : <div className="profile__banner-fallback" />}
@@ -85,8 +100,8 @@ export function UserView({ id }: { id: string }): React.JSX.Element {
           <div className="profile__names">
             <h1 className="profile__name">{name}</h1>
             {pulse?.tagline && <p className="profile__tagline">{pulse.tagline}</p>}
-            {pulse && <PulseBadge small />}
             <span className="profile__meta">
+              {pulse && <PulseBadge small />}
               {page && !page.partial && <span className="muted">{playlists.length ? `${playlists.length} public playlists` : 'No public playlists'}</span>}
               <FollowCounts
                 id={id}
@@ -96,13 +111,6 @@ export function UserView({ id }: { id: string }): React.JSX.Element {
             </span>
           </div>
         </div>
-        {pulse && (pulse.anthem || pulse.links?.length) ? (
-          <div className="profile__extras">
-            <ProfileSong song={pulse.anthem} />
-            <ProfileLinks links={pulse.links} />
-          </div>
-        ) : null}
-        {pulse?.bio && <p className="profile__bio">{pulse.bio}</p>}
         <div className="profile__friend">
           {me && serverOn && <FriendButton id={id} name={name} image={avatar} />}
           <button
@@ -129,6 +137,17 @@ export function UserView({ id }: { id: string }): React.JSX.Element {
             <MoreIcon size={20} />
           </button>
         </div>
+        {pulse?.bio || pulse?.anthem || pulse?.links?.length ? (
+          <div className="profile__about">
+            {pulse.bio && <p className="profile__bio">{pulse.bio}</p>}
+            {pulse.anthem || pulse.links?.length ? (
+              <div className="profile__extras">
+                <ProfileSong song={pulse.anthem} />
+                <ProfileLinks links={pulse.links} />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {pulse && <NowCard id={id} name={name} />}
       </header>
 

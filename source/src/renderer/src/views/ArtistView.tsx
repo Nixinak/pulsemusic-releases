@@ -431,7 +431,7 @@ export function ArtistView({ id }: { id: string }): React.JSX.Element {
     return popularQ.data ?? []
   }, [page, pageDone, quickQ.data, popularQ.data])
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const popular = useMemo(() => {
+  const named = useMemo(() => {
     // still no cover: a release with the same name (usually the single) lends its own
     const byName = new Map(releases.map((a) => [a.name.toLowerCase().trim(), a]))
     return popularRaw.map(withArtist).map((t) => {
@@ -440,6 +440,18 @@ export function ArtistView({ id }: { id: string }): React.JSX.Element {
       return rel ? { ...t, album: { ...rel } } : t
     })
   }, [popularRaw, artist, releases])
+  // Songs that still have no cover (new singles the search and the release list don't know yet):
+  // asked one by one from Spotify, which always has the album and its cover.
+  const missing = useMemo(() => (pageDone ? named.filter((t) => t.id && !t.album?.images?.length).map((t) => t.id).slice(0, 12) : []), [named, pageDone])
+  const fillQ = useQuery(missing.length ? `artist-fill:${id}:${missing.join(',')}` : null, () => loadTopTracks(missing))
+  const popular = useMemo(() => {
+    if (!fillQ.data?.length) return named
+    const full = new Map(fillQ.data.map((t) => [t.id, t]))
+    return named.map((t) => {
+      const f = full.get(t.id)
+      return f && !t.album?.images?.length ? { ...t, album: f.album, explicit: t.explicit ?? f.explicit } : t
+    })
+  }, [named, fillQ.data])
   const plays = useMemo(() => {
     const m = new Map((page?.topTracks ?? []).filter((t) => t.playcount > 0).map((t) => [t.id, t.playcount]))
     return m.size ? m : null

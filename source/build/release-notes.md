@@ -12,3 +12,8 @@
 - A cleaner DJ badge in the player bar.
 - **Your friends know when you listen along**: they get a notice with your picture in sound rings, and your face stays under the song in their player bar while you're with them.
 - **Nothing covers the lyrics or the queue any more**: notices, the "Listening with" bar and the DJ subtitles stay in the free space, and stack above each other instead of overlapping.
+- **Profiles look tidy**: the picture, buttons, bio and what they play all line up, and the Pulse badge sits with the counts.
+- **Profiles stay fresh**: a friend's new banner or bio shows up within a minute.
+- **Follower lists open faster**: they start loading as soon as you open a profile, and show last time's list straight away.
+- **Covers for every song** on artist pages, also for brand new singles.
+- **Crop images in profile blocks**: pick a shape (Square, 4:5, 3:2, 16:9) and crop an image again any time with the Crop button.

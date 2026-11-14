@@ -410,7 +410,8 @@ async function handle(req, env) {
   if (m && req.method === 'GET') {
     const id = decodeURIComponent(m[1])
     if (!ID.test(id)) return json(404, { error: 'Not a Pulse user.' })
-    const p = await env.PULSE.get(`p:${id}`, 'json')
+    // the shortest edge cache KV allows, so a new banner or bio is seen within half a minute
+    const p = await env.PULSE.get(`p:${id}`, { type: 'json', cacheTtl: 30 })
     return p ? json(200, p) : json(404, { error: 'Not a Pulse user.' })
   }
 

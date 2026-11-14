@@ -1719,3 +1719,84 @@
 .lchip__faces .cover + .cover {
   margin-left: -6px;
 }
+
+/* ---------- Someone's profile: one left edge for everything ---------- */
+/* The picture, the buttons, the bio, what they play and the sections below all start at
+   the same line; the name block sits next to the picture, bottom-aligned with it. */
+.profile--view .profile__id {
+  padding: 0;
+  align-items: flex-end;
+  gap: 28px;
+}
+.profile--view .profile__avatar {
+  width: 176px;
+  height: 176px;
+}
+.profile--view .profile__names {
+  gap: 8px;
+  padding-bottom: 10px;
+}
+.profile--view .profile__tagline {
+  margin: 0;
+}
+.profile--view .profile__meta {
+  gap: 6px 16px;
+}
+.profile--view .profile__meta .pulse-badge {
+  align-self: center;
+}
+.profile--view .profile__friend {
+  margin-top: 24px;
+}
+.profile--view .profile__about {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 22px;
+  max-width: 720px;
+}
+.profile--view .profile__bio {
+  margin: 0;
+}
+.profile--view .profile__extras {
+  margin: 0;
+}
+.profile--view .nowcard {
+  margin-top: 22px;
+}
+.profile--view .profile__blocks,
+.profile--view > .shelf {
+  margin-top: 40px;
+}
+@container (max-width: 700px) {
+  .profile--view .profile__id {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .profile--view .profile__avatar {
+    width: 132px;
+    height: 132px;
+  }
+}
+
+/* ---------- Crop: shapes, and cropping a profile image again ---------- */
+.cropper__shapes {
+  justify-content: center;
+  margin-top: 4px;
+}
+.pblock__figure {
+  position: relative;
+}
+.pblock__recrop {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(12px);
+}
+.pblock__recrop:hover {
+  background: rgba(0, 0, 0, 0.7);
+}

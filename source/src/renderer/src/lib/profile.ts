@@ -27,7 +27,7 @@ export const useProfile = create<ProfileState>((set, get) => ({
 
 /** Lets the listener crop an image file to the given aspect (null: free shape) and returns a
  *  compact JPEG data URL, or null when they cancelled. */
-export async function imageFileToDataUrl(file: File, maxW: number, aspect: number | null, opts: { round?: boolean; title?: string } = {}): Promise<string | null> {
+export async function imageFileToDataUrl(file: File, maxW: number, aspect: number | null, opts: { round?: boolean; title?: string; shapes?: boolean } = {}): Promise<string | null> {
   const canvas = await cropImage(file, { aspect, maxWidth: maxW, ...opts })
   return canvas ? canvas.toDataURL('image/jpeg', 0.86) : null
 }

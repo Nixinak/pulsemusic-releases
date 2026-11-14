@@ -99,7 +99,11 @@ const RULES: [string, number][] = [
   ['lib:', 10 * MIN],
   ['spotify-user:', 30 * MIN],
   ['spotify-user-quick:', 24 * 60 * MIN],
-  ['pulse-user:', 5 * MIN]
+  // a friend's new banner or bio shows up the next time you open them (and every minute while open)
+  ['pulse-user:', 20_000],
+  // follower lists from Spotify pages are slow to read: last time's list shows at once
+  ['sp-follows:', 30 * MIN],
+  ['follows-of:', 2 * MIN]
 ]
 
 /** Freshness in ms for a key, or null when the key isn't kept on disk. */
