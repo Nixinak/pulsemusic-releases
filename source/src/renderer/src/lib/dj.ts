@@ -533,7 +533,9 @@ async function buildSet(
   ])
   // With a theme, the library only adds songs by artists that turned up for it, so a request
   // for "late night drive" isn't filled with favourites that have nothing to do with it.
-  const themeArtists = new Set(found.flatMap((t) => t.artists.map((a) => a.id)))
+  // For a country ("czech rap") only the main artists of the songs found count: a Czech song
+  // with an American guest must not bring that guest's own songs in (Jay-Z in Czech rap).
+  const themeArtists = new Set(found.flatMap((t) => (mood?.country ? t.artists.slice(0, 1) : t.artists).map((a) => a.id)))
   const seeds = (opts.seeds ?? []).filter((t) => !usedIds.has(t.id))
   // an era without a country also takes the listener's own songs from those years
   const inEra = (t: STrack): boolean => {
@@ -541,8 +543,9 @@ async function buildSet(
     const y = Number((t.album?.release_date ?? '').slice(0, 4))
     return y >= mood.era[0] && y <= mood.era[1]
   }
-  const own = theme ? library.filter((t) => t.artists.some((a) => themeArtists.has(a.id)) || (!mood?.country && inEra(t))) : library
-  const newOnes = theme ? fresh.filter((t) => t.artists.some((a) => themeArtists.has(a.id))) : fresh
+  const fits = (t: STrack): boolean => (mood?.country ? themeArtists.has(t.artists[0]?.id ?? '') : t.artists.some((a) => themeArtists.has(a.id)))
+  const own = theme ? library.filter((t) => fits(t) || (!mood?.country && inEra(t))) : library
+  const newOnes = theme ? fresh.filter(fits) : fresh
   // a shorter list makes the model answer much sooner
   const pool = dedupe([...seeds, ...found.slice(0, theme ? 45 : 30), ...newOnes.slice(0, 12), ...own]).slice(0, 70)
   if (pool.length < 5) throw new Error('Your library is too small for the DJ yet. Like a few more songs first.')
