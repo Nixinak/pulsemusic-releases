@@ -154,6 +154,9 @@ function createMainWindow(): void {
   const sendMax = (): void => mainWindow?.webContents.send('window:maximized', mainWindow.isMaximized())
   mainWindow.on('maximize', sendMax)
   mainWindow.on('unmaximize', sendMax)
+  const sendFull = (): void => mainWindow?.webContents.send('window:fullscreen-changed', mainWindow.isFullScreen())
+  mainWindow.on('enter-full-screen', sendFull)
+  mainWindow.on('leave-full-screen', sendFull)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url)
     return { action: 'deny' }
@@ -533,6 +536,12 @@ function registerIpc(): void {
     else mainWindow.maximize()
   })
   ipcMain.on('window:close', () => mainWindow?.close())
+  // Now Playing over the whole screen, taskbar included
+  ipcMain.handle('window:fullscreen', (_e, on: unknown) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return false
+    if (mainWindow.isFullScreen() !== !!on) mainWindow.setFullScreen(!!on)
+    return !!on
+  })
   // The renderer recolours the app icon to match the current song; show it on the taskbar.
   ipcMain.on('window:set-icon', (e, dataUrl: string) => {
     if (!mainWindow || e.sender !== mainWindow.webContents) return

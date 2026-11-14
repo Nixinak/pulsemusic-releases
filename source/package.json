@@ -1,7 +1,7 @@
 {
   "name": "pulse-music",
   "productName": "Pulse Music",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "description": "A liquid-glass desktop client for Spotify",
   "author": "Nix.gg",
   "license": "MIT",

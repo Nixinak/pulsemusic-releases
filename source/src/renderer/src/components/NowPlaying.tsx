@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useDrift } from '@/lib/drift'
 import { Emo } from '@/components/Emoji'
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
@@ -16,6 +16,8 @@ import { LikeButton } from './LikeButton'
 import { TransitionStage } from './TransitionCard'
 import { useTransition } from '@/lib/transition'
 import type { NpPanel } from '@/lib/store'
+import type { NpTheme } from '@shared/types'
+import { CdDeck, NpEdgeMenu, Turntable } from './NpThemes'
 
 const TABS: { id: NpPanel; label: string; Icon: typeof LyricsIcon }[] = [
   { id: 'lyrics', label: 'Lyrics', Icon: LyricsIcon },
@@ -37,6 +39,30 @@ export function NowPlaying(): React.JSX.Element {
   // During a song transition the lyrics/queue step aside for the two covers.
   const transitioning = useTransition((s) => s.phase.kind !== 'idle')
   const showStage = transitioning && (panel === 'lyrics' || panel === 'queue')
+  const theme: NpTheme = useApp((s) => s.settings.npTheme) ?? 'classic'
+  const wantFull = useApp((s) => !!s.settings.npFullscreen)
+  const updateSettings = useApp((s) => s.updateSettings)
+  const [isFull, setIsFull] = useState(false)
+
+  // Full screen (over the taskbar) is remembered: Now Playing opens that way next time, and the
+  // window goes back to normal when Now Playing closes.
+  const shown = open && !!track
+  useEffect(() => {
+    if (!shown || !wantFull) return
+    void window.pulse.window.setFullScreen(true).then(setIsFull)
+    return () => {
+      void window.pulse.window.setFullScreen(false).then(() => setIsFull(false))
+    }
+  }, [shown, wantFull])
+  // left some other way (Windows, a shortcut): remembered as off
+  useEffect(
+    () =>
+      window.pulse.window.onFullScreen((on) => {
+        setIsFull(on)
+        if (!on && useApp.getState().nowPlaying && useApp.getState().settings.npFullscreen) void updateSettings({ npFullscreen: false })
+      }),
+    [updateSettings]
+  )
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -60,7 +86,7 @@ export function NowPlaying(): React.JSX.Element {
     <AnimatePresence>
       {open && track && (
         <motion.div
-          className="np"
+          className={`np np--${theme}`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0, transition: { duration: 0.28 } }}
@@ -97,9 +123,25 @@ export function NowPlaying(): React.JSX.Element {
           <LayoutGroup>
           <div className={`np__body ${panel === 'none' ? 'np__body--solo' : ''}`}>
             <section className="np__left">
-              <motion.div layoutId="np-art" className={`np__art ${paused ? 'is-paused' : ''}`} transition={spring}>
-                <SwapArt id={track.id} src={track.artUrl} radius={22} />
-              </motion.div>
+              {theme === 'vinyl' ? (
+                <motion.div layoutId="np-art" className="np__deck" transition={spring}>
+                  <Turntable art={track.artUrl} paused={paused} />
+                </motion.div>
+              ) : theme === 'cd' ? (
+                <motion.div layoutId="np-art" className="np__deck" transition={spring}>
+                  <CdDeck
+                    art={track.artUrl}
+                    paused={paused}
+                    title={track.name}
+                    artist={track.artists.map((a) => a.name).join(', ')}
+                    durationMs={track.durationMs}
+                  />
+                </motion.div>
+              ) : (
+                <motion.div layoutId="np-art" className={`np__art ${paused ? 'is-paused' : ''}`} transition={spring}>
+                  <SwapArt id={track.id} src={track.artUrl} radius={theme === 'cover' ? 12 : 22} />
+                </motion.div>
+              )}
 
               <motion.div
                 layout="position"
@@ -108,6 +150,7 @@ export function NowPlaying(): React.JSX.Element {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ ...spring, delay: 0.08 }}
               >
+                {(theme === 'vinyl' || theme === 'cd') && <small className="np__eyebrow">Now playing</small>}
                 <div className="np__titles">
                   <AnimatePresence mode="wait">
                     <motion.div
@@ -163,6 +206,17 @@ export function NowPlaying(): React.JSX.Element {
             </AnimatePresence>
           </div>
           </LayoutGroup>
+
+          <NpEdgeMenu
+            theme={theme}
+            full={isFull}
+            onTheme={(t) => void updateSettings({ npTheme: t })}
+            onFull={() => {
+              const next = !isFull
+              void updateSettings({ npFullscreen: next })
+              void window.pulse.window.setFullScreen(next).then(setIsFull)
+            }}
+          />
         </motion.div>
       )}
     </AnimatePresence>

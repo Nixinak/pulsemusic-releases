@@ -106,7 +106,9 @@ const api: PulseApi = {
     close: () => ipcRenderer.send('window:close'),
     onMaximized: (cb) => listen<boolean>('window:maximized', cb),
     onMiniChanged: (cb) => listen<boolean>('window:mini-changed', cb),
-    setIcon: (dataUrl) => ipcRenderer.send('window:set-icon', dataUrl)
+    setIcon: (dataUrl) => ipcRenderer.send('window:set-icon', dataUrl),
+    setFullScreen: (on) => ipcRenderer.invoke('window:fullscreen', on),
+    onFullScreen: (cb) => listen<boolean>('window:fullscreen-changed', cb)
   },
   openExternal: (url) => ipcRenderer.send('open-external', url),
   imageData: (url) => ipcRenderer.invoke('image:data', url),

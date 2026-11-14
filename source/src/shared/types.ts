@@ -49,7 +49,13 @@ export interface Settings {
   djSpeaker: DjVoiceId
   /** Talk between songs: after every song, every few songs, or only when a set starts. */
   djChattiness: 'often' | 'sometimes' | 'rarely'
+  /** How Now Playing looks: the usual one, a big cover, a turntable or a CD deck. */
+  npTheme: NpTheme
+  /** Now Playing covers the whole screen (taskbar hidden); remembered for next time. */
+  npFullscreen: boolean
 }
+
+export type NpTheme = 'classic' | 'cover' | 'vinyl' | 'cd'
 
 export type DjVoiceId = 'af_heart' | 'af_bella' | 'bf_emma' | 'am_michael' | 'am_fenrir' | 'bm_george'
 
@@ -105,7 +111,9 @@ export const DEFAULT_SETTINGS: Settings = {
   djClaudeModel: 'claude-haiku-5-5',
   djVoice: 'natural',
   djSpeaker: 'af_heart',
-  djChattiness: 'sometimes'
+  djChattiness: 'sometimes',
+  npTheme: 'classic',
+  npFullscreen: false
 }
 
 export type ProfileBlock =
@@ -656,6 +664,10 @@ export interface PulseApi {
     onMiniChanged(cb: (open: boolean) => void): () => void
     /** Swap the taskbar icon for a recoloured one (PNG data URL). */
     setIcon(dataUrl: string): void
+    /** Real full screen (over the taskbar), for Now Playing. Resolves to the new state. */
+    setFullScreen(on: boolean): Promise<boolean>
+    /** Full screen ended some other way (F11, Windows). */
+    onFullScreen(cb: (on: boolean) => void): () => void
   }
   openExternal(url: string): void
   profile: {
