@@ -11,6 +11,7 @@ A free Spotify app for Windows with an AI DJ that talks, word-by-word lyrics, pa
 <a href="https://github.com/Nixinak/pulsemusic-releases/releases/latest/download/PulseMusic-Setup.exe"><b>Download</b></a> &nbsp;•&nbsp;
 <a href="#-features"><b>Features</b></a> &nbsp;•&nbsp;
 <a href="#-install"><b>Install</b></a> &nbsp;•&nbsp;
+<a href="#-discord-status-that-looks-the-part"><b>Discord</b></a> &nbsp;•&nbsp;
 <a href="#-faq"><b>FAQ</b></a> &nbsp;•&nbsp;
 <a href="source/"><b>Source code</b></a>
 
@@ -33,6 +34,8 @@ A free Spotify app for Windows with an AI DJ that talks, word-by-word lyrics, pa
 </a>
 
 <sub>Installs in seconds and updates itself, so you only download it once.</sub>
+<br><br>
+🎧 <a href="https://nixinak.github.io/pulsemusic-releases/"><b>Try it on the website</b></a>: real songs, and the whole page changes colour with each one.
 
 </div>
 
@@ -54,7 +57,28 @@ Follow anyone on Spotify from their profile; when you follow each other, you're 
 
 Full-screen synced lyrics light up word by word on a background painted from the album cover. Or dock them at the side while you keep browsing.
 
-<img src="assets/lyrics.webp" alt="Full-screen lyrics: the sung line is bright and the rest is blurred" width="100%">
+<img src="assets/lyrics.webp" alt="Synced lyrics: the sung line lights up word by word and the rest is blurred" width="100%">
+
+### 💬 Discord status that looks the part
+
+Your friends see the song with its cover in full size, a live progress bar and a **Listen on Spotify** button. The title opens the song and the artist opens their page. A round badge on the cover changes with what you're doing:
+
+<table>
+  <tr>
+    <td width="44%" valign="middle"><img src="assets/discord.jpg" alt="A Discord profile listening to a song through Pulse Music, with the cover, a progress bar and buttons"></td>
+    <td valign="middle">
+
+| | |
+|:--:|:--|
+| <img src="assets/discord/playing.png" width="28"> | Playing |
+| <img src="assets/discord/paused.png" width="28"> | Paused (the status goes away after 10 minutes) |
+| <img src="assets/discord/liked.png" width="28"> | A song from your Liked Songs |
+| <img src="assets/discord/dj.png" width="28"> | The AI DJ is on air |
+| <img src="assets/discord/party.png" width="28"> | A party is running |
+
+</td>
+  </tr>
+</table>
 
 ### And there's more
 
@@ -107,7 +131,7 @@ Full-screen synced lyrics light up word by word on a background painted from the
 | 🔁 **Autoplay** | When a song, album or playlist ends, similar music keeps playing. |
 | 📋 **A real queue** | Reorder, remove and clear songs, which Spotify's own API doesn't allow. |
 | 🌊 **Song transitions** | Optional fades between songs with both covers on screen (Settings → Playback). |
-| 💬 **Discord status** | Shows what you're listening to, and "Paused" when you pause. |
+| 💬 **Discord status** | The song with a sharp cover, a live progress bar, links and a badge for paused, liked, DJ and party. |
 | 📻 **Last.fm** | Scrobbling in one click. |
 | 😴 **Sleep timer** | Stop after a set time or at the end of the song. |
 | 🪟 **Mini player** | A small always-handy window for the current song. |

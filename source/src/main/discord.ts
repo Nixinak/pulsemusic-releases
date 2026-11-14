@@ -1,6 +1,7 @@
-// Discord Rich Presence: "Listening to Pulse Music". Shows the song with its cover, links
-// the title to Spotify and the artist to their page, and puts the Pulse logo on the cover:
-// it says whether the AI DJ or a party is running and opens the Pulse Music GitHub page.
+// Discord Rich Presence: "Listening to <song>". Shows the song with its cover in full size,
+// a live progress bar, links the title to Spotify and the artist to their page, and puts a
+// round badge on the cover that changes with what Pulse is doing: playing, paused, liked,
+// the AI DJ on air or a party running. The badge opens the Pulse Music page.
 import { app } from 'electron'
 import { Client } from '@xhayper/discord-rpc'
 import type { PlaybackSnapshot } from '@shared/types'
@@ -75,24 +76,55 @@ function scheduleRetry(): void {
 
 const clip = (s: string, max = 128): string => (s.length > max ? s.slice(0, max - 1) + '…' : s)
 
-/** Where people land when they click the Pulse logo or the "Get Pulse Music" button. */
-const PULSE_URL = 'https://github.com/Nixinak/pulsemusic-releases'
-const PULSE_LOGO = 'https://raw.githubusercontent.com/Nixinak/pulsemusic-releases/main/assets/icon.png'
+/** Where people land when they click the badge or the "Get Pulse Music" button. */
+const PULSE_URL = 'https://nixinak.github.io/pulsemusic-releases/'
+const ASSETS = 'https://raw.githubusercontent.com/Nixinak/pulsemusic-releases/main/assets'
+const PULSE_LOGO = `${ASSETS}/icon.png`
+/** Round badges drawn for Discord (it crops the small image to a circle). */
+const BADGE = {
+  playing: `${ASSETS}/discord/playing.png`,
+  paused: `${ASSETS}/discord/paused.png`,
+  liked: `${ASSETS}/discord/liked.png`,
+  dj: `${ASSETS}/discord/dj.png`,
+  party: `${ASSETS}/discord/party.png`
+} as const
+
+/** Paused this long and the status goes away, like Spotify's own. */
+const PAUSED_HIDE_MS = 10 * 60_000
+let pausedSince = 0
+let hideTimer: NodeJS.Timeout | null = null
+
+/** Spotify serves covers at 64, 300 and 640 px from the same id; ask for the sharp one. */
+function hdCover(url: string | null): string | null {
+  if (!url) return null
+  return url.replace(/(i\.scdn\.co\/image\/ab67616d0000)(1e02|4851)/, '$1b273')
+}
+
+/** Discord rejects texts shorter than 2 characters (a song called "7" would fail). */
+const atLeast2 = (s: string): string => (s.length >= 2 ? s : `${s}\u2800`.padEnd(2, '\u2800'))
 
 let showGetButton = true
 
-/** The small badge on the cover says what Pulse is doing right now. */
-function badgeText(s: PlaybackSnapshot): string {
+/** The round badge on the cover and its tooltip say what Pulse is doing right now. */
+function badge(s: PlaybackSnapshot): { image: string; text: string } {
   const party = partySummary()
-  if (party.on) return party.guests > 1 ? `Party mode · ${party.guests} friends adding songs` : 'Party mode · friends add the songs'
-  if (s.mode === 'dj') return 'On air with the Pulse AI DJ'
-  return `Pulse Music ${app.getVersion()}`
+  const version = `Pulse Music ${app.getVersion()}`
+  if (s.paused) return { image: BADGE.paused, text: `Paused · ${version}` }
+  if (party.on)
+    return {
+      image: BADGE.party,
+      text: party.guests > 1 ? `Party mode · ${party.guests} friends adding songs` : 'Party mode · friends add the songs'
+    }
+  if (s.mode === 'dj') return { image: BADGE.dj, text: 'On air with the Pulse AI DJ' }
+  if (s.liked) return { image: BADGE.liked, text: `In my Liked Songs · ${version}` }
+  return { image: BADGE.playing, text: version }
 }
 
 function push(): void {
   if (!client || !ready || !enabled) return
   const s = last
-  if (!s || !s.hasTrack) {
+  const hideForPause = !!s?.paused && pausedSince > 0 && Date.now() - pausedSince >= PAUSED_HIDE_MS
+  if (!s || !s.hasTrack || hideForPause) {
     void client.user?.clearActivity().catch(() => {})
     shown = false
     return
@@ -106,19 +138,21 @@ function push(): void {
     ...(showGetButton ? [{ label: 'Get Pulse Music', url: PULSE_URL }] : [])
   ]
   const prefix = s.paused ? 'Paused · ' : s.mode === 'dj' ? 'DJ · ' : ''
+  const b = badge(s)
+  const cover = hdCover(s.artUrl)
 
   void client.user
     ?.setActivity({
       type: LISTENING,
-      details: clip(s.title),
+      details: atLeast2(clip(s.title)),
       detailsUrl: trackUrl,
-      state: clip(`${prefix}${s.artists}`),
+      state: atLeast2(clip(`${prefix}${s.artists}`)),
       stateUrl: artistUrl,
-      largeImageKey: s.artUrl ?? PULSE_LOGO,
-      largeImageText: clip(s.album || s.title),
+      largeImageKey: cover ?? PULSE_LOGO,
+      largeImageText: atLeast2(clip(s.album ? `💿 ${s.album}` : s.title)),
       largeImageUrl: trackUrl,
-      smallImageKey: PULSE_LOGO,
-      smallImageText: clip(badgeText(s)),
+      smallImageKey: b.image,
+      smallImageText: atLeast2(clip(b.text)),
       smallImageUrl: PULSE_URL,
       ...(s.paused ? {} : { startTimestamp, endTimestamp: startTimestamp + s.durationMs }),
       statusDisplayType: 2,
@@ -144,12 +178,31 @@ function schedulePush(): void {
   }, 1500)
 }
 
+function trackPause(s: PlaybackSnapshot): void {
+  if (!s.paused) {
+    pausedSince = 0
+    if (hideTimer) clearTimeout(hideTimer)
+    hideTimer = null
+    return
+  }
+  if (pausedSince) return
+  pausedSince = Date.now()
+  if (hideTimer) clearTimeout(hideTimer)
+  // Re-check once the pause has lasted long enough, so the status is taken down.
+  hideTimer = setTimeout(() => {
+    hideTimer = null
+    lastKey = ''
+    schedulePush()
+  }, PAUSED_HIDE_MS + 500)
+}
+
 export function updatePresence(s: PlaybackSnapshot): void {
   last = s
-  // Only push on meaningful changes: track, pause state, or a seek.
+  trackPause(s)
+  // Only push on meaningful changes: track, pause state, a seek, liked, DJ or party.
   const start = Math.round((s.sampledAt - s.positionMs) / 3000)
   const party = partySummary()
-  const key = `${s.trackId}|${s.paused}|${s.paused ? '' : start}|${s.mode ?? ''}|${party.on}|${party.guests}`
+  const key = `${s.trackId}|${s.paused}|${s.paused ? '' : start}|${s.liked}|${s.mode ?? ''}|${party.on}|${party.guests}`
   if (key === lastKey) return
   lastKey = key
   schedulePush()

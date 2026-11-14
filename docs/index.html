@@ -178,6 +178,55 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .picker button[aria-current='true'] { box-shadow: 0 0 0 2px var(--base), 0 0 0 4px var(--paper); }
 .picker__hint { margin: 10px 0 0; text-align: right; font-size: 14px; color: var(--faint); }
 
+/* Spotify's own player: the real music for the songs on this page */
+.spot { margin-top: 16px; width: min(390px, 100%); margin-left: auto; min-height: 80px; border-radius: 14px; overflow: hidden; animation: rise 1s var(--ease) 0.55s both; }
+.spot:empty, .spot.is-off { display: none; }
+.spot iframe { display: block; border: 0; border-radius: 14px; }
+@media (max-width: 900px) { .spot { margin-left: 0; } }
+
+/* ---------- Discord profile (looks like the app does, follows the song on the page) ---------- */
+.dcwrap { display: grid; gap: 16px; justify-items: center; }
+.dc {
+  position: relative; width: min(380px, 100%); border-radius: 22px; overflow: hidden; background: #18191c; color: #f2f3f5;
+  font: 15px/1.35 'gg sans', var(--body);
+  box-shadow: 0 40px 80px -30px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  transform: perspective(1200px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transition: transform 0.6s var(--ease);
+}
+.dc__banner { height: 110px; background: linear-gradient(120deg, var(--c1), var(--c2) 55%, var(--c3)); transition: background 1.4s var(--ease); }
+.dc__avatar { position: absolute; left: 18px; top: 58px; width: 92px; height: 92px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(135deg, #ff4f8b, #b03cff 60%, #4a5cff); border: 7px solid #18191c; font: 800 38px var(--display); }
+.dc__avatar i, .dcmember__av i { position: absolute; right: -2px; bottom: 2px; width: 26px; height: 26px; border-radius: 50%; background: #23a55a; border: 6px solid #18191c; }
+.dc__card { margin: 46px 12px 12px; padding: 16px; border-radius: 14px; background: #111214; }
+.dc__name { font: 800 22px/1.2 var(--display); letter-spacing: -0.01em; }
+.dc__handle { color: #b5bac1; font-size: 14px; margin-bottom: 14px; }
+.dc__act { border-top: 1px solid rgba(255, 255, 255, 0.07); padding-top: 14px; }
+.dc__label { font-size: 12px; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; color: #dbdee1; margin-bottom: 10px; }
+.dc__row { display: flex; gap: 14px; align-items: center; }
+.dc__cover { position: relative; flex: none; width: 92px; height: 92px; }
+.dc__cover svg { width: 92px; height: 92px; border-radius: 10px; display: block; box-shadow: 0 10px 22px -10px rgba(0, 0, 0, 0.8); }
+.dc__badge { position: absolute; right: -7px; bottom: -7px; width: 30px; height: 30px; border-radius: 50%; border: 4px solid #111214; background: #111214; transition: transform 0.4s var(--ease); }
+.dc__badge.pop { animation: badgePop 0.5s var(--ease); }
+@keyframes badgePop { 40% { transform: scale(1.25); } }
+.dc__meta { min-width: 0; display: grid; gap: 1px; }
+.dc__meta a { font-weight: 700; color: #f2f3f5; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dc__meta a:hover { text-decoration: underline; }
+.dc__meta span { color: #dbdee1; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dc__meta .dc__album { color: #949ba4; }
+.dc__prog { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12px; color: #b5bac1; font-variant-numeric: tabular-nums; transition: opacity 0.3s; }
+.dc__bar { position: relative; flex: 1; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.16); overflow: hidden; }
+.dc__bar i { position: absolute; inset: 0; transform-origin: 0 50%; transform: scaleX(var(--p, 0)); background: #fff; }
+.dc.is-paused .dc__prog { opacity: 0; height: 0; margin: 0; overflow: hidden; }
+.dc__btns { display: grid; gap: 8px; margin-top: 14px; }
+.dc__btn { display: block; padding: 8px 12px; border-radius: 8px; background: #4e5058; color: #fff; font-size: 14px; font-weight: 600; text-align: center; text-decoration: none; transition: background-color 0.2s; }
+.dc__btn:hover { background: #6d6f78; }
+.dcmember { width: min(300px, 100%); display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; background: #2b2d31; box-shadow: 0 18px 40px -20px rgba(0, 0, 0, 0.8); }
+.dcmember__av { position: relative; flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(135deg, #ff4f8b, #b03cff 60%, #4a5cff); font: 800 18px var(--display); }
+.dcmember__av i { width: 16px; height: 16px; border-width: 4px; border-color: #2b2d31; right: -3px; bottom: -3px; }
+.dcmember b { display: block; font-weight: 600; color: #f2f3f5; }
+.dcmember__text { min-width: 0; }
+.dcmember__text span { display: flex; align-items: center; gap: 5px; font-size: 13px; color: #b5bac1; white-space: nowrap; overflow: hidden; }
+.dcmember svg { width: 13px; height: 13px; flex: none; }
+.dcmember em { font-style: normal; font-weight: 700; color: #dbdee1; overflow: hidden; text-overflow: ellipsis; }
+
 /* the liquid drop that follows the pointer over the headline */
 .lens {
   position: fixed; left: 0; top: 0; z-index: 5; width: 200px; height: 200px; border-radius: 50%; pointer-events: none;
@@ -432,6 +481,7 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
     <a href="#dj">AI DJ</a>
     <a href="#friends">Friends</a>
     <a href="#party">Party</a>
+    <a href="#discord">Discord</a>
     <a href="#install">Install</a>
     <a href="#faq">FAQ</a>
   </nav>
@@ -469,7 +519,8 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
           </div>
         </div>
         <div class="picker" id="picker" role="group" aria-label="Pick a song"></div>
-        <p class="picker__hint">Pick a song and the whole page changes colour, like the app does.</p>
+        <p class="picker__hint">Real songs. Press play to hear them, pick another and the whole page changes colour, like the app does.</p>
+        <div class="spot" id="spot"><div id="spEmbed"></div></div>
       </div>
     </div>
   </section>
@@ -483,7 +534,7 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
         <p>Open them full screen, or dock them at the side and keep browsing.</p>
       </div>
       <div class="lyr glass" id="lyr">
-        <div class="lyr__head"><span id="lyrCover"></span><div><b>Midnight in Ostrava</b><span>Nordlys</span></div></div>
+        <div class="lyr__head"><span id="lyrCover"></span><div><b>Northern Static</b><span>Nordlys</span></div></div>
         <div class="lyr__view"><div class="lyr__lines" id="lyrLines"></div></div>
       </div>
     </div>
@@ -573,6 +624,49 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
     </div>
   </section>
 
+  <!-- Discord -->
+  <section class="chapter" id="discord">
+    <div class="wrap split">
+      <div class="copy">
+        <span class="new">Upgraded</span>
+        <h2>Your Discord, in sync.</h2>
+        <p>Friends see the song you're playing with its cover in full size, a live progress bar and a button to listen on Spotify. The title opens the song, the artist opens their page.</p>
+        <p>The little badge on the cover changes with you: <strong>paused, a song you liked, the AI DJ on air or a party running.</strong></p>
+        <p class="fine">Try it: press pause or pick another song up top.</p>
+      </div>
+      <div class="dcwrap">
+        <div class="dc" id="dc" aria-label="Your Discord profile">
+          <div class="dc__banner"></div>
+          <div class="dc__avatar"><span>N</span><i></i></div>
+          <div class="dc__card">
+            <div class="dc__name">Nix</div>
+            <div class="dc__handle">nix.gg</div>
+            <div class="dc__act">
+              <div class="dc__label">Listening to Pulse Music</div>
+              <div class="dc__row">
+                <div class="dc__cover"><span id="dcCover"></span><img class="dc__badge" id="dcBadge" alt="" width="28" height="28"></div>
+                <div class="dc__meta">
+                  <a id="dcTitle" target="_blank" rel="noopener"></a>
+                  <span id="dcArtist"></span>
+                  <span class="dc__album" id="dcAlbum"></span>
+                </div>
+              </div>
+              <div class="dc__prog"><span id="dcAt">0:00</span><div class="dc__bar"><i id="dcBar"></i></div><span id="dcLen">0:00</span></div>
+              <div class="dc__btns">
+                <a class="dc__btn" id="dcSpotify" target="_blank" rel="noopener">Listen on Spotify</a>
+                <a class="dc__btn" href="#top">Get Pulse Music</a>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="dcmember" aria-hidden="true">
+          <span class="dcmember__av">N<i></i></span>
+          <div class="dcmember__text"><b>Nix</b><span><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 18.5a3 3 0 1 1-2-2.83V5.6c0-.5.37-.93.87-.99l10-1.25A1 1 0 0 1 19 4.35v11.15a3 3 0 1 1-2-2.83V7.4l-8 1v10.1Z"/></svg>Listening to <em id="dcMember"></em></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Screens -->
   <section class="chapter" id="screens">
     <div class="wrap">
@@ -586,7 +680,7 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
         <div><dt>Autoplay</dt><dd>When a song, album or playlist ends, music like it keeps playing.</dd></div>
         <div><dt>A real queue</dt><dd>Reorder, remove and clear songs, which Spotify's own API doesn't allow.</dd></div>
         <div><dt>Song transitions</dt><dd>Optional fades between songs, with both covers on screen.</dd></div>
-        <div><dt>Discord status</dt><dd>Shows what you're playing, and that you paused.</dd></div>
+        <div><dt>Discord status</dt><dd>The song with its cover, a live progress bar and a badge that shows what Pulse is doing.</dd></div>
         <div><dt>Last.fm</dt><dd>Scrobbling that connects in one click.</dd></div>
         <div><dt>Sleep timer</dt><dd>Stop after a set time or at the end of the song.</dd></div>
         <div><dt>Mini player</dt><dd>A small window for the song that's playing.</dd></div>
@@ -658,28 +752,65 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
   const $$ = (s, r = document) => [...r.querySelectorAll(s)]
   const root = document.documentElement
 
-  /* ---------- Songs (made-up artists, original cover art drawn here) ---------- */
-  const cover = {
-    afterglow: () => `<svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="#2a0f3a"/><g transform="translate(50 74)"><circle r="44" fill="#ff9a3c"/><circle r="35" fill="#ff4f8b"/><circle r="26" fill="#b03cff"/><circle r="17" fill="#2a0f3a"/></g><rect y="74" width="100" height="26" fill="#2a0f3a"/></svg>`,
-    bluehour: () => `<svg viewBox="0 0 100 100" aria-hidden="true"><defs><linearGradient id="bh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b2fa8"/><stop offset="1" stop-color="#3d6bff"/></linearGradient><radialGradient id="bm" cx=".4" cy=".35"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#b9cbff"/></radialGradient></defs><rect width="100" height="100" fill="url(#bh)"/><circle cx="63" cy="36" r="17" fill="url(#bm)"/></svg>`,
-    northern: () => `<svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="#0b3a2e"/><g fill="none" stroke-width="3.4" stroke-linecap="round">${[18, 30, 42, 54, 66, 78, 90].map((y, i) => `<path d="M-4 ${y} q13 -9 26 0 t26 0 t26 0 t26 0" stroke="${i % 2 ? '#c6ff6a' : '#1fd1a0'}"/>`).join('')}</g></svg>`,
-    garden: () => `<svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="#ffe1ee"/>${[0, 1, 2, 3].flatMap((r) => [0, 1, 2, 3].map((c) => ((r * 3 + c * 5) % 4 < 2 ? `<rect x="${8 + c * 22}" y="${8 + r * 22}" width="18" height="18" rx="2" fill="${(r + c) % 3 ? '#ff6fae' : '#d83f86'}"/>` : ''))).join('')}</svg>`,
-    paper: () => `<svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="#ffb23a"/><circle cx="50" cy="52" r="31" fill="#ff5a1a"/>${[56, 63, 70, 77].map((y, i) => `<rect x="10" y="${y}" width="80" height="${2 + i}" fill="#ffb23a"/>`).join('')}</svg>`
-  }
+  /* ---------- Songs: real songs. Covers come from Spotify, and the music plays through
+     Spotify's own player under the card. The colours are read from each cover. ---------- */
+  const COVER = (img) => `https://i.scdn.co/image/ab67616d0000b273${img}`
   const SONGS = [
-    { title: 'Neon Pulse', artist: 'Lumen Atlas', art: 'afterglow', len: 196, pal: ['#1a0b24', '#ff4f8b', '#b03cff', '#ff9a3c'] },
-    { title: 'Satellite Hearts', artist: 'Velvet Harbor', art: 'bluehour', len: 214, pal: ['#070f2e', '#3d6bff', '#8fb0ff', '#1b2fa8'] },
-    { title: 'Midnight in Ostrava', artist: 'Nordlys', art: 'northern', len: 188, pal: ['#04170f', '#1fd1a0', '#9be35a', '#0e6b5a'] },
-    { title: 'Slow Motion City', artist: 'Mira Kova', art: 'garden', len: 202, pal: ['#1d0a16', '#ff5fa2', '#ffb3d1', '#9b2c74'] },
-    { title: 'Paper Planes at Dawn', artist: 'The Paper Comets', art: 'paper', len: 181, pal: ['#1d0c03', '#ff7a1a', '#ffc93f', '#d1430f'] }
+    { id: '0VjIjW4GlUZAMYd2vXMi3b', title: 'Blinding Lights', artist: 'The Weeknd', album: 'After Hours', img: '8863bc11d2aa12b54f5aeb36', len: 200, pal: ['#1c0306', '#e3172a', '#ff6a3d', '#7a0a12'] },
+    { id: '6dOtVTDdiauQNBQEDOtlAB', title: 'BIRDS OF A FEATHER', artist: 'Billie Eilish', album: 'HIT ME HARD AND SOFT', img: '71d62ea7ea8a5be92d3c1f62', len: 210, pal: ['#020b1f', '#2f6bff', '#7fb4ff', '#123a8f'] },
+    { id: '6K4t31amVTZDgR3sKmwUJJ', title: 'The Less I Know The Better', artist: 'Tame Impala', album: 'Currents', img: '9e1cfc756886ac782e363d79', len: 216, pal: ['#1a0716', '#d6336c', '#7a3cff', '#ff7a59'] },
+    { id: '69kOkLUCkxIZYexIgSG8rq', title: 'Get Lucky', artist: 'Daft Punk, Pharrell Williams, Nile Rodgers', album: 'Random Access Memories', img: '9b9b36b0e22870b9f542d937', len: 369, pal: ['#0d0b08', '#c9a96e', '#8a6f4a', '#e8d9b5'] },
+    { id: '2qSkIjg1o9h3YT9RAgYN75', title: 'Espresso', artist: 'Sabrina Carpenter', album: 'Espresso', img: '659cd4673230913b3918e0d5', len: 175, pal: ['#1d0c03', '#ff8a3d', '#ffd27a', '#c04a1a'] },
+    { id: '3xKsf9qdS1CyvXSMEid6g8', title: 'Pink + White', artist: 'Frank Ocean', album: 'Blonde', img: 'c5649add07ed3720be9d5526', len: 184, pal: ['#0b1610', '#4fbf8f', '#c8e6c9', '#1f6b4f'] }
   ]
-  const art = (i, cls = '') => cover[SONGS[i].art]().replace('<svg ', `<svg class="${cls}" `)
+  const art = (i, cls = '') =>
+    `<svg ${cls ? `class="${cls}" ` : ''}viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="${SONGS[i].pal[1]}"/><image href="${COVER(SONGS[i].img)}" width="100" height="100" preserveAspectRatio="xMidYMid slice"/></svg>`
+  // the lyrics demo sings a song made up for this page, so its cover is drawn here
+  const northern = () => `<svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="#0b3a2e"/><g fill="none" stroke-width="3.4" stroke-linecap="round">${[18, 30, 42, 54, 66, 78, 90].map((y, i) => `<path d="M-4 ${y} q13 -9 26 0 t26 0 t26 0 t26 0" stroke="${i % 2 ? '#c6ff6a' : '#1fd1a0'}"/>`).join('')}</g></svg>`
+
+  // Read each cover's colours, like the app does: a dark base and three bright tones.
+  const hex = (r, g, b) => '#' + [r, g, b].map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('')
+  function readColours(i) {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      try {
+        const c = document.createElement('canvas')
+        c.width = c.height = 36
+        const x = c.getContext('2d', { willReadFrequently: true })
+        x.drawImage(img, 0, 0, 36, 36)
+        const d = x.getImageData(0, 0, 36, 36).data
+        const px = []
+        for (let k = 0; k < d.length; k += 4) {
+          const r = d[k], g = d[k + 1], b = d[k + 2]
+          const max = Math.max(r, g, b), min = Math.min(r, g, b)
+          const l = (max + min) / 510
+          const sat = max === min ? 0 : (max - min) / (255 - Math.abs(max + min - 255))
+          px.push({ r, g, b, l, s: sat, score: sat * (1 - Math.abs(l - 0.55) * 1.4) })
+        }
+        const ranked = px.filter((q) => q.l > 0.16 && q.l < 0.9).sort((a, b) => b.score - a.score)
+        if (!ranked.length || ranked[0].s < 0.28) return // a black and white cover: keep the hand-picked colours
+        const picked = []
+        for (const q of ranked) {
+          if (picked.every((o) => Math.hypot(o.r - q.r, o.g - q.g, o.b - q.b) > 70)) picked.push(q)
+          if (picked.length === 3) break
+        }
+        while (picked.length < 3) picked.push(picked[picked.length - 1])
+        const [a, b2, c3] = picked
+        SONGS[i].pal = [hex(a.r * 0.12, a.g * 0.12, a.b * 0.12), hex(a.r, a.g, a.b), hex(b2.r, b2.g, b2.b), hex(c3.r, c3.g, c3.b)]
+        if (i === player.i) paint()
+      } catch {
+        // the cover couldn't be read; the hand-picked colours stay
+      }
+    }
+    img.src = COVER(SONGS[i].img)
+  }
   const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
   const PLAY = '<path d="M7.5 4.6c0-1 1.1-1.6 2-1.1l10.4 6.4c.8.5.8 1.7 0 2.2L9.5 18.5c-.9.5-2-.1-2-1.1Z"/>'
   const PAUSE = '<rect x="5.5" y="4" width="4.6" height="16" rx="1.4"/><rect x="13.9" y="4" width="4.6" height="16" rx="1.4"/>'
 
   /* ---------- The player everything on the page shares ---------- */
-  const player = { i: 0, t: 24, playing: !reduce, listeners: new Set() }
+  const player = { i: 0, t: 0, len: SONGS[0].len, playing: false, listeners: new Set() }
   const emit = () => player.listeners.forEach((f) => f())
 
   function paint() {
@@ -695,11 +826,62 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
     const changed = i !== player.i
     player.i = (i + SONGS.length) % SONGS.length
     player.t = t
+    player.len = SONGS[player.i].len
     player.playing = true
     if (changed) paint()
+    spotifyPlay(t)
     emit()
   }
-  const toggle = () => { player.playing = !player.playing; emit() }
+  function toggle() {
+    sp.wanted = true
+    player.playing = !player.playing
+    if (sp.ctl) {
+      if (sp.uri !== uriOf(player.i)) spotifyPlay(player.t)
+      else if (!sp.started) sp.ctl.play()
+      else sp.ctl.togglePlay()
+    }
+    emit()
+  }
+
+  /* ---------- Spotify's player: the real music ---------- */
+  // Plays a 30 second preview, or the whole song for anyone signed in to Spotify in this browser.
+  const sp = { ctl: null, wanted: false, live: false, started: false, uri: null }
+  const uriOf = (i) => `spotify:track:${SONGS[i].id}`
+  function spotifyPlay(t = 0) {
+    if (!sp.ctl || !sp.wanted) return
+    sp.uri = uriOf(player.i)
+    sp.live = false
+    sp.started = false
+    sp.ctl.loadUri(sp.uri, false, t > 2 && t < 25 ? Math.floor(t) : 0)
+    sp.ctl.play()
+  }
+  window.onSpotifyIframeApiReady = (api) => {
+    api.createController($('#spEmbed'), { uri: uriOf(player.i), width: '100%', height: 80 }, (ctl) => {
+      sp.ctl = ctl
+      sp.uri = uriOf(player.i)
+      ctl.addListener('playback_update', (e) => {
+        const { isPaused, position, duration } = e.data || {}
+        if (!isPaused) sp.wanted = true // pressed play in Spotify's own player
+        if (!sp.wanted) return
+        if (duration > 0) player.len = duration / 1000
+        if (!isPaused) {
+          sp.live = true
+          sp.started = true
+          player.t = position / 1000
+          if (!player.playing) { player.playing = true; emit() }
+        } else if (sp.live) {
+          sp.live = false
+          if (duration > 0 && position >= duration - 600) return nextSong()
+          if (player.playing) { player.playing = false; emit() }
+        }
+      })
+    })
+  }
+  const spScript = document.createElement('script')
+  spScript.src = 'https://open.spotify.com/embed/iframe-api/v1'
+  spScript.async = true
+  spScript.onerror = () => $('#spot').classList.add('is-off')
+  document.head.append(spScript)
 
   // hero card, mini player and the "you" player in the friends demo follow the shared state
   let shownArt = -1
@@ -712,7 +894,7 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
       box.insertAdjacentHTML('beforeend', art(player.i))
       $('#npTitle').textContent = s.title
       $('#npArtist').textContent = s.artist
-      $('#npLen').textContent = clock(s.len)
+      $('#npLen').textContent = clock(player.len)
       $('#miniCover').innerHTML = art(player.i, 'cover')
       $('#miniTitle').textContent = s.title
       $('#miniArtist').textContent = s.artist
@@ -731,18 +913,26 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
   }
   player.listeners.add(renderPlayers)
 
+  let shownLen = -1
   function tickBars() {
-    const p = Math.min(1, player.t / SONGS[player.i].len)
-    for (const id of ['npBar', 'miniBar', 'meBar']) $('#' + id).style.setProperty('--p', p)
+    const p = Math.min(1, player.t / player.len)
+    for (const id of ['npBar', 'miniBar', 'meBar', 'dcBar']) $('#' + id).style.setProperty('--p', p)
     $('#npAt').textContent = clock(player.t)
+    $('#dcAt').textContent = clock(player.t)
+    if (shownLen !== player.len) {
+      shownLen = player.len
+      $('#npLen').textContent = clock(player.len)
+      $('#dcLen').textContent = clock(player.len)
+    }
   }
 
   // the picker under the card
   $('#picker').innerHTML = SONGS.map((s, i) => `<button aria-label="Play ${s.title} by ${s.artist}">${art(i)}</button>`).join('')
-  $$('#picker button').forEach((b, i) => b.addEventListener('click', () => play(i, 0)))
+  $$('#picker button').forEach((b, i) => b.addEventListener('click', () => { sp.wanted = true; djLive = false; play(i, 0) }))
   $$('[data-act]').forEach((b) =>
     b.addEventListener('click', () => {
       const a = b.dataset.act
+      if (a !== 'play') sp.wanted = true
       if (a === 'play') toggle()
       else if (a === 'next') nextSong()
       else if (a === 'prev') play(player.t > 4 ? player.i : player.i - 1, 0)
@@ -766,9 +956,14 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
     const dt = Math.min(0.1, (now - last) / 1000)
     last = now
     if (player.playing) {
-      // a demo song lasts about 14 seconds on the page, so the colours keep moving
-      player.t += dt * (SONGS[player.i].len / 14)
-      if (player.t >= SONGS[player.i].len) nextSong()
+      if (sp.ctl && sp.wanted) {
+        // Spotify plays the real song; move smoothly between its updates
+        if (sp.live) player.t = Math.min(player.len, player.t + dt)
+      } else {
+        // no sound: a song lasts about 14 seconds on the page, so the colours keep moving
+        player.t += dt * (player.len / 14)
+        if (player.t >= player.len) nextSong()
+      }
     }
     tickBars()
     tickFriends(dt)
@@ -842,6 +1037,7 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
   const ambientMove = $('.ambient__move')
   const np = $('#np')
   const screenEl = $('#screen')
+  const dcEl = $('#dc')
   const orb = $('#orb')
   let orbPulse = 0
   function tickPointer() {
@@ -862,6 +1058,7 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
     // the card leans toward the pointer
     tilt(np, 9)
     tilt(screenEl, 4)
+    tilt(dcEl, 6)
     // the DJ's orb follows the pointer a little
     const r = orb.parentElement.getBoundingClientRect()
     if (r.bottom > 0 && r.top < innerHeight) {
@@ -895,16 +1092,16 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
     'But the night was ours to borrow',
     '…',
     'Hold on to the neon glow',
-    'Midnight in Ostrava, slow',
+    'Midnight radio, play it slow',
     'Turn the radio up high',
     'Let the static be our song',
     'Streetlights fading into gold',
     'All the words we never told',
-    'Midnight in Ostrava, slow'
+    'Midnight radio, play it slow'
   ]
   const LINE_S = 2.8
   const lyr = { t: 0, visible: false }
-  $('#lyrCover').innerHTML = art(2)
+  $('#lyrCover').innerHTML = northern()
   $('#lyrLines').innerHTML = LYRICS.map((l, i) =>
     l === '…'
       ? `<button class="lyr__line" data-i="${i}" aria-label="Instrumental"><span class="lyr__dots"><i></i><i></i><i></i></span></button>`
@@ -932,19 +1129,20 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
 
   /* ---------- AI DJ ---------- */
   const MOODS = [
-    { chip: 'Something chill', line: 'Slowing it down. Velvet Harbor, made for late evenings.', song: 1, next: [[1, 'Satellite Hearts'], [3, 'Slow Motion City'], [2, 'Under the Northern Lights']] },
-    { chip: 'Gym energy', line: 'Let’s get moving. Lumen Atlas, turned all the way up.', song: 0, next: [[0, 'Neon Pulse'], [4, 'Paper Planes at Dawn'], [0, 'Gravity Lines']] },
-    { chip: 'Deep focus', line: 'Fewer words, more flow. This one helps you think.', song: 2, next: [[2, 'Northern Static'], [1, 'Hollow Moon'], [3, 'Glass Garden']] },
-    { chip: 'Surprise me', line: 'Something you haven’t heard yet, but I think you’ll like it.', song: 4, next: [[4, 'Daylight Savings'], [0, 'Afterglow Districts'], [1, 'Electric Blue']] }
+    { chip: 'Something chill', line: 'Slowing it down. Billie Eilish, made for late evenings.', song: 1, next: [1, 5, 2] },
+    { chip: 'Gym energy', line: 'Let’s get moving. The Weeknd, turned all the way up.', song: 0, next: [0, 3, 4] },
+    { chip: 'Deep focus', line: 'Fewer words, more flow. Frank Ocean helps you think.', song: 5, next: [5, 2, 1] },
+    { chip: 'Surprise me', line: 'A summer classic you can’t sit still to. Daft Punk, Get Lucky.', song: 3, next: [3, 4, 0] }
   ]
   let talking = false
   let djTimer = 0
   const djLine = $('#djLine')
   $('#djChips').innerHTML = MOODS.map((m, i) => `<button class="chip" data-m="${i}" aria-pressed="false">${m.chip}</button>`).join('')
+  let djLive = false
   function djQueue(next) {
-    $('#djQueue').innerHTML = next.map(([i, title]) => `<li>${art(i)}<div><b>${title}</b><span>${SONGS[i].artist}</span></div></li>`).join('')
+    $('#djQueue').innerHTML = next.map((i) => `<li>${art(i)}<div><b>${SONGS[i].title}</b><span>${SONGS[i].artist}</span></div></li>`).join('')
   }
-  djQueue([[0, 'Neon Pulse'], [2, 'Midnight in Ostrava'], [4, 'Paper Planes at Dawn']])
+  djQueue([0, 2, 4])
   function djSay(text, mood) {
     clearTimeout(djTimer)
     $('#orbWrap').classList.add('is-thinking')
@@ -959,13 +1157,14 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
       const say = () => {
         djLine.textContent = words.slice(0, ++k).join(' ')
         if (k < words.length) djTimer = setTimeout(say, 140)
-        else { talking = false; if (mood) { djQueue(mood.next); play(mood.song, 0) } }
+        else { talking = false; if (mood) { djQueue(mood.next); djLive = true; play(mood.song, 0) } }
       }
       say()
     }, reduce ? 0 : 900)
   }
   $$('#djChips .chip').forEach((b) =>
     b.addEventListener('click', () => {
+      sp.wanted = true
       $$('#djChips .chip').forEach((c) => c.setAttribute('aria-pressed', String(c === b)))
       djSay(MOODS[+b.dataset.m].line, MOODS[+b.dataset.m])
     })
@@ -1001,6 +1200,8 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
       const k = +b.dataset.f
       if (withFriend === k) return stopWith()
       withFriend = k
+      sp.wanted = true
+      djLive = false
       play(FRIENDS[k].song, FRIENDS[k].t)
       renderFriends()
       $('#withSlot').innerHTML = `<div class="with"><i class="live"></i><span>Listening with <b>${FRIENDS[k].name}</b></span><button class="chip" id="stopWith">Stop</button></div>`
@@ -1028,16 +1229,13 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
     if (withFriend !== null) {
       const f = FRIENDS[withFriend]
       if (player.i !== f.song) stopWith()
-      else player.t = f.t
+      else if (!sp.live) player.t = f.t
     }
   }
   renderFriends()
 
   /* ---------- Party ---------- */
-  const PARTY_SONGS = [
-    [0, 'Neon Pulse'], [1, 'Satellite Hearts'], [2, 'Midnight in Ostrava'], [3, 'Slow Motion City'], [4, 'Paper Planes at Dawn'],
-    [1, 'Hollow Moon'], [0, 'Gravity Lines'], [2, 'Northern Static']
-  ]
+  const PARTY_SONGS = SONGS.map((x, i) => [i, x.title])
   const added = new Set()
   function renderParty() {
     const q = $('#partySearch').value.trim().toLowerCase()
@@ -1068,6 +1266,7 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
   $('#partySearch').addEventListener('input', renderParty)
   $('[data-party="play"]').addEventListener('click', toggle)
   $('[data-party="skip"]').addEventListener('click', () => {
+    sp.wanted = true
     const q = partyQueue[0]
     nextSong()
     if (q) { added.delete(q.k); renderParty() }
@@ -1114,6 +1313,43 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
     .then((r) => { if (r?.tag_name) $('#version').textContent = `Version ${r.tag_name.replace(/^v/, '')}, free for Windows 10 and 11. You need Spotify Premium.` })
     .catch(() => {})
 
+  /* ---------- Discord: the profile shows what the page is playing ---------- */
+  const BADGES = {
+    playing: ['playing', 'Pulse Music'],
+    paused: ['paused', 'Paused'],
+    dj: ['dj', 'On air with the Pulse AI DJ'],
+    party: ['party', 'Party mode · friends add the songs']
+  }
+  let dcSong = -1
+  let dcBadge = ''
+  function renderDiscord() {
+    const s = SONGS[player.i]
+    if (dcSong !== player.i) {
+      dcSong = player.i
+      $('#dcCover').innerHTML = art(player.i)
+      $('#dcTitle').textContent = s.title
+      $('#dcTitle').href = `https://open.spotify.com/track/${s.id}`
+      $('#dcSpotify').href = `https://open.spotify.com/track/${s.id}`
+      $('#dcAlbum').textContent = s.album
+      $('#dcMember').textContent = s.title
+    }
+    $('#dcArtist').textContent = (player.playing ? '' : 'Paused · ') + s.artist
+    $('#dc').classList.toggle('is-paused', !player.playing)
+    const [img, text] = BADGES[!player.playing ? 'paused' : partyQueue.length ? 'party' : djLive ? 'dj' : 'playing']
+    if (img !== dcBadge) {
+      dcBadge = img
+      const b = $('#dcBadge')
+      b.src = `assets/discord/${img}.png`
+      b.title = text
+      b.classList.remove('pop')
+      void b.offsetWidth
+      b.classList.add('pop')
+    }
+  }
+  player.listeners.add(renderDiscord)
+  $('#partyList').addEventListener('click', () => setTimeout(renderDiscord))
+
+  SONGS.forEach((_, i) => readColours(i))
   paint()
   emit()
   requestAnimationFrame(frame)
