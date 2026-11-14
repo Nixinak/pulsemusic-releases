@@ -24,6 +24,17 @@ interface Friends extends FriendsState {
 const EMPTY: FriendsState = { friends: [], incoming: [], outgoing: [], now: {} }
 const toast = (text: string, tone?: 'info' | 'error'): void => useApp.getState().toast(text, tone)
 
+/** Spotify serves every cover at 64, 300 and 640 px under the same id: ask for the sharp one. */
+export const sharpCover = (url: string | null | undefined): string | null =>
+  url ? url.replace(/(\/image\/ab67616d0000)(4851|1e02)/, '$1b273') : null
+
+/** Covers from older versions of Pulse were shared at 64 px: show them sharp. */
+function sharpNow(now: FriendsState['now']): FriendsState['now'] {
+  const out: FriendsState['now'] = {}
+  for (const [id, n] of Object.entries(now)) out[id] = n?.track ? { ...n, track: { ...n.track, image: sharpCover(n.track.image) } } : n
+  return out
+}
+
 /** Goes up with every follow, unfollow or remove: a list loaded before that is out of date. */
 let generation = 0
 /** People we already said "followed you" about, so it isn't said twice. */
@@ -51,7 +62,7 @@ export const useFriends = create<Friends>((set, get) => ({
         if (news.length === 1) toast(`${news[0].displayName} followed you`)
         else if (news.length > 1) toast(`${news.length} people followed you`)
       }
-      set({ ...next, loaded: true })
+      set({ ...next, now: sharpNow(next.now), loaded: true })
       rememberPeople([...next.friends, ...next.incoming, ...next.outgoing].map((u) => ({ id: u.id, name: u.displayName, image: u.thumb?.startsWith('https://') ? u.thumb : null })))
     } catch (e) {
       console.warn('[friends] could not load', e)
@@ -66,7 +77,7 @@ export const useFriends = create<Friends>((set, get) => ({
       const next = await window.pulse.people.friendAction(action, id, who)
       generation++
       for (const u of [...next.incoming, ...next.friends]) announced.add(u.id)
-      set({ ...next, loaded: true })
+      set({ ...next, now: sharpNow(next.now), loaded: true })
       const name = who?.name || id
       const now = statusOf(next, id)
       if (now === 'friend' && was !== 'friend') toast(`You and ${name} are now friends`)
@@ -146,7 +157,7 @@ function startSharingNow(): () => void {
     }
     const party = useParty.getState().url
     const now = {
-      track: { uri: s.track.uri, name: s.track.name, artists: s.track.artists.map((a) => a.name).join(', '), image: s.track.artUrlSmall ?? s.track.artUrl, durationMs: s.track.durationMs },
+      track: { uri: s.track.uri, name: s.track.name, artists: s.track.artists.map((a) => a.name).join(', '), image: sharpCover(s.track.artUrl ?? s.track.artUrlSmall), durationMs: s.track.durationMs },
       positionMs: Math.round(livePosition(s)),
       paused: s.paused,
       party: party && party.startsWith('https://') ? party : null
@@ -201,6 +212,7 @@ async function syncWith(): Promise<void> {
     return stopListeningWith()
   }
   if (useListenWith.getState().with?.id !== w.id) return
+  if (n?.track) n = { ...n, track: { ...n.track, image: sharpCover(n.track.image) } }
   useListenWith.setState({ now: n })
   if (!n?.track) return
   const me = usePlayer.getState()

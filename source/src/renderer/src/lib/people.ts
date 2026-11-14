@@ -102,7 +102,8 @@ export function prefetchUser(id: string): void {
   prefetch(`spotify-user:${id}`, () => window.pulse.people.spotifyUser(id))
 }
 
-/** A small round JPEG of the profile picture for search results and badges. */
+/** A small JPEG of the profile picture for search results, friends and badges
+ *  (160 px, so it stays sharp on the Friends page; the server takes up to 40 kB). */
 async function thumbOf(src: string | null): Promise<string | null> {
   if (!src) return null
   try {
@@ -111,11 +112,16 @@ async function thumbOf(src: string | null): Promise<string | null> {
     img.src = src
     await img.decode()
     const c = document.createElement('canvas')
-    c.width = c.height = 64
+    c.width = c.height = 160
     const x = c.getContext('2d')!
+    x.imageSmoothingQuality = 'high'
     const s = Math.min(img.naturalWidth, img.naturalHeight)
-    x.drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, 0, 0, 64, 64)
-    return c.toDataURL('image/jpeg', 0.8)
+    x.drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, 0, 0, 160, 160)
+    for (const q of [0.82, 0.7, 0.55]) {
+      const url = c.toDataURL('image/jpeg', q)
+      if (url.length < 38_000) return url
+    }
+    return null
   } catch {
     return null
   }
@@ -156,7 +162,7 @@ async function publishNow(): Promise<void> {
   const body = {
     profile: { ...profile, displayName: profile.displayName || me.display_name || '', avatar: profile.avatar ?? sp.pickImage(me.images, 300) },
     snapshot: await snapshot(),
-    thumb: await thumbOf(profile.avatar ?? sp.pickImage(me.images, 64))
+    thumb: await thumbOf(profile.avatar ?? sp.pickImage(me.images, 300))
   }
   const sig = JSON.stringify(body)
   if (sig === lastSent) return
