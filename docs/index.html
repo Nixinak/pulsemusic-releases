@@ -178,12 +178,6 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .picker button[aria-current='true'] { box-shadow: 0 0 0 2px var(--base), 0 0 0 4px var(--paper); }
 .picker__hint { margin: 10px 0 0; text-align: right; font-size: 14px; color: var(--faint); }
 
-/* Spotify's own player: the real music for the songs on this page */
-.spot { margin-top: 16px; width: min(390px, 100%); margin-left: auto; min-height: 80px; border-radius: 14px; overflow: hidden; animation: rise 1s var(--ease) 0.55s both; }
-.spot:empty, .spot.is-off { display: none; }
-.spot iframe { display: block; border: 0; border-radius: 14px; }
-@media (max-width: 900px) { .spot { margin-left: 0; } }
-
 /* ---------- Discord profile (looks like the app does, follows the song on the page) ---------- */
 .dcwrap { display: grid; gap: 16px; justify-items: center; }
 .dc {
@@ -523,8 +517,7 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
           </div>
         </div>
         <div class="picker" id="picker" role="group" aria-label="Pick a song"></div>
-        <p class="picker__hint">Real songs. Press play to hear them, pick another and the whole page changes colour, like the app does.</p>
-        <div class="spot" id="spot"><div id="spEmbed"></div></div>
+        <p class="picker__hint">Pick a song and the whole page takes the colours of its cover, like the app does.</p>
       </div>
     </div>
   </section>
@@ -764,8 +757,8 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
   const $$ = (s, r = document) => [...r.querySelectorAll(s)]
   const root = document.documentElement
 
-  /* ---------- Songs: real songs. Covers come from Spotify, and the music plays through
-     Spotify's own player under the card. The colours are read from each cover. ---------- */
+  /* ---------- Songs: real songs with their covers from Spotify. The page takes its colours
+     from the cover, like the app does (nothing plays here). ---------- */
   const COVER = (img) => `https://i.scdn.co/image/ab67616d0000b273${img}`
   const SONGS = [
     { id: '0VjIjW4GlUZAMYd2vXMi3b', title: 'Blinding Lights', artist: 'The Weeknd', album: 'After Hours', img: '8863bc11d2aa12b54f5aeb36', len: 200, pal: ['#1c0306', '#e3172a', '#ff6a3d', '#7a0a12'] },
@@ -817,12 +810,14 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
     }
     img.src = COVER(SONGS[i].img)
   }
+  // read them before the covers are drawn, so the browser fetches each cover ready for reading
+  SONGS.forEach((_, i) => readColours(i))
   const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
   const PLAY = '<path d="M7.5 4.6c0-1 1.1-1.6 2-1.1l10.4 6.4c.8.5.8 1.7 0 2.2L9.5 18.5c-.9.5-2-.1-2-1.1Z"/>'
   const PAUSE = '<rect x="5.5" y="4" width="4.6" height="16" rx="1.4"/><rect x="13.9" y="4" width="4.6" height="16" rx="1.4"/>'
 
   /* ---------- The player everything on the page shares ---------- */
-  const player = { i: 0, t: 0, len: SONGS[0].len, playing: false, listeners: new Set() }
+  const player = { i: 0, t: 24, len: SONGS[0].len, playing: !reduce, listeners: new Set() }
   const emit = () => player.listeners.forEach((f) => f())
 
   // While the screens tour is on screen, the page takes the colours of the screenshot shown.
@@ -843,59 +838,9 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
     player.len = SONGS[player.i].len
     player.playing = true
     if (changed) paint()
-    spotifyPlay(t)
     emit()
   }
-  function toggle() {
-    sp.wanted = true
-    player.playing = !player.playing
-    if (sp.ctl) {
-      if (sp.uri !== uriOf(player.i)) spotifyPlay(player.t)
-      else if (!sp.started) sp.ctl.play()
-      else sp.ctl.togglePlay()
-    }
-    emit()
-  }
-
-  /* ---------- Spotify's player: the real music ---------- */
-  // Plays a 30 second preview, or the whole song for anyone signed in to Spotify in this browser.
-  const sp = { ctl: null, wanted: false, live: false, started: false, uri: null }
-  const uriOf = (i) => `spotify:track:${SONGS[i].id}`
-  function spotifyPlay(t = 0) {
-    if (!sp.ctl || !sp.wanted) return
-    sp.uri = uriOf(player.i)
-    sp.live = false
-    sp.started = false
-    sp.ctl.loadUri(sp.uri, false, t > 2 && t < 25 ? Math.floor(t) : 0)
-    sp.ctl.play()
-  }
-  window.onSpotifyIframeApiReady = (api) => {
-    api.createController($('#spEmbed'), { uri: uriOf(player.i), width: '100%', height: 80 }, (ctl) => {
-      sp.ctl = ctl
-      sp.uri = uriOf(player.i)
-      ctl.addListener('playback_update', (e) => {
-        const { isPaused, position, duration } = e.data || {}
-        if (!isPaused) sp.wanted = true // pressed play in Spotify's own player
-        if (!sp.wanted) return
-        if (duration > 0) player.len = duration / 1000
-        if (!isPaused) {
-          sp.live = true
-          sp.started = true
-          player.t = position / 1000
-          if (!player.playing) { player.playing = true; emit() }
-        } else if (sp.live) {
-          sp.live = false
-          if (duration > 0 && position >= duration - 600) return nextSong()
-          if (player.playing) { player.playing = false; emit() }
-        }
-      })
-    })
-  }
-  const spScript = document.createElement('script')
-  spScript.src = 'https://open.spotify.com/embed/iframe-api/v1'
-  spScript.async = true
-  spScript.onerror = () => $('#spot').classList.add('is-off')
-  document.head.append(spScript)
+  const toggle = () => { player.playing = !player.playing; emit() }
 
   // hero card, mini player and the "you" player in the friends demo follow the shared state
   let shownArt = -1
@@ -942,11 +887,10 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
 
   // the picker under the card
   $('#picker').innerHTML = SONGS.map((s, i) => `<button aria-label="Play ${s.title} by ${s.artist}">${art(i)}</button>`).join('')
-  $$('#picker button').forEach((b, i) => b.addEventListener('click', () => { sp.wanted = true; djLive = false; play(i, 0) }))
+  $$('#picker button').forEach((b, i) => b.addEventListener('click', () => { djLive = false; play(i, 0) }))
   $$('[data-act]').forEach((b) =>
     b.addEventListener('click', () => {
       const a = b.dataset.act
-      if (a !== 'play') sp.wanted = true
       if (a === 'play') toggle()
       else if (a === 'next') nextSong()
       else if (a === 'prev') play(player.t > 4 ? player.i : player.i - 1, 0)
@@ -970,14 +914,9 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
     const dt = Math.min(0.1, (now - last) / 1000)
     last = now
     if (player.playing) {
-      if (sp.ctl && sp.wanted) {
-        // Spotify plays the real song; move smoothly between its updates
-        if (sp.live) player.t = Math.min(player.len, player.t + dt)
-      } else {
-        // no sound: a song lasts about 14 seconds on the page, so the colours keep moving
-        player.t += dt * (player.len / 14)
-        if (player.t >= player.len) nextSong()
-      }
+      // a song lasts about 14 seconds on the page, so the colours keep moving
+      player.t += dt * (player.len / 14)
+      if (player.t >= player.len) nextSong()
     }
     tickBars()
     tickFriends(dt)
@@ -1178,7 +1117,6 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
   }
   $$('#djChips .chip').forEach((b) =>
     b.addEventListener('click', () => {
-      sp.wanted = true
       $$('#djChips .chip').forEach((c) => c.setAttribute('aria-pressed', String(c === b)))
       djSay(MOODS[+b.dataset.m].line, MOODS[+b.dataset.m])
     })
@@ -1214,7 +1152,6 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
       const k = +b.dataset.f
       if (withFriend === k) return stopWith()
       withFriend = k
-      sp.wanted = true
       djLive = false
       play(FRIENDS[k].song, FRIENDS[k].t)
       renderFriends()
@@ -1243,7 +1180,7 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
     if (withFriend !== null) {
       const f = FRIENDS[withFriend]
       if (player.i !== f.song) stopWith()
-      else if (!sp.live) player.t = f.t
+      else player.t = f.t
     }
   }
   renderFriends()
@@ -1280,7 +1217,6 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
   $('#partySearch').addEventListener('input', renderParty)
   $('[data-party="play"]').addEventListener('click', toggle)
   $('[data-party="skip"]').addEventListener('click', () => {
-    sp.wanted = true
     const q = partyQueue[0]
     nextSong()
     if (q) { added.delete(q.k); renderParty() }
@@ -1371,7 +1307,6 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
   player.listeners.add(renderDiscord)
   $('#partyList').addEventListener('click', () => setTimeout(renderDiscord))
 
-  SONGS.forEach((_, i) => readColours(i))
   paint()
   emit()
   requestAnimationFrame(frame)
