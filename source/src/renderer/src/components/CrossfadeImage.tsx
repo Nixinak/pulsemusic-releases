@@ -30,8 +30,11 @@ function softImage(src: string, blurPx: number, saturate: number): Promise<strin
       if (!ctx) return null
       // the blur is given for the full window; on the small canvas it's that much smaller
       const scale = Math.max(cw, ch) / Math.max(window.innerWidth, window.innerHeight, 1)
-      ctx.filter = `blur(${Math.max(0.5, blurPx * scale).toFixed(2)}px) saturate(${saturate})`
-      ctx.drawImage(img, 0, 0, cw, ch)
+      const blur = Math.max(0.5, blurPx * scale)
+      ctx.filter = `blur(${blur.toFixed(2)}px) saturate(${saturate})`
+      // drawn a little past the edges, so the blur doesn't fade the borders to see-through
+      const pad = Math.ceil(blur * 2.5)
+      ctx.drawImage(img, -pad, -pad, cw + pad * 2, ch + pad * 2)
       return canvas.toDataURL('image/png')
     })().catch(() => null)
     softCache.set(key, p)

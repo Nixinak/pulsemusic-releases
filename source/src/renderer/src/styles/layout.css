@@ -1704,9 +1704,15 @@
   overflow: hidden;
   background: color-mix(in srgb, var(--amb-1) 30%, #0b0b10);
 }
+/* The turning artwork is a square bigger than the window's diagonal (150vmax), so however far
+   it has turned, its edges and corners never come into view. */
 .np__bg-rot {
   position: absolute;
-  inset: -20%;
+  left: 50%;
+  top: 50%;
+  width: 150vmax;
+  height: 150vmax;
+  translate: -50% -50%;
   opacity: 0.9;
   will-change: transform;
 }
