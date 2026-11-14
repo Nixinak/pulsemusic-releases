@@ -53,12 +53,14 @@ export function UserView({ id }: { id: string }): React.JSX.Element {
   const quickQ = useQuery(spotifyQ.data ? null : `spotify-user-quick:${id}`, () => window.pulse.people.spotifyUserQuick(id))
   const page = spotifyQ.data ?? null
   const head = page ?? quickQ.data ?? null
+  // a profile read before comes back at once with its playlists, while the page is read again
+  const known = page ?? (quickQ.data && !quickQ.data.partial && quickQ.data.playlists.length ? quickQ.data : null)
   // remembered, so they can be found by name in Search later
   useEffect(() => {
     if (head) rememberPeople([{ id, name: head.name, image: head.image }, ...(page?.people ?? [])])
   }, [head, page, id])
   // Pulse badges for the people on their page
-  const pulseIds = usePulseUsers((page?.people ?? []).map((u) => u.id))
+  const pulseIds = usePulseUsers((spotifyQ.data?.people ?? quickQ.data?.people ?? []).map((u) => u.id))
 
   const chosen = pulse?.customColors ? resolveColors(pulse.palette, pulse.customColors) : null
   usePagePalette(pulse?.banner ?? pulse?.avatar ?? head?.image ?? null, chosen ? paletteFromColors(chosen) : null)
@@ -86,7 +88,7 @@ export function UserView({ id }: { id: string }): React.JSX.Element {
 
   const name = pulse?.displayName || head?.name || id
   const avatar = pulse?.avatar ?? head?.image ?? null
-  const playlists = page?.playlists ?? []
+  const playlists = known?.playlists ?? []
 
   return (
     <div className="profile profile--view">
@@ -103,7 +105,7 @@ export function UserView({ id }: { id: string }): React.JSX.Element {
             {pulse?.tagline && <p className="profile__tagline">{pulse.tagline}</p>}
             <span className="profile__meta">
               {pulse && <PulseBadge small />}
-              {page && !page.partial && <span className="muted">{playlists.length ? `${playlists.length} public playlists` : 'No public playlists'}</span>}
+              {known && !known.partial && <span className="muted">{playlists.length ? `${playlists.length} public playlists` : 'No public playlists'}</span>}
               <FollowCounts
                 id={id}
                 followers={maxOf(page?.followers, followsQ.data?.followers.length)}
@@ -176,9 +178,9 @@ export function UserView({ id }: { id: string }): React.JSX.Element {
           ))}
         </Shelf>
       )}
-      {(page?.people?.length ?? 0) > 0 && (
+      {(known?.people?.length ?? 0) > 0 && (
         <Shelf title="Followers and following">
-          {page!.people!.map((u) => (
+          {known!.people!.map((u) => (
             <MediaCard
               key={u.id}
               round
@@ -191,7 +193,22 @@ export function UserView({ id }: { id: string }): React.JSX.Element {
           ))}
         </Shelf>
       )}
-      {spotifyPending && <p className="muted">Loading public playlists…</p>}
+      {spotifyPending && !playlists.length && (
+        <section className="shelf uskel" aria-label="Loading public playlists">
+          <header className="shelf__head">
+            <h2>Public playlists</h2>
+          </header>
+          <div className="uskel__row">
+            {Array.from({ length: 6 }, (_, i) => (
+              <div key={i} className="uskel__card">
+                <span className="skeleton__block uskel__art" />
+                <span className="skeleton__line" />
+                <span className="skeleton__line uskel__short" />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
       {(spotifyQ.error || page?.partial) && <p className="muted">Couldn’t read the public playlists from Spotify.</p>}
     </div>
   )

@@ -627,6 +627,9 @@ export interface PulseApi {
     related(name: string): Promise<string[]>
     /** A song's 30 s preview as base64 MP3, for tempo and key analysis. */
     preview(title: string, artist: string): Promise<string | null>
+    /** Windows only: a screen to name in a loopback capture, so the page can hear what the
+     *  computer plays (the DJ orb moves with the music). Null elsewhere. */
+    loopbackSource(): Promise<string | null>
   }
   lyrics: {
     lrclib(q: LrclibQuery): Promise<LrclibResult | null>

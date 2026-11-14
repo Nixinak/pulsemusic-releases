@@ -1,7 +1,7 @@
-// Smooth scrolling helpers: click-and-drag rows with inertia, and a flag while the main view
-// scrolls. The mouse wheel is left to Chromium: its own smooth scrolling runs off the main
-// thread (it keeps gliding even while the page is busy), which the old eased wheel handler
-// here couldn't do, because it had to catch every wheel event on the main thread first.
+// Smooth scrolling helpers: click-and-drag rows with inertia. The mouse wheel is left to
+// Chromium: its own smooth scrolling runs off the main thread (it keeps gliding even while
+// the page is busy), which the old eased wheel handler here couldn't do, because it had to
+// catch every wheel event on the main thread first.
 import { useEffect, type RefObject } from 'react'
 
 /** Click-and-drag horizontal scrolling with momentum (no motion blur). With `loop` (the width
@@ -133,25 +133,4 @@ export function useDragScroll(ref: RefObject<HTMLElement | null>, loop?: RefObje
       el.removeEventListener('click', onClick, true)
     }
   }, [ref, loop])
-}
-
-/** Marks the document while the main view is scrolling, so heavy effects can pause. */
-export function useScrollingFlag(ref: RefObject<HTMLElement | null>): void {
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    let t = 0
-    const root = document.documentElement
-    const onScroll = (): void => {
-      root.classList.add('is-scrolling')
-      clearTimeout(t)
-      t = window.setTimeout(() => root.classList.remove('is-scrolling'), 180)
-    }
-    el.addEventListener('scroll', onScroll, { passive: true })
-    return () => {
-      clearTimeout(t)
-      el.removeEventListener('scroll', onScroll)
-      root.classList.remove('is-scrolling')
-    }
-  }, [ref])
 }

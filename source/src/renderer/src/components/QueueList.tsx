@@ -1,13 +1,14 @@
 // The queue, laid out like Spotify's: what's playing, "Next in queue" (songs you added, which
-// you can drag, remove or clear) and "Next from" the playlist, album or the AI DJ.
+// you can remove or clear) and "Next from" the playlist, album or the AI DJ. Every song coming up
+// can be dragged into a new order; a double-click plays it.
 // Rows only re-render when their own song changes, so the list stays smooth while playing.
 import { Emo } from './Emoji'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { clearQueue, moveInQueue, playContext, playFromQueue, playNextInQueue, playUris, removeFromQueue, skipUpcoming, upcomingFromContext, usePlayer, useSkipped } from '@/lib/player'
+import { clearQueue, moveInQueue, playContext, playFromQueue, playNextInQueue, playUris, removeFromQueue, reorderUpcoming, skipUpcoming, upcomingFromContext, usePlayer, useSkipped } from '@/lib/player'
 import { getQueue, pickImage } from '@/lib/spotify'
 import type { STrack } from '@/lib/types'
 import { useApp } from '@/lib/store'
-import { removeFromDjSet, useDj } from '@/lib/dj'
+import { moveInDjSet, removeFromDjSet, useDj } from '@/lib/dj'
 import { Cover, EqBars } from './common'
 import { CloseIcon, GripIcon } from './Icons'
 import { motion, AnimatePresence } from 'motion/react'
@@ -153,6 +154,8 @@ export function QueueList({ onClose }: { onClose?: () => void }): React.JSX.Elem
   const [later, setLater] = useState<STrack[] | null>(null)
   const [error, setError] = useState(false)
   const list = useRef<HTMLDivElement>(null)
+  const djList = useRef<HTMLDivElement>(null)
+  const laterList = useRef<HTMLDivElement>(null)
 
   const queued = useMemo<RowData[]>(
     () => upNext.map((q) => ({ key: q.uid, uid: q.uid, image: q.image, title: q.name, artist: q.artists, addedBy: q.addedBy })),
@@ -206,6 +209,24 @@ export function QueueList({ onClose }: { onClose?: () => void }): React.JSX.Elem
     container: list,
     enabled: upNext.length > 1,
     onDrop: (from, to) => moveInQueue(from, to)
+  })
+  useDragReorder({
+    container: djList,
+    enabled: !editing && (djRows?.length ?? 0) > 1,
+    onDrop: (from, to) => moveInDjSet(from, to)
+  })
+  const shownLater = useMemo(() => laterRows?.map((r) => r.track!).filter(Boolean) ?? [], [laterRows])
+  useDragReorder({
+    container: laterList,
+    enabled: !editing && !djRows && shownLater.length > 1,
+    onDrop: (from, to) => {
+      // shown at once in the new order; the player plays it that way after this song
+      const next = shownLater.slice()
+      const [it] = next.splice(from, 1)
+      next.splice(to, 0, it)
+      setLater(next)
+      void reorderUpcoming(shownLater, from, to)
+    }
   })
 
   const onMenu = useCallback<MenuFn>(
@@ -306,7 +327,11 @@ export function QueueList({ onClose }: { onClose?: () => void }): React.JSX.Elem
           {djRows.length === 0 ? (
             <div className="queue__empty">The DJ is picking the next songs…</div>
           ) : (
-            djRows.map((r) => <Row key={r.key} row={r} editing={editing} onMenu={onMenu} onPlay={onPlay} onRemove={onRemove} />)
+            <div className="queue__list" ref={djList}>
+              {djRows.map((r) => (
+                <Row key={r.key} row={r} drag={!editing && djRows.length > 1} editing={editing} onMenu={onMenu} onPlay={onPlay} onRemove={onRemove} />
+              ))}
+            </div>
           )}
         </>
       ) : (
@@ -324,7 +349,11 @@ export function QueueList({ onClose }: { onClose?: () => void }): React.JSX.Elem
           ) : laterRows.length === 0 ? (
             <div className="queue__empty">Nothing else is coming up.</div>
           ) : (
-            laterRows.map((r) => <Row key={r.key} row={r} editing={editing} onMenu={onMenu} onPlay={onPlay} onRemove={onRemove} />)
+            <div className="queue__list" ref={laterList}>
+              {laterRows.map((r) => (
+                <Row key={r.key} row={r} drag={!editing && laterRows.length > 1} editing={editing} onMenu={onMenu} onPlay={onPlay} onRemove={onRemove} />
+              ))}
+            </div>
           )}
         </>
       )}

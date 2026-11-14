@@ -459,6 +459,21 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
   .lens { display: none; }
 }
+
+/* ---------- Made for you ---------- */
+.mixes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 900px) { .mixes { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .mixes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.mix { position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 20px; padding: 14px; display: flex; flex-direction: column; justify-content: flex-end; color: #fff;
+  background: radial-gradient(120% 90% at 85% 0%, var(--b), transparent 60%), linear-gradient(150deg, var(--a), var(--b));
+  box-shadow: 0 18px 40px -22px var(--b), inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+  transition: transform 0.5s var(--ease), box-shadow 0.5s var(--ease); }
+.mix:hover { transform: translateY(-4px) rotate(-1deg); box-shadow: 0 26px 50px -20px var(--b), inset 0 0 0 1px rgba(255, 255, 255, 0.24); }
+.mix::before { content: ''; position: absolute; inset: auto -20% 30% auto; width: 70%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, rgba(255, 255, 255, 0.35), transparent 65%); }
+.mix small { position: absolute; left: 14px; top: 12px; font-size: 11px; font-weight: 700; opacity: 0.85; }
+.mix b { position: relative; font: 800 clamp(17px, 1.6vw, 22px)/1.02 var(--display); letter-spacing: -0.03em; }
+.mix span { position: relative; margin-top: 6px; font-size: 12px; opacity: 0.8; }
+.orb-ring { position: absolute; inset: -16px; border-radius: 50%; border: 2px dashed color-mix(in oklab, var(--c1) 70%, white); opacity: calc(0.25 + var(--kick, 0) * 0.6); transform: scale(calc(1 + var(--kick, 0) * 0.05)); pointer-events: none; }
 </style>
 </head>
 <body>
@@ -477,6 +492,7 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
   <nav aria-label="Sections">
     <a href="#lyrics">Lyrics</a>
     <a href="#dj">AI DJ</a>
+    <a href="#made">Made for you</a>
     <a href="#friends">Friends</a>
     <a href="#party">Party</a>
     <a href="#discord">Discord</a>
@@ -498,7 +514,7 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>
             Download for Windows
           </a>
-          <a class="btn btn--glass" href="#friends">What's new</a>
+          <a class="btn btn--glass" href="#made">What's new</a>
         </div>
         <p class="fine" id="version">Free for Windows 10 and 11. You need Spotify Premium.</p>
       </div>
@@ -545,10 +561,11 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
       <div class="split">
       <div class="copy">
         <p>Ask for a mood, an artist or a song. It builds a set from music you like, adds a few you haven't heard yet, and says a few words before the next song.</p>
+        <p>It understands where and when too: <em>“classic czech songs”</em>, <em>“polský rap”</em> or <em>“90s rock”</em> play exactly that. <strong>The orb moves with the beat</strong> of whatever is playing.</p>
         <p><strong>It runs on your own computer,</strong> so it's free and there's no account to make. The installer sets it up for you.</p>
       </div>
       <div class="dj glass" id="djBox">
-        <div class="orb-wrap" id="orbWrap"><div class="orb" id="orb"></div></div>
+        <div class="orb-wrap" id="orbWrap"><span class="orb-ring" id="orbRing" aria-hidden="true"></span><div class="orb" id="orb"></div></div>
         <div class="dj__state" id="djState"><i class="live"></i>On air</div>
         <p class="dj__line" id="djLine" aria-live="polite">Welcome back. Tell me what you're in the mood for.</p>
         <form class="dj__ask" id="djForm" autocomplete="off">
@@ -559,6 +576,29 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
         <div class="chips" id="djChips"></div>
         <p class="queue__head">Up next</p>
         <ul class="queue" id="djQueue"></ul>
+      </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Made for you -->
+  <section class="chapter" id="made">
+    <div class="wrap">
+      <header class="chead"><span class="new">New in 1.6</span><h2>Playlists made for you.</h2></header>
+      <div class="split">
+      <div class="copy">
+        <p>Six Daily Mixes, On Repeat and Repeat Rewind, new every day. Discover Weekly, Release Radar, Deep Cuts and Time Capsule, new every Monday. Up to 40 songs each.</p>
+        <p><strong>Pulse makes them quietly from what you play,</strong> each with its own cover and your name on it, and they show up on Home when they're ready.</p>
+      </div>
+      <div class="mixes" aria-label="Playlists Pulse makes">
+        <div class="mix" style="--a:#ff4f8b;--b:#7a2cff"><small>for you</small><b>Daily Mix 1</b><span>New every day</span></div>
+        <div class="mix" style="--a:#2ad1c9;--b:#2a5cff"><small>for you</small><b>Daily Mix 2</b><span>New every day</span></div>
+        <div class="mix" style="--a:#ffb547;--b:#ff3d6e"><small>for you</small><b>Daily Mix 3</b><span>New every day</span></div>
+        <div class="mix" style="--a:#ff6a3d;--b:#c4127a"><small>for you</small><b>On Repeat</b><span>What you can't stop playing</span></div>
+        <div class="mix" style="--a:#3ddc97;--b:#00668a"><small>for you</small><b>Repeat Rewind</b><span>Old favourites</span></div>
+        <div class="mix" style="--a:#7a5cff;--b:#00c2ff"><small>for you</small><b>Discover Weekly</b><span>Every Monday</span></div>
+        <div class="mix" style="--a:#ff3d5a;--b:#ffb800"><small>for you</small><b>Release Radar</b><span>New from your artists</span></div>
+        <div class="mix" style="--a:#6c63ff;--b:#1b1b3a"><small>for you</small><b>Deep Cuts</b><span>Past the hits</span></div>
       </div>
       </div>
     </div>
@@ -680,7 +720,10 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
 
       <dl class="small">
         <div><dt>Autoplay</dt><dd>When a song, album or playlist ends, music like it keeps playing.</dd></div>
-        <div><dt>A real queue</dt><dd>Reorder, remove and clear songs, which Spotify's own API doesn't allow.</dd></div>
+        <div><dt>A real queue</dt><dd>Drag anything coming up into a new order, double-click to play it, remove or clear songs. Spotify's own API allows none of that.</dd></div>
+        <div><dt>Every play counted</dt><dd>Like stats.fm: Pulse runs in the tray and counts what you play on your phone too. Last week, this year and all time.</dd></div>
+        <div><dt>Your year in music</dt><dd>A big card in December, like Wrapped, with your top songs, artists and minutes.</dd></div>
+        <div><dt>Picture walls</dt><dd>A mosaic of your own pictures on your profile, next to your songs and links.</dd></div>
         <div><dt>Song transitions</dt><dd>Optional fades between songs, with both covers on screen.</dd></div>
         <div><dt>Discord status</dt><dd>The song with its cover, a live progress bar and a badge that shows what Pulse is doing.</dd></div>
         <div><dt>Last.fm</dt><dd>Scrobbling that connects in one click.</dd></div>
@@ -715,6 +758,7 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
         <details><summary>Spotify doesn't let me sign in.<i aria-hidden="true"></i></summary><p>Spotify only lets a few accounts into each app. The sign-in screen then walks you through making your own free Spotify app key. It takes about two minutes.</p></details>
         <details><summary>Who can see what I'm playing?<i aria-hidden="true"></i></summary><p>Only people who follow you, and only while “Show my profile to other Pulse users” is on in your profile. Turn it off and nothing is shared.</p></details>
         <details><summary>Does the AI DJ need the internet or an account?<i aria-hidden="true"></i></summary><p>No account. The DJ's brain and voice run on your own computer. It still needs Spotify to play the songs it picks.</p></details>
+        <details><summary>Does Pulse count plays from my phone?<i aria-hidden="true"></i></summary><p>Yes, while it runs. It starts quietly with Windows and keeps running in the tray, so plays on your phone and other devices count too. You can switch both off in Settings → System, and import your Spotify data download in Settings → Listening history.</p></details>
         <details><summary>How do updates work?<i aria-hidden="true"></i></summary><p>Pulse checks for new versions in the background. When one is ready you get a “Restart now” button, or it installs itself the next time you close the app.</p></details>
         <details><summary>Is there a Mac or phone version?<i aria-hidden="true"></i></summary><p>Not yet. Pulse Music is made for Windows 10 and 11.</p></details>
       </div>
@@ -989,6 +1033,7 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
   const screenEl = $('#screen')
   const dcEl = $('#dc')
   const orb = $('#orb')
+  const orbRing = $('#orbRing')
   let orbPulse = 0
   function tickPointer() {
     // colour field drifts against the pointer
@@ -1019,7 +1064,10 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
       orbState.x += (tx - orbState.x) * 0.08
       orbState.y += (ty - orbState.y) * 0.08
       orbPulse += (talking ? 0.35 : 0.05)
-      const s = 1 + (talking ? 0.05 + Math.abs(Math.sin(orbPulse)) * 0.06 : Math.sin(orbPulse) * 0.015)
+      // on the beat of the song that's playing (like in the app)
+      const kick = player.playing && !talking ? Math.pow(1 - ((performance.now() / (60000 / 112)) % 1), 4) : 0
+      orbRing.style.setProperty('--kick', kick.toFixed(3))
+      const s = 1 + (talking ? 0.05 + Math.abs(Math.sin(orbPulse)) * 0.06 : Math.sin(orbPulse) * 0.015 + kick * 0.055)
       orb.style.setProperty('--ox', `${orbState.x.toFixed(1)}px`)
       orb.style.setProperty('--oy', `${orbState.y.toFixed(1)}px`)
       orb.style.setProperty('--os', s.toFixed(3))

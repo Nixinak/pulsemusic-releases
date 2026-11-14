@@ -84,7 +84,8 @@ const api: PulseApi = {
   },
   recs: {
     related: (name) => ipcRenderer.invoke('recs:related', name),
-    preview: (title, artist) => ipcRenderer.invoke('recs:preview', title, artist)
+    preview: (title, artist) => ipcRenderer.invoke('recs:preview', title, artist),
+    loopbackSource: () => ipcRenderer.invoke('recs:loopback-source')
   },
   lyrics: {
     lrclib: (q) => ipcRenderer.invoke('lyrics:lrclib', q),

@@ -10,6 +10,7 @@
 // MAIN_VITE_PULSE_SERVER at build time.
 import { BrowserWindow, session } from 'electron'
 import { getAccessToken } from './auth'
+import { readStore, writeStore } from './datastore'
 import type { PulseProfile, PulseSummary, SpotifyUserPage, SpotifyUserHit, EmbedPlaylist, FriendsState, FriendAction, NowPlaying, FollowLists, Listener } from '@shared/types'
 
 const UA =
@@ -57,12 +58,24 @@ function readPage<T>(url: string, onJson: (j: Json) => void, readDom: string, en
   const work = async (): Promise<T | null> => {
     const started = Date.now()
     console.info('[people] reading', url)
-    const ses = session.fromPartition('spotify-people')
+    // a lasting session: Spotify's player scripts stay in its disk cache between app starts,
+    // so the hidden page loads much faster after the first time
+    const ses = session.fromPartition('persist:spotify-people')
     ses.setUserAgent(UA, 'en-US,en')
     if (!blocking) {
       blocking = true
-      // only the page's script and data matter: skip pictures, video and fonts
-      ses.webRequest.onBeforeRequest((d, cb) => cb({ cancel: ['image', 'media', 'font'].includes(d.resourceType) }))
+      // only Spotify's own script and data matter: skip pictures, video, fonts and other
+      // sites' scripts (analytics, consent banners), which only slow the page down
+      ses.webRequest.onBeforeRequest((d, cb) => {
+        let host = ''
+        try {
+          host = new URL(d.url).hostname
+        } catch {
+          /* not a web address */
+        }
+        const own = !host || /(^|\.)(spotify\.com|scdn\.co|spotifycdn\.com|spotify\.net)$/.test(host)
+        cb({ cancel: ['image', 'media', 'font'].includes(d.resourceType) || (!own && d.resourceType !== 'mainFrame') })
+      })
     }
     win = new BrowserWindow({ show: false, width: 1400, height: 900, webPreferences: { session: ses, backgroundThrottling: false, images: false, sandbox: true } })
     const w = win
@@ -171,10 +184,87 @@ export async function searchSpotifyUsers(q: string): Promise<SpotifyUserHit[]> {
 const userCache = new Map<string, { at: number; page: SpotifyUserPage | null }>()
 
 /** Someone's public Spotify profile: name, picture and public playlists. */
-export async function getSpotifyUser(id: string): Promise<SpotifyUserPage | null> {
+/* Profiles read from the page are kept on disk too (a week), so a profile opened before shows
+   its playlists at once while the page is read again. */
+type SavedPages = Record<string, { at: number; page: SpotifyUserPage }>
+let saved: SavedPages | null = null
+let saveTimer: NodeJS.Timeout | null = null
+function savedPages(): SavedPages {
+  if (!saved) {
+    const d = readStore('people') as { pages?: SavedPages } | null
+    saved = d?.pages && typeof d.pages === 'object' ? d.pages : {}
+  }
+  return saved
+}
+function keepPage(id: string, page: SpotifyUserPage): void {
+  const all = savedPages()
+  all[id] = { at: Date.now(), page }
+  // at most 150, the newest
+  const keys = Object.keys(all)
+  if (keys.length > 150) for (const k of keys.sort((a, b) => all[a].at - all[b].at).slice(0, keys.length - 150)) delete all[k]
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => {
+    saveTimer = null
+    try {
+      writeStore('people', { pages: all })
+    } catch (e) {
+      console.warn('[people] could not keep the profiles', e)
+    }
+  }, 2000)
+}
+
+/** A profile read in the last week, straight from disk (or null). */
+export function savedSpotifyUser(id: string): SpotifyUserPage | null {
+  const hit = savedPages()[id]
+  return hit && Date.now() - hit.at < 7 * 86_400_000 ? hit.page : null
+}
+
+/* Reading profiles has its own lane: two at a time, the newest request first, so the profile
+   on screen never waits behind lists read for other pages or profiles hovered a while ago. */
+const userReads = new Map<string, Promise<SpotifyUserPage | null>>()
+const userWaiting: { id: string; start: () => void }[] = []
+let userRunning = 0
+function nextUserRead(): void {
+  while (userRunning < 2 && userWaiting.length) {
+    const job = userWaiting.pop()!
+    userRunning++
+    job.start()
+  }
+}
+
+export function getSpotifyUser(id: string): Promise<SpotifyUserPage | null> {
   const hit = userCache.get(id)
-  if (hit && Date.now() - hit.at < 10 * 60_000) return hit.page
+  if (hit && Date.now() - hit.at < 10 * 60_000) return Promise.resolve(hit.page)
+  const running = userReads.get(id)
+  if (running) {
+    // asked again: to the front of the line
+    const i = userWaiting.findIndex((j) => j.id === id)
+    if (i >= 0) userWaiting.push(...userWaiting.splice(i, 1))
+    return running
+  }
+  const p = new Promise<SpotifyUserPage | null>((resolve) => {
+    userWaiting.push({
+      id,
+      start: () =>
+        void readSpotifyUser(id)
+          .catch(() => null)
+          .then(resolve)
+          .finally(() => {
+            userRunning--
+            userReads.delete(id)
+            nextUserRead()
+          })
+    })
+    nextUserRead()
+  })
+  userReads.set(id, p)
+  return p
+}
+
+async function readSpotifyUser(id: string): Promise<SpotifyUserPage | null> {
   const me = `spotify:user:${id}`
+  /** When the page's profile answer (name, counts, public playlists) came in. */
+  let profileAt = 0
   let name: string | null = null
   let image: string | null = null
   let followers: number | null = null
@@ -214,6 +304,7 @@ export async function getSpotifyUser(id: string): Promise<SpotifyUserPage | null
     (j) => {
       // the profile answer ("user-profile-view") or the page's GraphQL data
       if (j?.uri === me) {
+        profileAt ||= Date.now()
         name = j.name ?? j.displayName ?? name
         image = pictureOf(j) ?? image
         if (typeof j.followers_count === 'number') followers = j.followers_count
@@ -232,15 +323,19 @@ export async function getSpotifyUser(id: string): Promise<SpotifyUserPage | null
     },
     readDom,
     (d) => {
+      // the profile answer has everything this page needs: wait only a moment for the
+      // followers row (it comes from another answer), not for the page to finish drawing
+      if (profileAt && (lists.size > 0 || name)) return (d?.people.length ?? 0) > 0 || Date.now() - profileAt > 400
       if (!d?.ready) return false
       readyAt ||= Date.now()
       const waited = Date.now() - readyAt
       // playlists and the followers row (it shows a moment later); someone without public
       // playlists: don't wait the whole time
-      if ((lists.size > 0 || d.lists.length > 0) && (d.people.length > 0 || waited > 1000)) return true
-      return waited > 2000
+      if ((lists.size > 0 || d.lists.length > 0) && (d.people.length > 0 || waited > 700)) return true
+      return waited > 1500
     },
-    12_000
+    12_000,
+    true
   ).catch(() => null)
   for (const l of dom?.lists ?? []) if (!lists.has(l.id)) lists.set(l.id, { ...l, followers: null })
   const people = new Map<string, { id: string; name: string; image: string | null }>()
@@ -265,6 +360,7 @@ export async function getSpotifyUser(id: string): Promise<SpotifyUserPage | null
   console.info(`[people] user ${id}:`, page ? `${page.name}, ${page.playlists.length} playlists${page.partial ? ' (name only)' : ''}` : 'nothing', '· page h1:', dom?.name ?? 'none')
   // don't keep a failure for long
   userCache.set(id, { at: page && !page.partial ? Date.now() : Date.now() - 9 * 60_000, page })
+  if (page && !page.partial) keepPage(id, page)
   return page
 }
 

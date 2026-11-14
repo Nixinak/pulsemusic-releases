@@ -178,12 +178,31 @@ export const Glass = forwardRef<HTMLDivElement, GlassProps>(function Glass(
   const r = Math.min(radius, size.h / 2 || radius, size.w / 2 || radius)
   const edge = Math.min(bezel, Math.max(4, Math.min(size.w, size.h) / 3))
   const map = useMemo(() => (full ? displacementMap(size.w, size.h, r, edge) : ''), [full, size.w, size.h, r, edge])
+  // A new map is only used once the image is decoded: an SVG filter whose feImage hasn't loaded
+  // yet draws one broken frame (the panel flickers, mostly the player bar when its size moves).
+  // Until then the previous map stays on.
+  const [shown, setShown] = useState<{ map: string; w: number; h: number } | null>(null)
+  useEffect(() => {
+    if (!map) return
+    let live = true
+    const img = new Image()
+    img.src = map
+    void img
+      .decode()
+      .catch(() => undefined)
+      .then(() => live && setShown({ map, w: size.w, h: size.h }))
+    return () => {
+      live = false
+    }
+  }, [map, size.w, size.h])
+  const refracts = full && !!shown
 
+  // While the size settles the glass keeps the same blur and colour as the refracting one, so
+  // the swap back isn't a visible jump; only the bent edge is missing for that moment.
+  const plain = `blur(${settling ? blur : blur * 2.2}px) saturate(170%)`
   const glassStyle: CSSProperties = {
     borderRadius: radius,
-    ...(full
-      ? { backdropFilter: `url(#${id})`, WebkitBackdropFilter: `url(#${id})` }
-      : { backdropFilter: `blur(${blur * 2.2}px) saturate(170%)`, WebkitBackdropFilter: `blur(${blur * 2.2}px) saturate(170%)` }),
+    ...(refracts ? { backdropFilter: `url(#${id})`, WebkitBackdropFilter: `url(#${id})` } : { backdropFilter: plain, WebkitBackdropFilter: plain }),
     ...style
   }
 
@@ -194,20 +213,20 @@ export const Glass = forwardRef<HTMLDivElement, GlassProps>(function Glass(
       style={glassStyle}
       {...rest}
     >
-      {full && (
+      {refracts && shown && (
         <svg className="glass__defs" width="0" height="0" aria-hidden="true">
           <filter
             id={id}
             x="0"
             y="0"
-            width={size.w}
-            height={size.h}
+            width={shown.w}
+            height={shown.h}
             filterUnits="userSpaceOnUse"
             primitiveUnits="userSpaceOnUse"
             colorInterpolationFilters="sRGB"
           >
             <feGaussianBlur in="SourceGraphic" stdDeviation={blur} edgeMode="duplicate" result="blur" />
-            <feImage href={map} x="0" y="0" width={size.w} height={size.h} preserveAspectRatio="none" result="map" />
+            <feImage href={shown.map} x="0" y="0" width={shown.w} height={shown.h} preserveAspectRatio="none" result="map" />
             <feDisplacementMap in="blur" in2="map" scale={refraction} xChannelSelector="R" yChannelSelector="B" result="dr" />
             <feColorMatrix in="dr" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="r" />
             <feDisplacementMap in="blur" in2="map" scale={refraction * 0.9} xChannelSelector="R" yChannelSelector="B" result="dg" />

@@ -45,11 +45,15 @@ A free Spotify app for Windows with an AI DJ that talks, word-by-word lyrics, pa
 
 ### 🎙️ An AI DJ that talks between songs
 
-Tell it what you're in the mood for, like *"play phonk, but not too hard"* or *"something by Porsche Boy"*. It builds a set, keeps to your vibe, switches genre every few songs and introduces the next one in a natural voice. Everything runs on your own PC, for free.
+Tell it what you're in the mood for, like *"play phonk, but not too hard"*, *"something by Porsche Boy"* or *"classic czech songs"*. It builds a set, keeps to your vibe, switches genre every few songs and introduces the next one in a natural voice. Its orb moves with the beat of the song. Everything runs on your own PC, for free.
 
 <img src="assets/dj.webp" alt="The AI DJ page with a glowing orb, a spoken line and the songs it picked" width="100%">
 
-### 👥 Listen along with friends <sub>new in 1.4</sub>
+### 💿 Playlists made for you <sub>new in 1.6</sub>
+
+Six **Daily Mixes**, **On Repeat** and **Repeat Rewind**, new every day. **Discover Weekly**, **Release Radar**, **Deep Cuts** and **Time Capsule**, new every Monday. Up to 40 songs each, made quietly from what you play, each with its own cover with your name on it.
+
+### 👥 Listen along with friends
 
 Follow anyone on Spotify from their profile; when you follow each other, you're friends. If a friend uses Pulse too, you see what they're playing right now, and **Listen along** puts you in the same song at the same second. Search finds people by name, and Pulse users get a Pulse badge and their own profile page.
 
@@ -111,7 +115,7 @@ Your friends see the song with its cover in full size, a live progress bar and a
     <td valign="top">
       <img src="assets/stats.jpg" alt="Listening stats">
       <h4>📊 Your stats and Recap</h4>
-      Listening time, top songs and artists, plus a story-style Recap you can share.
+      Every play counted, like stats.fm, even from your phone: last week, this year and all time, a card for every month, a Recap you can share and your year in music in December.
     </td>
     <td valign="top">
       <img src="assets/light-home.jpg" alt="Light mode">
@@ -129,14 +133,16 @@ Your friends see the song with its cover in full size, a live progress bar and a
 |:--|:--|
 | 🎨 **Colours that follow the music** | The whole app takes its colours from the album cover that's playing. |
 | 🔁 **Autoplay** | When a song, album or playlist ends, similar music keeps playing. |
-| 📋 **A real queue** | Reorder, remove and clear songs, which Spotify's own API doesn't allow. |
+| 📋 **A real queue** | Drag anything coming up into a new order, double-click to play it, remove or clear songs. Spotify's own API allows none of that. |
+| 🖼️ **Picture walls** | A mosaic of your own pictures on your profile, next to your songs and links. |
+| 🔔 **Starts with Windows** | Quietly, in the tray, so every play counts. Both can be switched off in Settings. |
 | 🌊 **Song transitions** | Optional fades between songs with both covers on screen (Settings → Playback). |
 | 💬 **Discord status** | The song with a sharp cover, a live progress bar, links and a badge for paused, liked, DJ and party. |
 | 📻 **Last.fm** | Scrobbling in one click. |
 | 😴 **Sleep timer** | Stop after a set time or at the end of the song. |
 | 🪟 **Mini player** | A small always-handy window for the current song. |
 | 📱 **Spotify Connect** | Pulse shows up as a device, and it can control your phone or speaker too. |
-| ⬆️ **Updates itself** | New versions download in the background. |
+| ⬆️ **Updates itself** | New versions download in the background, then Pulse asks whether to restart now or later. |
 
 </details>
 

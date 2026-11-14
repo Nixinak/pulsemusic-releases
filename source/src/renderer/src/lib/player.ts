@@ -878,16 +878,41 @@ export async function playContext(contextUri: string, offsetUri?: string, shuffl
     await sp.setShuffle(shuffle, targetDevice() ?? activeId()).catch(() => {})
   }
   await guard(() => sp.play({ contextUri, offsetUri, positionMs: opts.positionMs }, targetDevice()), 'Spotify could not start playback.')
+  // A device that was idle can ignore shuffle set before anything played on it (then Shuffle
+  // played in order): it is set once more now that the music is on.
+  if (shuffle !== undefined) {
+    togglesLockedUntil = Date.now() + 3500
+    window.setTimeout(() => void sp.setShuffle(shuffle, targetDevice() ?? activeId()).catch(() => {}), 400)
+  }
   softRefresh()
 }
 
+/** Contexts Spotify can start at a chosen song (an artist can't: it answers with an error). */
+const takesOffset = (contextUri: string): boolean => /^spotify:(playlist|album):/.test(contextUri) || contextUri.endsWith(':collection')
+
 /**
  * Shuffle play. Spotify starts a shuffled context at its first song, so a random song
- * from `uris` (when the caller knows them) is used as the starting point.
+ * from `uris` (when the caller knows them) is used as the starting point where Spotify allows
+ * one. An artist always starts at the top of its list, so its songs are played as a shuffled
+ * list instead (when the caller knows them).
  */
 export async function shufflePlay(contextUri: string, uris?: string[]): Promise<void> {
-  const start = uris && uris.length > 0 ? uris[Math.floor(Math.random() * uris.length)] : undefined
-  await playContext(contextUri, start, true)
+  const list = (uris ?? []).filter(Boolean)
+  if (takesOffset(contextUri) || list.length < 2) {
+    const start = list.length && takesOffset(contextUri) ? list[Math.floor(Math.random() * list.length)] : undefined
+    return playContext(contextUri, start, true)
+  }
+  const mixed = list.slice()
+  for (let i = mixed.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[mixed[i], mixed[j]] = [mixed[j], mixed[i]]
+  }
+  if (!get().shuffle) {
+    set({ shuffle: true })
+    togglesLockedUntil = Date.now() + 3500
+    void sp.setShuffle(true, targetDevice() ?? activeId()).catch(() => {})
+  }
+  await playUris(mixed)
 }
 
 export async function playUris(uris: string[], offsetUri?: string, opts: PlayOptions = {}): Promise<void> {
@@ -942,6 +967,9 @@ let handedFor: string | null = null
 let upcoming: { forId: string; resume: Resume; tracks: STrack[] } | null = null
 /** The AI DJ's next block, started when the song `afterId` ends. */
 let djNext: { afterId: string; uris: string[] } | null = null
+/** The listener dragged the songs coming up from the playlist or album into a new order: after
+ *  the song `afterId` Pulse plays them in that order (then the rest of the playlist). */
+let ordered: { afterId: string; tracks: STrack[]; uris: string[] } | null = null
 /** Remaining time of the current song at the last tick, to tell an ending from a skip. */
 let lastLeft: { id: string; left: number } = { id: '', left: 0 }
 let handing = false
@@ -1082,6 +1110,7 @@ function startedByUser(opts: PlayOptions): void {
   dirty = false
   handedFor = null
   upcoming = null
+  ordered = null
   if (opts.source !== 'dj') {
     djNext = null
     userPlayListeners.forEach((cb) => cb())
@@ -1116,7 +1145,7 @@ const toItem = (
 /** Whether the end of `cur` (or Next) must be handled by Pulse instead of Spotify. */
 function needsHandoff(cur: PlayerTrack): boolean {
   const s = get()
-  if (!queueMode) return s.upNext.length > 0 || djNext?.afterId === cur.id
+  if (!queueMode) return s.upNext.length > 0 || djNext?.afterId === cur.id || ordered?.afterId === cur.id
   // In Pulse's list: re-send it if it changed, and return to the playlist after the last queued song.
   return dirty || (s.upNext.length === 0 && !!resume && cur.uri !== resume.uri)
 }
@@ -1148,6 +1177,9 @@ async function handoff(): Promise<void> {
     else if (djNext?.afterId === cur.id) {
       then = { contextUri: null, uri: djNext.uris[0], rest: djNext.uris }
       djNext = null
+    } else if (ordered?.afterId === cur.id) {
+      then = { contextUri: null, uri: ordered.uris[0], rest: ordered.uris }
+      ordered = null
     } else then = await readUpcoming(cur)
 
     if (queued.length === 0) {
@@ -1200,7 +1232,7 @@ function queueTick(): void {
   if (s.repeat === 'track' || !needsHandoff(t)) return
   // Read what the playlist plays next while there is still time.
   // (once per song: a failed read must not be retried every tick)
-  if (!queueMode && left < 20_000 && upcoming?.forId !== t.id && upcomingTriedFor !== t.id && !handing && !(djNext?.afterId === t.id)) {
+  if (!queueMode && left < 20_000 && upcoming?.forId !== t.id && upcomingTriedFor !== t.id && !handing && !(djNext?.afterId === t.id) && !(ordered?.afterId === t.id)) {
     upcomingTriedFor = t.id
     void readUpcoming(t)
   }
@@ -1314,8 +1346,54 @@ export function playNextInQueue(uid: string): void {
 
 /** What the playlist/album plays after the queue (for the queue panel). */
 export function upcomingFromContext(): STrack[] | null {
-  if (!queueMode) return null
+  const cur = get().track?.id
+  if (!queueMode) return ordered && ordered.afterId === cur ? ordered.tracks : null
   return upcoming?.tracks ?? []
+}
+
+/** Drag in "Next from": the songs coming up from the playlist or album play in the new order
+ *  (`list` is what the queue panel shows). After them the playlist or album carries on from
+ *  where the last of them was (unless shuffle is on: Spotify's shuffled order isn't known). */
+export async function reorderUpcoming(list: STrack[], from: number, to: number): Promise<void> {
+  const cur = get().track
+  if (!cur || from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) return
+  const next = list.slice()
+  const [it] = next.splice(from, 1)
+  next.splice(to, 0, it)
+  const uris = next.map((t) => t.uri)
+  if (queueMode) {
+    // in Pulse's own list: what follows the queued songs changes
+    const ctx = resume?.contextUri ?? null
+    resume = { contextUri: null, uri: uris[0], rest: uris }
+    dirty = true
+    if (upcoming) upcoming = { ...upcoming, tracks: next }
+    set((s) => ({ queueVersion: s.queueVersion + 1, nextUp: null }))
+    if (ctx && !get().shuffle) {
+      const more = await tail(ctx, list)
+      if (resume?.uri === uris[0]) resume.rest = [...uris, ...more].slice(0, 100)
+    }
+    return
+  }
+  const ctx = get().contextUri
+  const mine = { afterId: cur.id, tracks: next, uris }
+  ordered = mine
+  set((s) => ({ queueVersion: s.queueVersion + 1, nextUp: null }))
+  if (ctx && !get().shuffle) {
+    const more = await tail(ctx, list)
+    if (ordered === mine) mine.uris = [...uris, ...more].slice(0, 100)
+  }
+}
+
+/** The songs of a playlist or album after the last of `shown` (in the playlist's own order). */
+async function tail(contextUri: string, shown: STrack[]): Promise<string[]> {
+  const all = await cachedContextUris(contextUri)
+  if (!all.length) return []
+  const have = new Set(shown.map((t) => t.uri))
+  let last = -1
+  all.forEach((u, i) => {
+    if (have.has(u)) last = i
+  })
+  return last < 0 ? [] : all.slice(last + 1).filter((u) => !have.has(u))
 }
 
 /** Empties the queue. Songs an older version (or another app) left in Spotify's own queue

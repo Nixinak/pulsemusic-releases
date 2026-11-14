@@ -12,7 +12,6 @@ import { PRESETS, paletteFromColors, setChosenPalette } from '@/lib/colors'
 import { TrackChangeFX } from '@/components/TrackChangeFX'
 import { TransitionCard } from '@/components/TransitionCard'
 import { useTransitionDriver } from '@/lib/transition'
-import { useScrollingFlag } from '@/lib/motionScroll'
 import { Sidebar } from '@/components/Sidebar'
 import { TopBar } from '@/components/TopBar'
 import { PlayerBar } from '@/components/PlayerBar'
@@ -118,7 +117,6 @@ function Shell({ onSignOut }: { onSignOut: () => void }): React.JSX.Element {
   const scroller = useRef<HTMLDivElement>(null)
   const started = useRef(false)
   useTransitionDriver()
-  useScrollingFlag(scroller)
 
   useEffect(() => {
     if (started.current) return

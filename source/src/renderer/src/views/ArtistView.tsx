@@ -7,7 +7,7 @@ import { motion, useTransform } from 'motion/react'
 import { useApp } from '@/lib/store'
 import { useQuery } from '@/lib/useQuery'
 import * as sp from '@/lib/spotify'
-import { playContext, playUris } from '@/lib/player'
+import { playContext, playUris, shufflePlay } from '@/lib/player'
 import { plural, year } from '@/lib/format'
 import type { SAlbumRef, STrack } from '@/lib/types'
 import type { ArtistInfo, ArtistLink, PageAlbum, PageArtist, PageTrack } from '@shared/types'
@@ -501,6 +501,25 @@ export function ArtistView({ id }: { id: string }): React.JSX.Element {
     (u, i, l): u is string => !!u && l.indexOf(u) === i
   )
 
+  /** Shuffle: the popular songs and the songs of the newest releases, in a random order (what's
+   *  fetched within a second; Spotify can't start an artist at a chosen song). */
+  const shuffleArtist = async (): Promise<void> => {
+    const own = popular.map((t) => t.uri).filter((u) => u?.startsWith('spotify:track:'))
+    const more = await Promise.race([
+      Promise.all(
+        releases.slice(0, 6).map((a) =>
+          sp
+            .getAlbumTracks(a.id)
+            .then((l) => l.filter((t) => t.artists?.some((x) => x.id === artist.id) ?? true).map((t) => t.uri))
+            .catch(() => [] as string[])
+        )
+      ).then((l) => l.flat()),
+      new Promise<string[]>((r) => window.setTimeout(() => r([]), 1200))
+    ])
+    const uris = [...new Set([...own, ...more])].slice(0, 100)
+    void shufflePlay(artist.uri, uris)
+  }
+
   return (
     <div className="collection artist">
       <header className="ahero">
@@ -529,7 +548,7 @@ export function ArtistView({ id }: { id: string }): React.JSX.Element {
             </motion.p>
           )}
           <div className="ahero__actions">
-            <PlayActions contextUri={artist.uri} uris={popular.map((t) => t.uri)} extra={<HeartFollow uri={artist.uri} name={artist.name} />} />
+            <PlayActions contextUri={artist.uri} uris={popular.map((t) => t.uri)} onShuffle={() => void shuffleArtist()} extra={<HeartFollow uri={artist.uri} name={artist.name} />} />
             {info && <SocialLinks links={info.links} />}
           </div>
         </motion.div>

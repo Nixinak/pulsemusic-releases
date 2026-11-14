@@ -508,7 +508,7 @@ const isFresh = (t: STrack): boolean => {
 async function buildSet(
   theme: string,
   continuing: boolean,
-  opts: { switchFrom?: string; size?: number; opening?: boolean; mood?: Mood | null; seeds?: STrack[] } = {}
+  opts: { switchFrom?: string; size?: number; opening?: boolean; mood?: Mood | null; seeds?: STrack[]; pool?: STrack[] } = {}
 ): Promise<{ intro: string; picks: DjPick[]; theme: string }> {
   const size = opts.size ?? blockSize()
   if (opts.switchFrom !== undefined) {
@@ -525,17 +525,21 @@ async function buildSet(
     ).catch(() => ({ genre: '' }))
     theme = (pick.genre ?? '').trim() || theme
   }
-  const mood = opts.mood ?? (theme ? (findScope(theme) ?? findMood(theme)) : null)
+  // `pool`: the songs are already chosen (an artist and the ones like them), nothing is searched
+  const mood = opts.pool ? null : (opts.mood ?? (theme ? (findScope(theme) ?? findMood(theme)) : null))
   const [library, found, fresh] = await Promise.all([
     candidates(),
-    theme ? searchPool(theme, mood) : Promise.resolve([] as STrack[]),
-    mood?.fresh === false ? Promise.resolve([] as STrack[]) : freshFromArtists().catch(() => [] as STrack[])
+    opts.pool ? Promise.resolve(opts.pool) : theme ? searchPool(theme, mood) : Promise.resolve([] as STrack[]),
+    opts.pool || mood?.fresh === false ? Promise.resolve([] as STrack[]) : freshFromArtists().catch(() => [] as STrack[])
   ])
+  /** Only songs from the list: a country, an era, or an artist and the ones like them. */
+  const strict = !!(mood?.country || mood?.era || opts.pool)
   // With a theme, the library only adds songs by artists that turned up for it, so a request
   // for "late night drive" isn't filled with favourites that have nothing to do with it.
   // For a country ("czech rap") only the main artists of the songs found count: a Czech song
   // with an American guest must not bring that guest's own songs in (Jay-Z in Czech rap).
-  const themeArtists = new Set(found.flatMap((t) => (mood?.country ? t.artists.slice(0, 1) : t.artists).map((a) => a.id)))
+  const mainOnly = !!(mood?.country || opts.pool)
+  const themeArtists = new Set(found.flatMap((t) => (mainOnly ? t.artists.slice(0, 1) : t.artists).map((a) => a.id)))
   const seeds = (opts.seeds ?? []).filter((t) => !usedIds.has(t.id))
   // an era without a country also takes the listener's own songs from those years
   const inEra = (t: STrack): boolean => {
@@ -543,8 +547,8 @@ async function buildSet(
     const y = Number((t.album?.release_date ?? '').slice(0, 4))
     return y >= mood.era[0] && y <= mood.era[1]
   }
-  const fits = (t: STrack): boolean => (mood?.country ? themeArtists.has(t.artists[0]?.id ?? '') : t.artists.some((a) => themeArtists.has(a.id)))
-  const own = theme ? library.filter((t) => fits(t) || (!mood?.country && inEra(t))) : library
+  const fits = (t: STrack): boolean => (mainOnly ? themeArtists.has(t.artists[0]?.id ?? '') : t.artists.some((a) => themeArtists.has(a.id)))
+  const own = theme ? library.filter((t) => fits(t) || (!mainOnly && inEra(t))) : library
   const newOnes = theme ? fresh.filter(fits) : fresh
   // a shorter list makes the model answer much sooner
   const pool = dedupe([...seeds, ...found.slice(0, theme ? 45 : 30), ...newOnes.slice(0, 12), ...own]).slice(0, 70)
@@ -574,7 +578,7 @@ async function buildSet(
     'Songs to choose from (number. artist – title):',
     list,
     '',
-    mood?.country || mood?.era
+    strict
       ? `Choose exactly ${size} songs in a good order (no artist twice in a row), only from the list (the list was found for this request). Prefer the listener's own songs when they fit.`
       : `Choose exactly ${size} songs in a good order (no artist twice in a row). Prefer the listener's own songs when they fit; you may also name real songs that are not in the list (up to ${size}) when the list doesn't have enough that fit.`,
     switching
@@ -590,8 +594,8 @@ async function buildSet(
     const t = pool[Number(p.n) - 1]
     if (t && !picks.some((x) => x.id === t.id)) picks.push(toPick(t, p.note ?? '', fromSearch.has(t.id)))
   }
-  // for a country or an era only songs actually found for it (the model's own ideas can stray)
-  const wanted = mood?.country || mood?.era ? [] : (ans.discover ?? []).slice(0, Math.max(0, size + 1 - picks.length))
+  // for a country, an era or an artist only songs actually found for it (the model's own ideas can stray)
+  const wanted = strict ? [] : (ans.discover ?? []).slice(0, Math.max(0, size + 1 - picks.length))
   const looked = await Promise.all(wanted.map((d) => findTrack(d.title, d.artist).catch(() => null)))
   for (const [i, d] of wanted.entries()) {
     if (picks.length >= size + 1) break
@@ -768,19 +772,27 @@ async function extend(): Promise<void> {
   extending = true
   try {
     const last = get().set[get().set.length - 1]
-    // After a requested song, artist or album: more like it. After that, every block is one
-    // genre, and after 5 to 7 songs the DJ moves on to a new one and says so.
-    const follow = nextTheme
-    nextTheme = null
+    // After a requested song, artist or album: those artists and ones that sound like them,
+    // for a few blocks. After that, every block is one genre, and after 5 to 7 songs the DJ
+    // moves on to a new one and says so.
+    const family = stickyArtists && artistBlocksLeft > 0 ? stickyArtists : null
+    if (family) artistBlocksLeft--
     // a request for a country or an era ("Czech classics") stays the whole show
     const { intro, picks, theme } = stickyMood
       ? await buildSet(stickyMood.label, true, { mood: stickyMood })
-      : follow
-        ? await buildSet(follow, true)
+      : family
+        ? await buildSet(familyLabel(family), true, { pool: await familyPool(family) })
         : await buildSet('', true, { switchFrom: flavour })
     flavour = theme
     if (!get().active) return
-    setDjContinuation(last?.id ?? null, picks.map((p) => p.uri))
+    const now = usePlayer.getState().track?.id
+    const list = get().set
+    if (reorderedAfter && reorderedAfter === now) {
+      // the listener changed the order during this song: everything after it is sent again
+      // when it ends, the new block included
+      const at = list.findIndex((p) => p.id === now)
+      setDjContinuation(now, [...list.slice(at + 1), ...picks].map((p) => p.uri))
+    } else setDjContinuation((list[list.length - 1] ?? last)?.id ?? null, picks.map((p) => p.uri))
     if (intro && picks[0]) pendingIntros.set(picks[0].uri, intro)
     set((s) => ({ set: [...s.set, ...picks] }))
   } catch (e) {
@@ -808,8 +820,64 @@ async function waitForTrack(uri: string, ms = 6000): Promise<void> {
 let flavour = ''
 /** The show keeps to this (a country or an era the listener asked for) until the next request. */
 let stickyMood: Mood | null = null
-/** The theme of the next block when it should follow a request rather than switch genre. */
-let nextTheme: string | null = null
+/** After a song, an artist or an album: the show stays with those artists and ones that sound
+ *  like them for a few blocks (like an artist radio), instead of searching Spotify for a
+ *  sentence like "more Shimmi mixed with similar artists", which found random songs. */
+let stickyArtists: { id: string; name: string }[] | null = null
+let artistBlocksLeft = 0
+function followArtists(list: { id: string; name: string }[]): void {
+  const seen = new Set<string>()
+  stickyArtists = list.filter((a) => isRealId(a.id) && !seen.has(a.id) && !!seen.add(a.id)).slice(0, 4)
+  if (!stickyArtists.length) stickyArtists = null
+  artistBlocksLeft = 3
+}
+const familyLabel = (seed: { name: string }[]): string =>
+  `${seed.length > 1 ? `${seed.slice(0, -1).map((a) => a.name).join(', ')} and ${seed[seed.length - 1].name}` : seed[0].name}, and artists that sound like them`
+
+/** Artists that sound like the seed ones (Deezer's similar artists), found on Spotify. */
+const similarCache = new Map<string, Promise<{ id: string; name: string }[]>>()
+function similarTo(seed: { id: string; name: string }[]): Promise<{ id: string; name: string }[]> {
+  const key = seed.map((a) => a.id).sort().join()
+  let p = similarCache.get(key)
+  if (!p) {
+    p = (async () => {
+      const lists = await Promise.all(seed.slice(0, 3).map((a) => window.pulse.recs?.related(a.name).catch(() => [] as string[]) ?? Promise.resolve([] as string[])))
+      const own = new Set(seed.map((a) => norm(a.name)))
+      const names: string[] = []
+      for (let i = 0; i < 12; i++)
+        for (const l of lists) {
+          const n = l[i]
+          if (n && !own.has(norm(n)) && !names.some((x) => norm(x) === norm(n))) names.push(n)
+        }
+      const known = await knownArtists()
+      const found = await Promise.all(names.slice(0, 8).map((n) => resolveArtists([n], known).then((r) => r?.[0] ?? null).catch(() => null)))
+      return found.filter((a): a is { id: string; name: string } => !!a && !seed.some((x) => x.id === a.id))
+    })()
+    similarCache.set(key, p)
+    p.catch(() => similarCache.delete(key))
+  }
+  return p
+}
+
+/** Songs for an artist block: the artists themselves, the ones like them, and the listener's
+ *  own songs by any of them (only songs where one of them is the main artist). */
+async function familyPool(seed: { id: string; name: string }[]): Promise<STrack[]> {
+  const similar = await similarTo(seed).catch(() => [] as { id: string; name: string }[])
+  const family = [...seed, ...similar]
+  const ids = new Set(family.map((a) => a.id))
+  const [library, pages] = await Promise.all([
+    candidates().catch(() => [] as STrack[]),
+    Promise.all(
+      family.map((a, i) =>
+        loadArtistPopular(a.id, a.name)
+          .then((l) => shuffle(l.filter((t) => t.artists[0]?.id === a.id)).slice(0, i < seed.length ? 10 : 5))
+          .catch(() => [] as STrack[])
+      )
+    )
+  ])
+  const mine = shuffle(library.filter((t) => ids.has(t.artists[0]?.id ?? '')))
+  return dedupe([...interleave(pages), ...mine]).filter((t) => !usedIds.has(t.id))
+}
 
 const norm = (x: string): string =>
   x
@@ -1117,6 +1185,7 @@ function followUp(first: DjPick, theme: string, mood: Mood | null, seeds: STrack
 
 async function handleRequest(request: string): Promise<void> {
   stickyMood = null
+  stickyArtists = null
   let intent: Intent
   const grounded = await ground(request).catch((e) => {
     console.warn('[dj] could not read the request', e)
@@ -1138,7 +1207,8 @@ async function handleRequest(request: string): Promise<void> {
       (await findTrack(intent.title, intent.artist)) ??
       (await findTrack(cleanRequest(request).q || request))
     if (t) {
-      nextTheme = flavour = `songs that flow well after "${t.name}" by ${t.artists[0]?.name}, in a similar style`
+      flavour = `songs like "${t.name}" by ${t.artists[0]?.name}`
+      followArtists(t.artists.slice(0, 1))
       return playPicks([toPick(t, 'You asked for it')], line || `Here’s ${t.name} by ${t.artists[0]?.name}.`)
     }
   }
@@ -1147,7 +1217,8 @@ async function handleRequest(request: string): Promise<void> {
       (t): t is STrack => !!t
     )
     if (found.length) {
-      nextTheme = flavour = `songs in the style of ${found.map((t) => t.artists[0]?.name).join(', ')}`
+      flavour = `songs in the style of ${found.map((t) => t.artists[0]?.name).join(', ')}`
+      followArtists(found.map((t) => t.artists[0]).filter(Boolean))
       return playPicks(found.map((t) => toPick(t, 'You asked for it')), line)
     }
   }
@@ -1169,7 +1240,8 @@ async function handleRequest(request: string): Promise<void> {
     if (list.length) {
       const names = who.map((a) => a.name)
       const said = names.length === 2 ? `${names[0]} and ${names[1]}` : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
-      nextTheme = flavour = `more from ${said}, mixed with artists that sound like them`
+      flavour = `${said} and artists like them`
+      followArtists(who)
       return playPicks(list.map((t) => toPick(t, t.artists[0]?.name ?? '')), line || `${said}, back to back.`)
     }
   }
@@ -1177,7 +1249,8 @@ async function handleRequest(request: string): Promise<void> {
     const al = intent.albumRef ?? (await findAlbum(intent.album!, intent.artist))
     if (al) {
       const tracks = await sp.getAlbumTracks(al.id)
-      nextTheme = flavour = `songs that go with the album ${al.name} by ${al.artists[0]?.name}`
+      flavour = `songs that go with the album ${al.name} by ${al.artists[0]?.name}`
+      followArtists(al.artists.slice(0, 1))
       const picks = tracks.map((t) => toPick({ ...t, album: { ...al, images: al.images } } as STrack, al.name))
       return playPicks(picks, line || `Here’s ${al.name} by ${al.artists[0]?.name}, from the top.`, al.uri)
     }
@@ -1190,7 +1263,8 @@ async function handleRequest(request: string): Promise<void> {
       const mine = (await candidates()).filter((t) => t.artists.some((a) => a.id === ar.id))
       const list = dedupe([...popular.slice(0, 3), ...shuffle([...mine, ...popular.slice(3)])]).slice(0, 10)
       if (list.length) {
-        nextTheme = flavour = `more ${ar.name} mixed with similar artists`
+        flavour = `${ar.name} and artists like them`
+        followArtists([ar])
         return playPicks(list.map((t) => toPick(t, mine.includes(t) ? 'From your library' : 'Popular')), line || `A set of ${ar.name}, coming up.`)
       }
     }
@@ -1198,7 +1272,6 @@ async function handleRequest(request: string): Promise<void> {
 
   // A mood, a genre, or nothing specific could be found: start right away with the best match
   // for it, and line up the rest while that plays.
-  nextTheme = null
   const theme = intent.mood?.label ?? (cleanRequest(request).q || request)
   const mood = intent.mood ?? findScope(theme) ?? findMood(theme)
   if (mood?.country || mood?.era) stickyMood = mood
@@ -1237,7 +1310,7 @@ export async function startDj(request = ''): Promise<void> {
     if (request) await handleRequest(request)
     else {
       flavour = ''
-      nextTheme = null
+      stickyArtists = null
       // Use the show prepared when the app started, so the first song starts right away.
       if (warming) await warming
       const w = warm && Date.now() - warm.at < 3 * 3600_000 ? warm : null
@@ -1295,6 +1368,7 @@ export function stopDj(keepError = false): void {
   pendingIntros.clear()
   setDjContinuation(null)
   stickyMood = null
+  stickyArtists = null
   djContext = null
   set((s) => ({ active: false, status: keepError ? s.status : 'idle', line: '', error: keepError ? s.error : null }))
   // the next Start should be instant again
@@ -1314,6 +1388,24 @@ const skipIds = new Set<string>()
 export function removeFromDjSet(id: string): void {
   skipIds.add(id)
   set((s) => ({ set: s.set.filter((p, i) => p.id !== id || s.set.findIndex((x) => x.id === usePlayer.getState().track?.id) >= i) }))
+}
+
+/** Drag in the queue: moves a coming song of the show (`from` and `to` count from the song after
+ *  the one playing). The rest of the show is sent again when the current song ends, so it plays
+ *  in the new order. */
+let reorderedAfter: string | null = null
+export function moveInDjSet(from: number, to: number): void {
+  const cur = usePlayer.getState().track?.id
+  const list = get().set
+  const at = list.findIndex((p) => p.id === cur)
+  if (!cur || at < 0) return
+  const rest = list.slice(at + 1)
+  if (from === to || from < 0 || to < 0 || from >= rest.length || to >= rest.length) return
+  const [it] = rest.splice(from, 1)
+  rest.splice(to, 0, it)
+  set({ set: [...list.slice(0, at + 1), ...rest] })
+  reorderedAfter = cur
+  setDjContinuation(cur, rest.map((p) => p.uri))
 }
 
 export { speak as djSpeak }

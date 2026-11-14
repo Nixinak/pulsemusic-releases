@@ -1877,16 +1877,6 @@
 }
 
 /* ---------- Smooth scrolling in long lists ---------- */
-/* While the page scrolls, the glass floating over it (player bar, top pills) uses a plain
-   blur: its refraction filter would be redrawn on every frame, which made long playlists
-   stutter. It comes back the moment scrolling stops. */
-.is-scrolling .playerbar.glass,
-.is-scrolling .topbar__pill.glass,
-.is-scrolling .topbar .glass,
-.is-scrolling .winctl.glass {
-  -webkit-backdrop-filter: blur(26px) saturate(170%) !important;
-  backdrop-filter: blur(26px) saturate(170%) !important;
-}
 /* Rows far off screen aren't drawn at all (a 1000-song playlist draws only what you see). */
 .track {
   content-visibility: auto;
@@ -2379,269 +2369,475 @@
   cursor: default;
 }
 
-/* ---------- DJ page: the studio ---------- */
-.djx {
-  max-width: 1120px;
+/* ---------- DJ page: the stage ---------- */
+/* Always dark: the playing song's cover, blurred, fills it. The orb's ring is drawn on a canvas
+   (the live spectrum); --kick and --lvl come from the same animation frame. Nothing here uses
+   backdrop-filter, so the moving orb doesn't make anything else redraw. */
+.djs {
+  max-width: 1180px;
   margin: 0 auto;
-  padding: 8px 0 40px;
+  padding: 6px 0 48px;
+  container-type: inline-size;
 }
-.djx__studio {
+.djs__stage {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.3fr);
-  align-items: center;
-  gap: 28px 44px;
-  padding: 40px 44px;
-  overflow: hidden;
-  border-radius: 34px;
   isolation: isolate;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.02)),
-    color-mix(in srgb, var(--bg) 55%, transparent);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.07),
-    0 30px 70px -30px rgba(0, 0, 0, 0.6);
-}
-.djx__studio-glow {
-  position: absolute;
-  inset: -30% auto auto -10%;
-  z-index: -1;
-  width: 70%;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--amb-1) 40%, transparent), transparent 65%);
-  opacity: 0.7;
-  transition: opacity 0.6s ease;
-}
-.djx__studio--speaking .djx__studio-glow {
-  opacity: 1;
-}
-@container (max-width: 820px) {
-  .djx__studio {
-    grid-template-columns: minmax(0, 1fr);
-    padding: 30px 24px;
-    text-align: center;
-  }
-  .djx__actions,
-  .djx__right {
-    justify-items: center;
-    justify-content: center;
-  }
-}
-.djx__left {
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 22px;
+  gap: 8px;
+  min-height: clamp(580px, 74vh, 780px);
+  padding: 22px clamp(18px, 3cqw, 34px) 18px;
+  border-radius: 32px;
+  color: #fff;
+  background: radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--amb-1) 34%, #0b0c12), #07080c 72%);
+  box-shadow:
+    0 40px 80px -42px rgba(0, 0, 0, 0.75),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07);
 }
-/* the orb sits in a ring of level bars */
-.djx__orb {
-  width: 190px;
-  height: 190px;
-  margin: 36px;
-}
-.djx__bars {
+.djs__backdrop {
   position: absolute;
   inset: 0;
-  animation: djx-breathe 4.5s ease-in-out infinite;
+  z-index: -1;
+  overflow: hidden;
+  transform: translateZ(0);
 }
-.djx__orb.is-thinking .djx__bars {
-  animation: djx-spin 6s linear infinite;
-}
-.djx__orb.is-speaking .djx__bars {
-  animation: none;
-}
-.djx__bars i {
+.djs__backdrop img {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 4px;
-  height: 26px;
-  margin-left: -2px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--amb-1) 55%, white);
-  opacity: calc(0.35 + var(--lvl) * 0.65);
-  transform-origin: 50% 0;
-  transform: rotate(var(--a)) translateY(112px) scaleY(calc(0.28 + var(--lvl) * var(--k) * 1.6));
-  transition: opacity 0.3s;
+  inset: -12%;
+  width: 124%;
+  height: 124%;
+  object-fit: cover;
+  filter: blur(64px) saturate(1.6) brightness(0.62);
 }
-@keyframes djx-breathe {
-  50% {
-    transform: scale(1.04);
-    opacity: 0.8;
-  }
+.djs__backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(55% 45% at 50% 40%, transparent, rgba(5, 6, 10, 0.5) 85%),
+    linear-gradient(180deg, rgba(5, 6, 10, 0.15) 0%, rgba(5, 6, 10, 0.35) 55%, rgba(5, 6, 10, 0.8) 100%);
 }
-@keyframes djx-spin {
-  to {
-    rotate: 360deg;
-  }
+.djs__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
 }
-/* the ON AIR sign: dim when off, lit red while the DJ talks */
-.djx__onair {
+.djs__brand {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 32px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.djs__onair {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
   padding: 0 14px;
-  border-radius: 9px;
-  font-size: var(--fs-xs);
+  border-radius: 999px;
+  font-size: 11.5px;
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--text-2);
-  background: rgba(127, 127, 127, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
   transition:
     background-color 0.3s,
     color 0.3s,
     box-shadow 0.3s;
 }
-.djx__onair i {
+.djs__onair i {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: currentColor;
-  opacity: 0.6;
 }
-.djx__onair.is-on {
-  color: #2fd47a;
+.djs__onair.is-on {
+  color: #8dffbe;
 }
-.djx__onair.is-live {
+.djs__onair.is-on i {
+  box-shadow: 0 0 10px #8dffbe;
+}
+.djs__onair.is-live {
   color: #fff;
-  background: #e5294f;
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.2),
-    0 0 26px rgba(229, 41, 79, 0.65);
+  background: linear-gradient(90deg, #ff2d55, #ff6a3a);
+  box-shadow: 0 0 26px -4px #ff2d55;
 }
-.djx__onair.is-live i {
-  opacity: 1;
+.djs__onair.is-live i {
+  background: #fff;
   animation: blink 1s steps(2) infinite;
 }
-.djx__right {
-  display: grid;
-  gap: 18px;
-  min-width: 0;
+.djs__onair.is-busy i {
+  animation: blink 0.6s steps(2) infinite;
 }
-.djx__eyebrow {
-  font-size: var(--fs-xs);
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-.djx__line {
-  margin: 0;
-  min-height: 2.5em;
-  font-family: var(--font-display);
-  font-size: clamp(26px, 2.6vw, 38px);
-  font-weight: 800;
-  line-height: 1.15;
-  letter-spacing: -0.025em;
-  text-wrap: balance;
-}
-.djx__line.is-quiet {
-  color: var(--text);
-  opacity: 0.85;
-}
-.djx__ask {
-  position: relative;
+
+/* the orb and the DJ's words */
+.djs__center {
+  flex: 1;
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  width: 100%;
+  max-width: 780px;
+  padding: 8px 0 12px;
+  text-align: center;
 }
-.djx__ask input {
+.djs__orb {
+  --kick: 0;
+  --lvl: 0;
+  position: relative;
+  width: clamp(200px, 26cqw, 280px);
+  aspect-ratio: 1;
+  margin: 40px 0 26px;
+}
+.djs__ring {
+  position: absolute;
+  left: -25%;
+  top: -25%;
+  width: 150%;
+  height: 150%;
+  pointer-events: none;
+}
+.djs__halo {
+  position: absolute;
+  inset: -34%;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--amb-1) 55%, transparent), transparent 62%);
+  opacity: calc(0.4 + var(--lvl) * 0.9);
+  transform: scale(calc(0.85 + var(--kick) * 0.16 + var(--lvl) * 0.12));
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+.djs__ball {
+  position: absolute;
+  inset: 8%;
+  overflow: hidden;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, var(--amb-3), var(--amb-1));
+  box-shadow:
+    inset 0 -26px 60px rgba(0, 0, 0, 0.38),
+    inset 0 12px 30px rgba(255, 255, 255, 0.16),
+    0 30px 80px -14px color-mix(in srgb, var(--amb-1) 65%, transparent);
+  transform: scale(calc(1 + var(--kick) * 0.055 + var(--lvl) * 0.04));
+  will-change: transform;
+}
+.djs__swirl {
+  position: absolute;
+  inset: -25%;
+  background: conic-gradient(from 0deg, var(--amb-1), var(--amb-2), var(--amb-4), var(--amb-3), var(--amb-1));
+  filter: blur(22px);
+  opacity: 0.9;
+  animation: djs-spin 16s linear infinite;
+}
+.djs__swirl--b {
+  inset: -8%;
+  background:
+    radial-gradient(circle at 30% 32%, var(--amb-2), transparent 46%),
+    radial-gradient(circle at 70% 68%, var(--amb-4), transparent 50%);
+  mix-blend-mode: screen;
+  opacity: 0.75;
+  animation-duration: 10s;
+  animation-direction: reverse;
+}
+.djs__orb.is-speaking .djs__swirl {
+  animation-duration: 5s;
+}
+.djs__orb.is-speaking .djs__swirl--b {
+  animation-duration: 3.5s;
+}
+.djs__shine {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 32% 25%, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0) 23%),
+    radial-gradient(circle at 68% 88%, rgba(255, 255, 255, 0.16), transparent 34%);
+}
+/* picking songs: a dashed ring turns around it */
+.djs__orbit {
+  position: absolute;
+  inset: -5%;
+  border-radius: 50%;
+  border: 2px dashed rgba(255, 255, 255, 0.4);
+  opacity: 0;
+  transition: opacity 0.3s;
+  animation: djs-spin 7s linear infinite;
+  pointer-events: none;
+}
+.djs__orb.is-thinking .djs__orbit {
+  opacity: 1;
+}
+/* nothing playing: it breathes */
+.djs__orb:not(.is-playing):not(.is-speaking) .djs__ball {
+  animation: djs-breathe 4.8s ease-in-out infinite;
+}
+@keyframes djs-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes djs-breathe {
+  50% {
+    scale: 1.035;
+  }
+}
+.djs__line {
+  max-width: 700px;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(22px, 2.6cqw, 32px);
+  font-weight: 750;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.35);
+}
+.djs__line.is-quiet {
+  font-size: clamp(18px, 2cqw, 23px);
+  font-weight: 650;
+  color: rgba(255, 255, 255, 0.74);
+}
+.djs__error {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: #ffb3b3;
+}
+
+/* asking and the buttons */
+.djs__controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 640px;
+}
+.djs__ask {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 58px;
+  padding: 0 8px 0 20px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.11);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    0 18px 40px -22px rgba(0, 0, 0, 0.7);
+  transition:
+    background-color 0.25s,
+    box-shadow 0.25s;
+}
+.djs__ask:focus-within {
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in srgb, var(--amb-1) 65%, white),
+    0 0 0 6px color-mix(in srgb, var(--amb-1) 24%, transparent),
+    0 18px 40px -22px rgba(0, 0, 0, 0.7);
+}
+.djs__ask > svg {
+  flex: none;
+  opacity: 0.7;
+}
+.djs__ask input {
   flex: 1;
   min-width: 0;
-  height: 56px;
-  padding: 0 64px 0 22px;
+  height: 100%;
   border: 0;
   outline: 0;
-  border-radius: 18px;
-  color: var(--text);
+  color: #fff;
   font: inherit;
   font-size: var(--fs-md);
-  background: rgba(127, 127, 127, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  font-weight: 600;
+  background: transparent;
   user-select: text;
-  transition: box-shadow 0.2s, background-color 0.2s;
 }
-.djx__ask input:focus {
-  background: rgba(127, 127, 127, 0.2);
-  box-shadow:
-    inset 0 0 0 1.5px var(--accent),
-    0 0 0 5px color-mix(in srgb, var(--accent) 16%, transparent);
+.djs__ask input::placeholder {
+  color: rgba(255, 255, 255, 0.55);
 }
-.djx__send {
-  position: absolute;
-  right: 8px;
-  top: 8px;
+.djs__send {
   display: grid;
+  flex: none;
   place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  color: var(--on-accent);
-  background: var(--accent);
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  color: #111;
+  background: #fff;
   transition:
-    opacity 0.2s,
-    transform 0.2s var(--ease-out);
+    transform 0.2s var(--ease-out),
+    opacity 0.2s;
 }
-.djx__send:disabled {
-  opacity: 0.3;
+.djs__send:disabled {
+  opacity: 0.35;
 }
-.djx__send:not(:disabled):hover {
-  transform: translateY(-1px) scale(1.05);
+.djs__send:not(:disabled):hover {
+  transform: scale(1.07);
 }
-.djx__actions {
+.djs__buttons {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  justify-content: center;
+  gap: 8px;
 }
-.djx__start {
-  height: 48px;
-  padding: 0 24px;
-  gap: 10px;
+.djs__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-size: var(--fs-sm);
+  font-weight: 750;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  transition:
+    background-color 0.2s,
+    transform 0.2s var(--ease-out);
 }
-.djx__stop,
-.djx__surprise {
-  height: 48px;
-  padding: 0 22px;
+.djs__btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.18);
 }
-.djx__h {
+.djs__btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+.djs__btn:disabled {
+  opacity: 0.45;
+}
+.djs__btn--main {
+  color: #111;
+  background: #fff;
+  box-shadow: 0 12px 30px -10px color-mix(in srgb, var(--amb-1) 80%, transparent);
+}
+.djs__btn--main:hover:not(:disabled) {
+  background: #fff;
+  transform: translateY(-1px);
+}
+.djs__btn--main .cmd__spin {
+  border-color: rgba(0, 0, 0, 0.2);
+  border-top-color: #111;
+}
+.djs__problem {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 16px;
+  font-size: var(--fs-sm);
+  text-align: center;
+  background: rgba(0, 0, 0, 0.3);
+}
+.djs__problem p {
+  margin: 0;
+}
+.djs__problem .link {
+  color: #fff;
+  text-decoration: underline;
+}
+
+/* the song that's on, at the bottom of the stage */
+.djs__now {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 640px;
+  margin-top: 14px;
+  padding: 10px 16px 13px 10px;
+  overflow: hidden;
+  border-radius: 18px;
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.djs__now-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  text-align: left;
+}
+.djs__now-text b,
+.djs__now-text small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.djs__now-text small {
+  color: rgba(255, 255, 255, 0.66);
+}
+.djs__now-time {
+  flex: none;
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.6);
+}
+.djs__now-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.djs__now-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--p);
+  background: linear-gradient(90deg, var(--amb-1), var(--amb-2));
+  transition: width 1s linear;
+}
+
+/* moods and the rundown */
+.djs__section {
+  margin-top: 34px;
+}
+.djs__h {
   margin: 0 0 14px;
   font-family: var(--font-display);
   font-size: var(--fs-xl);
   font-weight: 800;
   letter-spacing: -0.02em;
 }
-.djx__moods {
-  margin-top: 40px;
-}
-.djx__moodgrid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-@container (max-width: 860px) {
-  .djx__moodgrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-.djx__moodgrid .mood:disabled {
-  opacity: 0.55;
-  transform: none;
-}
-.djx__next {
-  margin-top: 40px;
-}
-.djx__next header {
+.djs__head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
 }
-.djx__next ol {
+.djs__moods {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+@container (max-width: 900px) {
+  .djs__moods {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container (max-width: 640px) {
+  .djs__note,
+  .djs__now-time {
+    display: none;
+  }
+}
+.djs__moods .mood:disabled {
+  opacity: 0.55;
+  transform: none;
+}
+.djs__rundown {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   margin: 0;
   padding: 8px;
   list-style: none;
@@ -2649,33 +2845,62 @@
   background: rgba(127, 127, 127, 0.08);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
-.djx__next li {
+.djs__rundown li {
   display: flex;
   align-items: center;
   gap: 14px;
   padding: 8px 12px 8px 6px;
   border-radius: 16px;
+  cursor: default;
   transition: background-color 0.2s;
 }
-.djx__next li:hover {
+.djs__rundown li:hover {
   background: var(--hover);
 }
-.djx__next li.is-now {
+.djs__rundown li.is-past {
+  opacity: 0.5;
+}
+.djs__rundown li.is-now {
   background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 22%, transparent), transparent 80%);
 }
-.djx__next li.is-now b {
+.djs__rundown li.is-now b {
   color: var(--accent);
 }
-.djx__num {
+.djs__num {
   display: grid;
+  flex: none;
   place-items: center;
   width: 28px;
-  flex: none;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--text-2);
 }
-.djx__nowtag {
+.djs__song {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.djs__song b,
+.djs__song small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.djs__song small {
+  color: var(--text-2);
+}
+.djs__note {
+  max-width: 34%;
+  overflow: hidden;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.djs__new,
+.djs__nowtag {
+  flex: none;
   padding: 4px 10px;
   border-radius: 999px;
   font-size: var(--fs-xs);
@@ -2683,8 +2908,14 @@
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 16%, transparent);
 }
-.reduce-motion .djx__bars {
-  animation: none;
+.djs__new {
+  color: #fff;
+  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #b03cff));
+}
+.reduce-motion .djs__swirl,
+.reduce-motion .djs__orbit,
+.reduce-motion .djs__ball {
+  animation: none !important;
 }
 
 /* ---------- Mix show: the belt, the light and the box ---------- */
@@ -3093,11 +3324,6 @@
 .mixgo:not(:disabled):hover .mixgo__arrow {
   transform: translateX(3px);
 }
-.mixgo__hint {
-  margin-top: -6px;
-  font-size: var(--fs-xs);
-  color: var(--text-2);
-}
 .reduce-motion .mixgo.is-busy .mixgo__sheen {
   animation: none;
 }
@@ -3348,4 +3574,26 @@
 .reduce-motion .yearbanner,
 .reduce-motion .ryear.is-open {
   animation: none;
+}
+
+/* someone's profile: their public playlists while Spotify's page is read */
+.uskel__row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: clamp(150px, 15vw, 190px);
+  gap: 18px;
+  overflow: hidden;
+  padding: 4px 0 8px;
+}
+.uskel__card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.uskel__art {
+  aspect-ratio: 1;
+  border-radius: 14px;
+}
+.uskel__short {
+  width: 55%;
 }

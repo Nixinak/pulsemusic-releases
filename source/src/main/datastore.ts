@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { join } from 'node:path'
 
 /** Only these names can be read or written from the renderer. */
-export const STORE_NAMES = ['history', 'mixes'] as const
+export const STORE_NAMES = ['history', 'mixes', 'people'] as const
 export type StoreName = (typeof STORE_NAMES)[number]
 
 const dir = (): string => join(app.getPath('userData'), 'data')

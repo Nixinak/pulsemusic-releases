@@ -448,18 +448,6 @@ export function MixView(): React.JSX.Element {
     return out
   }, [pool])
 
-  // Ctrl+Enter makes the mix from anywhere on the page
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !loading) {
-        e.preventDefault()
-        void run()
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  })
-
   // What the mix will be made of, in words and covers, for the preview next to the controls.
   const chosen = sourceOptions.filter((o) => sources.includes(o.id))
   const previewArt = [
@@ -644,7 +632,6 @@ export function MixView(): React.JSX.Element {
               </svg>
             </span>
           </button>
-          <small className="mixgo__hint">or press Ctrl + Enter</small>
           {pool && <small className="muted">{plural(pool.length, 'song')} to choose from</small>}
         </aside>
       </div>

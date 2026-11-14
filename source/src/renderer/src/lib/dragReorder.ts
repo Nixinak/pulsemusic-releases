@@ -101,13 +101,22 @@ export function useDragReorder({ container, onDrop, enabled = true }: Options): 
       rows = []
     }
 
+    // A drag only starts once the pointer has moved a few pixels, so a click or a double-click
+    // on a row (to play it) doesn't lift it.
+    let pending: { handle: HTMLElement; row: HTMLElement; x: number; y: number; id: number } | null = null
+
     const onDown = (e: PointerEvent): void => {
-      if (e.button !== 0) return
+      if (e.button !== 0 || dragging) return
       const handle = (e.target as HTMLElement).closest<HTMLElement>('[data-drag-handle]')
       if (!handle || !root.contains(handle)) return
       const row = handle.closest<HTMLElement>('[data-drag-row]')
       if (!row) return
-      e.preventDefault()
+      // a grip of its own: no text selection starts from it (a whole row stays clickable)
+      if (handle !== row) e.preventDefault()
+      pending = { handle, row, x: e.clientX, y: e.clientY, id: e.pointerId }
+    }
+
+    const begin = (e: PointerEvent, handle: HTMLElement, row: HTMLElement, fromY: number): void => {
       rows = Array.from(root.querySelectorAll<HTMLElement>('[data-drag-row]'))
       from = to = rows.indexOf(row)
       if (from < 0) return
@@ -122,24 +131,40 @@ export function useDragReorder({ container, onDrop, enabled = true }: Options): 
       mids = rects.map((r) => r.top + st + r.height / 2)
       shifts = rows.map(() => 0)
       pitch = rows.length > 1 ? (from + 1 < rows.length ? tops[from + 1] - tops[from] : tops[from] - tops[from - 1]) : rects[from].height
-      startY = contentY(e.clientY)
+      // measured from where the press started, so the row doesn't jump by the threshold
+      startY = contentY(fromY)
       lastClientY = e.clientY
       pointerId = e.pointerId
       handleEl = handle
-      handle.setPointerCapture(e.pointerId)
+      try {
+        handle.setPointerCapture(e.pointerId)
+      } catch {
+        // the pointer is already gone
+      }
       dragging = true
+      window.getSelection()?.removeAllRanges()
       root.classList.add('is-reordering')
       document.documentElement.classList.add('is-dragging-row')
       row.classList.add('is-lifted')
+      schedule()
     }
 
     const onMove = (e: PointerEvent): void => {
+      if (pending && !dragging && e.pointerId === pending.id) {
+        if (Math.hypot(e.clientX - pending.x, e.clientY - pending.y) < 6) return
+        const p = pending
+        pending = null
+        if (!root.contains(p.row)) return
+        begin(e, p.handle, p.row, p.y)
+        return
+      }
       if (!dragging || e.pointerId !== pointerId) return
       lastClientY = e.clientY
       schedule()
     }
 
     const onUp = (e: PointerEvent): void => {
+      if (pending?.id === e.pointerId) pending = null
       if (!dragging || e.pointerId !== pointerId) return
       dragging = false
       cancelAnimationFrame(raf)

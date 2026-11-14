@@ -1,4 +1,4 @@
-// A playlist Pulse made for you (Daily Mix, Discover Weekly, Release Radar, On Repeat): its own
+// A playlist Pulse made for you (Daily Mix, Discover Weekly, Release Radar, On Repeat and the rest): its own
 // cover, what's in it and when it's refreshed, play and shuffle, and Save as playlist to keep
 // this week's (or today's) version in Spotify.
 import { useState } from 'react'
@@ -6,7 +6,7 @@ import { useApp, errorText } from '@/lib/store'
 import * as sp from '@/lib/spotify'
 import { playUris } from '@/lib/player'
 import { formatDuration, plural } from '@/lib/format'
-import { useMadeForYou } from '@/lib/madeForYou'
+import { isWeekly, useMadeForYou } from '@/lib/madeForYou'
 import { ErrorState, usePagePalette } from '@/components/common'
 import { TrackList } from '@/components/TrackList'
 import { PageHeader } from './PageHeader'
@@ -23,7 +23,7 @@ export function MadeView({ id }: { id: string }): React.JSX.Element {
 
   const uris = mix.tracks.map((t) => t.uri)
   const total = mix.tracks.reduce((n, t) => n + t.duration_ms, 0)
-  const weekly = mix.kind === 'discover' || mix.kind === 'radar'
+  const weekly = isWeekly(mix.kind)
   const made = new Date(mix.madeAt)
   const today = new Date().toDateString() === made.toDateString()
   const when = weekly ? 'New every Monday' : today ? 'Updated today' : `Updated ${made.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`

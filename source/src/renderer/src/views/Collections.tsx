@@ -23,13 +23,16 @@ export function PlayActions({
   contextUri,
   extra,
   disabled,
-  uris
+  uris,
+  onShuffle
 }: {
   contextUri: string
   extra?: React.ReactNode
   disabled?: boolean
   /** Songs in this collection, so Shuffle can start on a random one. */
   uris?: string[]
+  /** Shuffle done by the page itself (an artist gathers songs from several releases). */
+  onShuffle?: () => void
 }): React.JSX.Element {
   const current = usePlayer((s) => s.contextUri)
   const paused = usePlayer((s) => s.paused)
@@ -47,7 +50,7 @@ export function PlayActions({
       >
         {isThis && !paused ? <PauseIcon size={24} /> : <PlayIcon size={24} />}
       </button>
-      <button className="btn" disabled={disabled} onClick={() => void shufflePlay(contextUri, uris)}>
+      <button className="btn" disabled={disabled} onClick={() => (onShuffle ? onShuffle() : void shufflePlay(contextUri, uris))}>
         <ShuffleIcon size={17} />
         Shuffle
       </button>

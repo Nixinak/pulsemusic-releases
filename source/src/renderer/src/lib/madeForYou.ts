@@ -1,11 +1,15 @@
 // Made for you: personal playlists Pulse puts together by itself and refreshes on its own.
-//  - Daily Mix 1–4 (new every day): your artists in groups that belong together (Deezer's
-//    "similar artists" decides the groups), mostly songs you love plus a few of theirs you
+//  - Daily Mix 1–6 (new every day): your artists in groups that belong together (Deezer's
+//    "similar artists" decides the groups), mostly songs you love plus some of theirs you
 //    haven't saved yet.
 //  - On Repeat (every day): what you've played most in the last 30 days.
+//  - Repeat Rewind (every day): what you played a lot earlier in the year but not lately.
 //  - Discover Weekly (every Monday): artists you don't listen to yet that sound like the ones
 //    you do, two of their best songs each.
 //  - Release Radar (every Monday): new songs from your artists, from the last six weeks.
+//  - Deep Cuts (every Monday): the lesser-known songs of the artists you play most.
+//  - Time Capsule (every Monday): your all-time favourites and old likes you haven't played lately.
+// Each mix has up to 40 songs.
 // Everything is made quietly in the background (the AI DJ's model names the daily mixes when
 // it's available) and only appears on Home once it's ready. Each mix gets its own cover,
 // drawn here with your name on it.
@@ -15,7 +19,13 @@ import { computeStats, isRealId, useHistory, type Play } from './history'
 import { useApp } from './store'
 import type { STrack } from './types'
 
-export type MixKind = 'daily' | 'repeat' | 'discover' | 'radar'
+export type MixKind = 'daily' | 'repeat' | 'rewind' | 'discover' | 'radar' | 'deep' | 'capsule'
+
+/** Mixes that are made once a week (on Monday); the rest are made every day. */
+export const isWeekly = (k: MixKind): boolean => k === 'discover' || k === 'radar' || k === 'deep' || k === 'capsule'
+
+/** How many songs a mix holds at most. */
+const SIZE = 40
 
 export interface GenMix {
   id: string
@@ -33,7 +43,8 @@ export interface GenMix {
 }
 
 interface Saved {
-  version: 1
+  /** 2: up to 40 songs and all seven kinds. Mixes saved by older versions are made again. */
+  version: 1 | 2
   user: string
   /** Day and ISO week the daily and the weekly mixes were made for. */
   day: string
@@ -144,9 +155,9 @@ const slim = (t: STrack): STrack => ({
   type: 'track'
 })
 
-const searchSongs = (q: string): Promise<STrack[]> =>
+const searchSongs = (q: string, offset = 0): Promise<STrack[]> =>
   sp
-    .api<{ tracks?: { items: (STrack | null)[] } }>('/search', { query: { q, type: 'track', limit: 10 }, background: true })
+    .api<{ tracks?: { items: (STrack | null)[] } }>('/search', { query: { q, type: 'track', limit: 10, offset }, background: true })
     .then((r) => (r.tracks?.items ?? []).filter((t): t is STrack => !!t?.id && t.is_playable !== false))
     .catch(() => [])
 
@@ -160,6 +171,9 @@ interface Library {
   /** Artists by name key, with how much they're played. */
   artists: Map<string, { id: string; name: string; score: number }>
   plays: Play[]
+  /** Spotify's all-time top songs and liked songs saved more than a year ago (for Time Capsule). */
+  longTop: STrack[]
+  oldLiked: STrack[]
 }
 
 async function readLibrary(): Promise<Library> {
@@ -191,14 +205,30 @@ async function readLibrary(): Promise<Library> {
   }
 
   // the newest liked songs and Spotify's own top lists
+  type LikedPage = { items: { track: STrack | null; added_at?: string }[]; next: string | null; total?: number }
+  const yearAgo = Date.now() - 365 * 86_400_000
+  const oldLiked: STrack[] = []
+  const keepOld = (page: LikedPage): void => {
+    for (const i of page.items) if (i.track?.id && Date.parse(i.added_at ?? '') < yearAgo) oldLiked.push(i.track)
+  }
   const liked: STrack[] = []
+  let likedTotal = 0
   for (let offset = 0; offset < 300; offset += 50) {
-    const page = await sp
-      .api<{ items: { track: STrack | null }[]; next: string | null }>('/me/tracks', { query: { limit: 50, offset }, background: true })
-      .catch(() => null)
+    const page = await sp.api<LikedPage>('/me/tracks', { query: { limit: 50, offset }, background: true }).catch(() => null)
     if (!page) break
+    likedTotal = page.total ?? likedTotal
     liked.push(...page.items.map((i) => i.track).filter((t): t is STrack => !!t?.id))
+    keepOld(page)
     if (!page.next) break
+  }
+  // two pages from further back in the liked songs (different ones each week)
+  if (likedTotal > 350) {
+    const rnd = seeded(weekKey())
+    for (let n = 0; n < 2; n++) {
+      const offset = 300 + Math.floor(rnd() * Math.max(1, likedTotal - 350))
+      const page = await sp.api<LikedPage>('/me/tracks', { query: { limit: 50, offset }, background: true }).catch(() => null)
+      if (page) keepOld(page)
+    }
   }
   liked.forEach((t, i) => {
     addSong(t, 6 * (1 - i / 400))
@@ -214,7 +244,8 @@ async function readLibrary(): Promise<Library> {
       t.artists.forEach((a, j) => addArtist(a, (j === 0 ? w : w * 0.3) * (1 - i / 60)))
     })
   }
-  return { songs, artists, plays }
+  const long = await sp.api<{ items: STrack[] }>('/me/top/tracks', { query: { limit: 50, time_range: 'long_term' }, background: true }).catch(() => null)
+  return { songs, artists, plays, longTop: (long?.items ?? []).filter((t) => t?.id && isRealId(t.id) && !t.is_local), oldLiked }
 }
 
 /* ---------- The mixes ---------- */
@@ -249,8 +280,8 @@ async function dailyMixes(lib: Library, day: string): Promise<Draft[]> {
   }
   const used = new Set<string>()
   const groups: { name: string; id: string }[][] = []
-  for (const seed of ranked.slice(0, 14)) {
-    if (groups.length >= 4) break
+  for (const seed of ranked.slice(0, 24)) {
+    if (groups.length >= 6) break
     const sk = norm(seed.name)
     if (used.has(sk) || (byArtist.get(sk)?.length ?? 0) < 3) continue
     const near = new Set((await related(seed.name)).map(norm))
@@ -274,22 +305,28 @@ async function dailyMixes(lib: Library, day: string): Promise<Draft[]> {
       .flatMap((a) => byArtist.get(norm(a.name)) ?? [])
       .sort((a, b) => b.score - a.score)
     // favourites first, then a shuffle of the rest; about three quarters are songs they know
-    const known = [...own.slice(0, 6), ...shuffle(own.slice(6), rnd)].slice(0, 24).map((s) => s.track)
+    const known = [...own.slice(0, 8), ...shuffle(own.slice(8), rnd)].slice(0, 30).map((s) => s.track)
     const knownKeys = new Set([...lib.songs.keys()])
     const fresh: STrack[] = []
-    for (const a of group.slice(0, 3)) {
-      const found = await searchSongs(`artist:"${a.name}"`)
-      for (const t of found) {
-        if (fresh.length >= 8) break
-        if (norm(t.artists[0]?.name ?? '') !== norm(a.name) || knownKeys.has(songKey(t)) || fresh.some((x) => songKey(x) === songKey(t))) continue
-        fresh.push(t)
+    const want = Math.max(10, SIZE - known.length)
+    for (const a of group.slice(0, 4)) {
+      for (const offset of [0, 10]) {
+        if (fresh.length >= want) break
+        const found = await searchSongs(`artist:"${a.name}"`, offset)
+        for (const t of found) {
+          if (fresh.length >= want) break
+          if (norm(t.artists[0]?.name ?? '') !== norm(a.name) || knownKeys.has(songKey(t)) || fresh.some((x) => songKey(x) === songKey(t))) continue
+          fresh.push(t)
+        }
+        await pause(150)
+        // the second page only when the group is small
+        if (known.length >= 24) break
       }
-      await pause(150)
     }
     // the new songs are mixed in after the first few favourites
     const list = known.slice(0, 3)
-    const rest = shuffle([...known.slice(3), ...fresh.slice(0, Math.max(4, 30 - known.length))], rnd)
-    const tracks = spread([...list, ...rest]).slice(0, 30)
+    const rest = shuffle([...known.slice(3), ...fresh], rnd)
+    const tracks = spread([...list, ...rest]).slice(0, SIZE)
     const art = [
       ...group.slice(0, 1).map((a) => a.id),
       ...tracks.map((t) => sp.pickImage(t.album?.images, 300)).filter((x): x is string => !!x)
@@ -310,7 +347,7 @@ async function dailyMixes(lib: Library, day: string): Promise<Draft[]> {
 
 function onRepeat(lib: Library): Draft | null {
   const st = computeStats(lib.plays, Date.now() - 30 * 86_400_000)
-  const songs = st.songs.filter((s) => s.plays >= 2 && isRealId(s.item.id) && s.item.art).slice(0, 30)
+  const songs = st.songs.filter((s) => s.plays >= 2 && isRealId(s.item.id) && s.item.art).slice(0, SIZE)
   if (songs.length < 8) return null
   const tracks = songs.map((s) => fromPlay(s.item))
   const artists = st.artists.filter((a) => isRealId(a.item.id)).slice(0, 3).map((a) => a.item)
@@ -322,7 +359,29 @@ function onRepeat(lib: Library): Draft | null {
     description: 'The songs you can’t stop playing, from the last 30 days.',
     tracks,
     art: tracks.map((t) => sp.pickImage(t.album?.images, 300)).filter((x): x is string => !!x),
-    look: 4
+    look: 6
+  }
+}
+
+/** Songs played a lot between a year and a month ago that haven't been played in the last month. */
+function repeatRewind(lib: Library): Draft | null {
+  const now = Date.now()
+  const month = now - 30 * 86_400_000
+  const recent = new Set(lib.plays.filter((p) => p.at >= month).map((p) => songKey(fromPlay(p))))
+  const st = computeStats(lib.plays, now - 365 * 86_400_000, month)
+  const songs = st.songs.filter((s) => s.plays >= 3 && isRealId(s.item.id) && s.item.art && !recent.has(songKey(fromPlay(s.item)))).slice(0, SIZE)
+  if (songs.length < 10) return null
+  const tracks = songs.map((s) => fromPlay(s.item))
+  const artists = [...new Map(tracks.map((t) => [t.artists[0]?.id, t.artists[0]])).values()].filter(Boolean) as { name: string }[]
+  return {
+    kind: 'rewind',
+    label: 'Repeat Rewind',
+    title: 'Repeat Rewind',
+    subtitle: names(artists),
+    description: 'Songs you had on repeat earlier this year and haven’t played in a while.',
+    tracks,
+    art: tracks.map((t) => sp.pickImage(t.album?.images, 300)).filter((x): x is string => !!x),
+    look: 7
   }
 }
 
@@ -330,31 +389,31 @@ async function discoverWeekly(lib: Library, week: string): Promise<Draft | null>
   const rnd = seeded(week)
   const known = new Set(lib.artists.keys())
   for (const s of lib.songs.values()) for (const a of s.track.artists) known.add(norm(a.name))
-  const seeds = [...lib.artists.values()].sort((a, b) => b.score - a.score).slice(0, 8)
+  const seeds = [...lib.artists.values()].sort((a, b) => b.score - a.score).slice(0, 12)
   const fresh = new Map<string, { name: string; w: number; via: string }>()
   for (const [i, seed] of seeds.entries()) {
     const list = await related(seed.name)
-    list.slice(0, 8).forEach((n, j) => {
+    list.slice(0, 10).forEach((n, j) => {
       const k = norm(n)
       if (!k || known.has(k)) return
       const e = fresh.get(k) ?? { name: n, w: 0, via: seed.name }
-      e.w += (1 - i * 0.08) * (1 - j * 0.08)
+      e.w += (1 - i * 0.06) * (1 - j * 0.07)
       fresh.set(k, e)
     })
   }
-  const picks = [...fresh.values()].sort((a, b) => b.w - a.w).slice(0, 18)
+  const picks = [...fresh.values()].sort((a, b) => b.w - a.w).slice(0, 30)
   const knownKeys = new Set(lib.songs.keys())
   const tracks: STrack[] = []
   const vias: string[] = []
   for (const a of picks) {
-    if (tracks.length >= 30) break
+    if (tracks.length >= SIZE) break
     const found = (await searchSongs(`artist:"${a.name}"`)).filter((t) => norm(t.artists[0]?.name ?? '') === norm(a.name) && !knownKeys.has(songKey(t)))
     tracks.push(...shuffle(found.slice(0, 4), rnd).slice(0, 2))
     if (found.length && !vias.includes(a.via)) vias.push(a.via)
     await pause(150)
   }
   if (tracks.length < 8) return null
-  const list = spread(shuffle(tracks, rnd)).slice(0, 30)
+  const list = spread(shuffle(tracks, rnd)).slice(0, SIZE)
   const artistNames = [...new Map(list.map((t) => [t.artists[0]?.id, t.artists[0]])).values()].filter(Boolean) as { name: string }[]
   return {
     kind: 'discover',
@@ -364,17 +423,18 @@ async function discoverWeekly(lib: Library, week: string): Promise<Draft | null>
     description: `New to you, picked for fans of ${names(vias.map((n) => ({ name: n })), 3)}. Fresh every Monday.`,
     tracks: list,
     art: list.map((t) => sp.pickImage(t.album?.images, 300)).filter((x): x is string => !!x),
-    look: 5
+    look: 8
   }
 }
 
 async function releaseRadar(lib: Library): Promise<Draft | null> {
   const year = new Date().getFullYear()
   const since = Date.now() - 42 * 86_400_000
-  const artists = [...lib.artists.values()].sort((a, b) => b.score - a.score).slice(0, 18)
+  const artists = [...lib.artists.values()].sort((a, b) => b.score - a.score).slice(0, 30)
   const tracks: STrack[] = []
   const albums = new Map<string, number>()
   for (const a of artists) {
+    if (tracks.length >= SIZE + 10) break
     const found = await searchSongs(`artist:"${a.name}" year:${year - 1}-${year}`)
     for (const t of found) {
       const released = Date.parse(t.album?.release_date ?? '')
@@ -387,7 +447,7 @@ async function releaseRadar(lib: Library): Promise<Draft | null> {
     await pause(150)
   }
   if (tracks.length < 5) return null
-  const list = tracks.sort((x, y) => (y.album?.release_date ?? '').localeCompare(x.album?.release_date ?? '')).slice(0, 30)
+  const list = tracks.sort((x, y) => (y.album?.release_date ?? '').localeCompare(x.album?.release_date ?? '')).slice(0, SIZE)
   const artistNames = [...new Map(list.map((t) => [t.artists[0]?.id, t.artists[0]])).values()].filter(Boolean) as { name: string }[]
   return {
     kind: 'radar',
@@ -397,7 +457,68 @@ async function releaseRadar(lib: Library): Promise<Draft | null> {
     description: 'New songs from the artists you play, from the last six weeks. Fresh every Monday.',
     tracks: list,
     art: list.map((t) => sp.pickImage(t.album?.images, 300)).filter((x): x is string => !!x),
-    look: 6
+    look: 9
+  }
+}
+
+/** The lesser-known songs of the artists they play most: past the hits Spotify's search shows first. */
+async function deepCuts(lib: Library, week: string): Promise<Draft | null> {
+  const rnd = seeded(`${week}-deep`)
+  const knownKeys = new Set(lib.songs.keys())
+  const artists = [...lib.artists.values()].sort((a, b) => b.score - a.score).slice(0, 10)
+  const tracks: STrack[] = []
+  for (const a of artists) {
+    if (tracks.length >= SIZE) break
+    const found: STrack[] = []
+    for (const offset of [10, 20]) {
+      const page = await searchSongs(`artist:"${a.name}"`, offset)
+      found.push(...page.filter((t) => t.artists[0]?.id === a.id && !knownKeys.has(songKey(t)) && !found.some((x) => songKey(x) === songKey(t)) && !tracks.some((x) => songKey(x) === songKey(t))))
+      await pause(150)
+    }
+    tracks.push(...shuffle(found, rnd).slice(0, 5))
+  }
+  if (tracks.length < 10) return null
+  const list = spread(shuffle(tracks, rnd)).slice(0, SIZE)
+  const artistNames = [...new Map(list.map((t) => [t.artists[0]?.id, t.artists[0]])).values()].filter(Boolean) as { name: string }[]
+  return {
+    kind: 'deep',
+    label: 'Deep Cuts',
+    title: 'Deep Cuts',
+    subtitle: names(artistNames),
+    description: 'The songs your favourite artists don’t play on the radio. Fresh every Monday.',
+    tracks: list,
+    art: list.map((t) => sp.pickImage(t.album?.images, 300)).filter((x): x is string => !!x),
+    look: 10
+  }
+}
+
+/** All-time favourites and old likes they haven't played in the last two months. */
+function timeCapsule(lib: Library, week: string): Draft | null {
+  const rnd = seeded(`${week}-capsule`)
+  const lately = Date.now() - 60 * 86_400_000
+  const recent = new Set(lib.plays.filter((p) => p.at >= lately).map((p) => songKey(fromPlay(p))))
+  const seen = new Set<string>()
+  const pick = (list: STrack[]): STrack[] =>
+    list.filter((t) => {
+      const k = songKey(t)
+      if (recent.has(k) || seen.has(k)) return false
+      seen.add(k)
+      return true
+    })
+  const top = pick(lib.longTop)
+  const old = pick(shuffle(lib.oldLiked, rnd))
+  const tracks = spread([...top.slice(0, 24), ...old].slice(0, SIZE))
+  if (tracks.length < 12) return null
+  const artistNames = [...new Map(tracks.map((t) => [t.artists[0]?.id, t.artists[0]])).values()].filter(Boolean) as { name: string }[]
+  return {
+    kind: 'capsule',
+    label: 'Time Capsule',
+    title: 'Time Capsule',
+    subtitle: names(artistNames),
+    description: 'Your all-time favourites and old likes you haven’t played lately. Fresh every Monday.',
+    tracks,
+    art: tracks.map((t) => sp.pickImage(t.album?.images, 300)).filter((x): x is string => !!x),
+    look: 11
   }
 }
 
@@ -447,15 +568,21 @@ async function nameWithAi(drafts: Draft[]): Promise<void> {
 
 /* ---------- Covers ---------- */
 
-/** Colours for each look: daily mixes 1–4, On Repeat, Discover Weekly, Release Radar. */
+/** Colours for each look: daily mixes 1–6, On Repeat, Repeat Rewind, Discover Weekly,
+ *  Release Radar, Deep Cuts, Time Capsule. */
 const LOOKS: [string, string, string][] = [
   ['#ff4f8b', '#7a2cff', '#ffd1e3'],
   ['#2ad1c9', '#2a5cff', '#d3fff9'],
   ['#ffb547', '#ff3d6e', '#fff0d6'],
   ['#9be38f', '#1f8f6b', '#eaffe4'],
+  ['#c77dff', '#3a0ca3', '#f0e0ff'],
+  ['#ffd23f', '#ee4266', '#fff6cc'],
   ['#ff6a3d', '#c4127a', '#ffe1d6'],
+  ['#3ddc97', '#00668a', '#d9fff0'],
   ['#7a5cff', '#00c2ff', '#e4e0ff'],
-  ['#ff3d5a', '#ffb800', '#ffe9d1']
+  ['#ff3d5a', '#ffb800', '#ffe9d1'],
+  ['#1b1b3a', '#6c63ff', '#dcdaff'],
+  ['#d4a373', '#6b3e26', '#fbeee0']
 ]
 
 function loadImage(src: string): Promise<HTMLImageElement | null> {
@@ -560,7 +687,7 @@ async function drawCover(d: Draft, listener: string): Promise<string> {
       ctx.restore()
       ctx.globalAlpha = 0.5
       ctx.fillStyle = bg
-      ctx.globalCompositeOperation = d.kind === 'discover' ? 'color' : 'soft-light'
+      ctx.globalCompositeOperation = d.kind === 'discover' || d.kind === 'deep' ? 'color' : d.kind === 'capsule' ? 'multiply' : 'soft-light'
       ctx.fillRect(0, 0, S, S)
       ctx.globalCompositeOperation = 'source-over'
       ctx.globalAlpha = 1
@@ -664,12 +791,18 @@ async function make(user: string, listener: string, keepWeekly: GenMix[], keepDa
     drafts.push(...(await dailyMixes(lib, day)))
     const rep = onRepeat(lib)
     if (rep) drafts.push(rep)
+    const rew = repeatRewind(lib)
+    if (rew) drafts.push(rew)
   }
   if (!keepWeekly.length) {
     const dw = await discoverWeekly(lib, week)
     if (dw) drafts.push(dw)
     const rr = await releaseRadar(lib)
     if (rr) drafts.push(rr)
+    const dc = await deepCuts(lib, week)
+    if (dc) drafts.push(dc)
+    const tc = timeCapsule(lib, week)
+    if (tc) drafts.push(tc)
   }
   await nameWithAi(drafts)
   const made: GenMix[] = []
@@ -687,10 +820,10 @@ async function make(user: string, listener: string, keepWeekly: GenMix[], keepDa
       madeAt: Date.now()
     })
   }
-  const order: MixKind[] = ['daily', 'discover', 'radar', 'repeat']
+  const order: MixKind[] = ['daily', 'discover', 'radar', 'repeat', 'deep', 'rewind', 'capsule']
   const all = [...made, ...keepDaily, ...keepWeekly].sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || a.id.localeCompare(b.id))
   if (!all.length) return
-  saved = { version: 1, user, day, week, mixes: all }
+  saved = { version: 2, user, day, week, mixes: all }
   save()
   // everything appears at once, when it's all ready
   useMadeForYou.setState({ mixes: all })
@@ -703,9 +836,9 @@ function refresh(): void {
   if (!me?.id) return
   const day = dayKey()
   const week = weekKey()
-  const mine = saved?.user === me.id ? saved : null
-  const keepDaily = mine && mine.day === day ? mine.mixes.filter((m) => m.kind === 'daily' || m.kind === 'repeat') : []
-  const keepWeekly = mine && mine.week === week ? mine.mixes.filter((m) => m.kind === 'discover' || m.kind === 'radar') : []
+  const mine = saved?.user === me.id && saved.version === 2 ? saved : null
+  const keepDaily = mine && mine.day === day ? mine.mixes.filter((m) => !isWeekly(m.kind)) : []
+  const keepWeekly = mine && mine.week === week ? mine.mixes.filter((m) => isWeekly(m.kind)) : []
   const dailyDue = !keepDaily.length
   const weeklyDue = !keepWeekly.length
   if (!dailyDue && !weeklyDue) return
@@ -720,7 +853,7 @@ export function startMadeForYou(): () => void {
   let stopped = false
   void window.pulse.store.get<Saved>('mixes').then((d) => {
     const me = useApp.getState().me
-    if (d && d.version === 1 && Array.isArray(d.mixes)) {
+    if (d && (d.version === 1 || d.version === 2) && Array.isArray(d.mixes)) {
       saved = d
       if (!me || d.user === me.id) useMadeForYou.setState({ mixes: d.mixes })
     }

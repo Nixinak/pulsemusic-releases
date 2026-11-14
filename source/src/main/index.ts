@@ -4,6 +4,7 @@ import {
   clipboard,
   ClipboardItem,
   components,
+  desktopCapturer,
   dialog,
   ipcMain,
   Menu,
@@ -12,7 +13,8 @@ import {
   screen,
   session,
   shell,
-  Tray
+  Tray,
+  webContents
 } from 'electron'
 import { join, resolve } from 'node:path'
 import { writeFile } from 'node:fs/promises'
@@ -28,7 +30,7 @@ import appIconPath from '../../build/icon.png?asset'
 import { getAccessToken, grantedScopes, isLoggedIn, loadTokens, login, logout, customClientId, setCustomClientId } from './auth'
 import { isStoreName, readStore, writeStore } from './datastore'
 import { djChat } from './dj'
-import { friendAction, nowOf, followsOf, getListeners, getSpotifyFollows, shareNow, userFromHtml, getEmbedPlaylist, getFriends, getPulseProfile, getSpotifyUser, lookupPulse, publishPulse, pulseServerOn, searchPulse, searchSpotifyUsers } from './social'
+import { friendAction, nowOf, followsOf, getListeners, getSpotifyFollows, shareNow, savedSpotifyUser, userFromHtml, getEmbedPlaylist, getFriends, getPulseProfile, getSpotifyUser, lookupPulse, publishPulse, pulseServerOn, searchPulse, searchSpotifyUsers } from './social'
 import { cleanOldVoices, installVoice, speak, voiceStatus } from './voice'
 import { discordStatus, refreshPresence, setDiscordEnabled, setDiscordGetButton, updatePresence } from './discord'
 import { fetchGenius, fetchLrclib, fetchLyricsOvh } from './lyrics'
@@ -406,7 +408,9 @@ function registerIpc(): void {
   const text = (v: unknown, max: number): string | null => (typeof v === 'string' && v.trim().length >= 2 ? v.trim().slice(0, max) : null)
   ipcMain.handle('people:search-spotify', (_e, q: unknown) => (text(q, 80) ? searchSpotifyUsers(text(q, 80)!) : []))
   ipcMain.handle('people:spotify-user', (_e, id: unknown) => (sid(id) ? getSpotifyUser(sid(id)!) : null))
-  ipcMain.handle('people:spotify-user-quick', (_e, id: unknown) => (sid(id) ? userFromHtml(sid(id)!).catch(() => null) : null))
+  // a profile read before (playlists and all) comes straight from disk; otherwise the page's
+  // link preview has the name and picture in well under a second
+  ipcMain.handle('people:spotify-user-quick', (_e, id: unknown) => (sid(id) ? (savedSpotifyUser(sid(id)!) ?? userFromHtml(sid(id)!).catch(() => null)) : null))
   ipcMain.handle('people:embed-playlist', (_e, id: unknown) => (typeof id === 'string' && /^[A-Za-z0-9]{10,40}$/.test(id) ? getEmbedPlaylist(id) : null))
   ipcMain.handle('people:server-on', () => pulseServerOn())
   ipcMain.handle('people:pulse-profile', (_e, id: unknown) => (sid(id) ? getPulseProfile(sid(id)!) : null))
@@ -477,6 +481,14 @@ function registerIpc(): void {
   ipcMain.handle('recs:preview', (_e, title: string, artist: string) =>
     typeof title === 'string' && typeof artist === 'string' ? songPreview(title.slice(0, 200), artist.slice(0, 100)) : null
   )
+  // The DJ orb moves with the music. Spotify's audio is protected, so the page can't read it;
+  // on Windows it listens to what the computer plays instead (loopback). Chromium needs a
+  // screen named for that, but the page stops the picture at once and nothing is saved.
+  ipcMain.handle('recs:loopback-source', async (e) => {
+    if (process.platform !== 'win32' || e.sender !== mainWindow?.webContents) return null
+    const list = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } }).catch(() => [])
+    return list[0]?.id ?? null
+  })
   ipcMain.handle('artist:page', (_e, id: string) => (/^[A-Za-z0-9]{10,40}$/.test(id) ? getArtistPage(id) : null))
   ipcMain.handle('artist:quick', (_e, id: string) => (/^[A-Za-z0-9]{10,40}$/.test(id) ? getArtistQuick(id) : null))
   ipcMain.handle('lyrics:lrclib', (_e, q) => fetchLrclib(q))
@@ -533,6 +545,20 @@ function registerIpc(): void {
   })
 }
 
+/** The DJ orb listens to what the computer plays (Windows loopback audio) to move with the
+ *  beat. Only the app's own window gets it, and only the sound: no picture is kept. */
+function allowLoopbackAudio(): void {
+  if (process.platform !== 'win32') return
+  session.defaultSession.setDisplayMediaRequestHandler((req, cb) => {
+    const from = req.frame ? webContents.fromFrame(req.frame) : null
+    if (!mainWindow || from !== mainWindow.webContents || !req.audioRequested) return cb({})
+    desktopCapturer
+      .getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } })
+      .then((list) => cb(list[0] ? { video: list[0], audio: 'loopback' } : {}))
+      .catch(() => cb({}))
+  })
+}
+
 app.whenReady().then(async () => {
   // Widevine (castLabs) must be ready before Spotify playback can start.
   try {
@@ -545,6 +571,7 @@ app.whenReady().then(async () => {
   const s = loadSettings()
   applySettings(s)
   registerIpc()
+  allowLoopbackAudio()
   cleanOldVoices()
   createMainWindow()
   createTray()
