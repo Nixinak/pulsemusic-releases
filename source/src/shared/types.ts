@@ -49,13 +49,13 @@ export interface Settings {
   djSpeaker: DjVoiceId
   /** Talk between songs: after every song, every few songs, or only when a set starts. */
   djChattiness: 'often' | 'sometimes' | 'rarely'
-  /** How Now Playing looks: the usual one, a big cover, a turntable or a CD deck. */
+  /** How Now Playing looks: the usual one, a big cover, a turntable, a CD deck or a lock screen. */
   npTheme: NpTheme
   /** Now Playing covers the whole screen (taskbar hidden); remembered for next time. */
   npFullscreen: boolean
 }
 
-export type NpTheme = 'classic' | 'cover' | 'vinyl' | 'cd'
+export type NpTheme = 'classic' | 'cover' | 'vinyl' | 'cd' | 'lock'
 
 export type DjVoiceId = 'af_heart' | 'af_bella' | 'bf_emma' | 'am_michael' | 'am_fenrir' | 'bm_george'
 

@@ -17,7 +17,7 @@ import { TransitionStage } from './TransitionCard'
 import { useTransition } from '@/lib/transition'
 import type { NpPanel } from '@/lib/store'
 import type { NpTheme } from '@shared/types'
-import { CdDeck, NpEdgeMenu, Turntable } from './NpThemes'
+import { CdDeck, LockClock, LockWall, NpEdgeMenu, Turntable } from './NpThemes'
 
 const TABS: { id: NpPanel; label: string; Icon: typeof LyricsIcon }[] = [
   { id: 'lyrics', label: 'Lyrics', Icon: LyricsIcon },
@@ -86,14 +86,14 @@ export function NowPlaying(): React.JSX.Element {
     <AnimatePresence>
       {open && track && (
         <motion.div
-          className={`np np--${theme}`}
+          className={`np np--${theme} ${panel !== 'none' ? 'np--panel' : ''}`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0, transition: { duration: 0.28 } }}
           transition={{ duration: 0.4 }}
         >
           <div className="np__bg" aria-hidden="true">
-            <NpBackdrop art={track.artUrl} />
+            {theme === 'lock' ? <LockWall art={track.artUrl} /> : <NpBackdrop art={track.artUrl} />}
             <div className="np__bg-shade" />
           </div>
 
@@ -123,6 +123,7 @@ export function NowPlaying(): React.JSX.Element {
           <LayoutGroup>
           <div className={`np__body ${panel === 'none' ? 'np__body--solo' : ''}`}>
             <section className="np__left">
+              {theme === 'lock' && <LockClock />}
               {theme === 'vinyl' ? (
                 <motion.div layoutId="np-art" className="np__deck" transition={spring}>
                   <Turntable art={track.artUrl} paused={paused} />
@@ -139,7 +140,7 @@ export function NowPlaying(): React.JSX.Element {
                 </motion.div>
               ) : (
                 <motion.div layoutId="np-art" className={`np__art ${paused ? 'is-paused' : ''}`} transition={spring}>
-                  <SwapArt id={track.id} src={track.artUrl} radius={theme === 'cover' ? 12 : 22} />
+                  <SwapArt id={track.id} src={track.artUrl} radius={theme === 'cover' || theme === 'lock' ? 12 : 22} />
                 </motion.div>
               )}
 

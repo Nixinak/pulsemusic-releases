@@ -12,8 +12,61 @@ export const NP_THEMES: { id: NpTheme; label: string; hint: string }[] = [
   { id: 'classic', label: 'Classic', hint: 'Cover, controls and lyrics' },
   { id: 'cover', label: 'Album cover', hint: 'The cover, big and centre stage' },
   { id: 'vinyl', label: 'Vinyl', hint: 'A turntable spinning the record' },
-  { id: 'cd', label: 'CD deck', hint: 'A disc in a player, with a display' }
+  { id: 'cd', label: 'CD deck', hint: 'A disc in a player, with a display' },
+  { id: 'lock', label: 'Lock screen', hint: 'The cover as wallpaper, with the time' }
 ]
+
+/* ---------- The lock screen ---------- */
+
+/** The cover filling the screen like a wallpaper (it slowly drifts closer). */
+export function LockWall({ art }: { art: string | null }): React.JSX.Element {
+  return (
+    <div className="lockwall" aria-hidden="true">
+      <AnimatePresence initial={false}>
+        {art && (
+          <motion.img
+            key={art}
+            src={art}
+            alt=""
+            draggable={false}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1.1 }}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+/** The date and a big clock, like a lock screen. */
+export function LockClock(): React.JSX.Element {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    let t = 0
+    // ticks on the minute, so the clock changes when the real one does
+    const next = (): void => {
+      t = window.setTimeout(
+        () => {
+          setNow(new Date())
+          next()
+        },
+        60_000 - (Date.now() % 60_000) + 30
+      )
+    }
+    next()
+    return () => window.clearTimeout(t)
+  }, [])
+  const date = now.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+  const time = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  return (
+    <div className="lockclock">
+      <span className="lockclock__date">{date}</span>
+      <span className="lockclock__time">{time}</span>
+    </div>
+  )
+}
 
 /* ---------- The record player ---------- */
 
@@ -114,6 +167,12 @@ function ThemePreview({ id }: { id: NpTheme }): React.JSX.Element {
         <>
           <i className="npm__pv-text" />
           <i className="npm__pv-disc" />
+        </>
+      )}
+      {id === 'lock' && (
+        <>
+          <i className="npm__pv-clock" />
+          <i className="npm__pv-art" />
         </>
       )}
       {id === 'cd' && (

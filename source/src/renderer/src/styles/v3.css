@@ -4186,3 +4186,123 @@
 .reduce-motion .cdd__marquee span {
   animation: none;
 }
+
+/* ---- Lock screen: the cover as wallpaper, a big clock, the cover small in the middle ---- */
+.lockwall {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.lockwall img {
+  position: absolute;
+  inset: -3%;
+  width: 106%;
+  height: 106%;
+  object-fit: cover;
+  /* the cover is small for a whole screen: a touch of blur hides the pixels */
+  filter: blur(3px) saturate(1.15);
+  animation: lockwall-drift 48s ease-in-out infinite alternate;
+}
+@keyframes lockwall-drift {
+  from {
+    transform: scale(1.02);
+  }
+  to {
+    transform: scale(1.12) translate(-1.5%, 1%);
+  }
+}
+.np--lock .np__bg-shade {
+  background:
+    radial-gradient(ellipse 60% 55% at 50% 45%, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.42)),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.22), transparent 30%, transparent 65%, rgba(0, 0, 0, 0.45));
+}
+.np--lock .np__left {
+  gap: 18px;
+}
+.lockclock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.86);
+  text-shadow: 0 4px 30px rgba(0, 0, 0, 0.35);
+  user-select: none;
+}
+.lockclock__date {
+  font-size: clamp(15px, 1.5vw, 22px);
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+.lockclock__time {
+  margin-top: 0.08em;
+  font-family: var(--font-display);
+  font-size: clamp(76px, 11vh, 150px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  /* frosted, like the system clock */
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.62));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 6px 24px rgba(0, 0, 0, 0.3));
+}
+.np__body:not(.np__body--solo) .lockclock__time {
+  font-size: clamp(56px, 8vh, 100px);
+}
+.np--lock .np__art {
+  width: min(34vh, 26vw, 360px);
+  border-radius: 12px;
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+.np--lock .np__body--solo .np__art {
+  width: min(38vh, 30vw, 420px);
+}
+.np--lock .np__info,
+.np--lock .np__body--solo .np__info {
+  width: min(46vh, 34vw, 440px);
+  gap: 10px;
+}
+.np--lock .np__titles {
+  justify-content: center;
+  text-align: center;
+}
+.np--lock .np__title {
+  font-size: var(--fs-lg);
+}
+.np--lock .np__artist {
+  font-size: var(--fs-md);
+}
+.npm__pv--lock {
+  background: linear-gradient(135deg, var(--amb-2), var(--amb-1));
+}
+.npm__pv--lock .npm__pv-clock {
+  left: 50%;
+  top: 6px;
+  width: 26px;
+  height: 7px;
+  translate: -50% 0;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.85);
+}
+.npm__pv--lock .npm__pv-art {
+  left: 50%;
+  top: 17px;
+  width: 22px;
+  height: 22px;
+  translate: -50% 0;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.35);
+}
+.reduce-motion .lockwall img {
+  animation: none;
+}
+/* lyrics or the queue over the wallpaper: darker on their side, so they stay readable */
+.np--lock.np--panel .np__bg-shade {
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.55) 55%, rgba(0, 0, 0, 0.62)),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.2), transparent 30%, transparent 65%, rgba(0, 0, 0, 0.45));
+}
