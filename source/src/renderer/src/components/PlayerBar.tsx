@@ -8,6 +8,7 @@ import { useDj } from '@/lib/dj'
 import { DevicePicker, Progress, RemoteBadge, SleepTimer, Transport, Volume } from './PlayerControls'
 import { LyricsIcon, MiniIcon, QueueIcon } from './Icons'
 import { LikeButton } from './LikeButton'
+import { ListenersChip } from './NowCard'
 
 export function PlayerBar(): React.JSX.Element {
   const track = usePlayer((s) => s.track)
@@ -43,6 +44,7 @@ export function PlayerBar(): React.JSX.Element {
                 </span>
                 <RemoteBadge />
                 <DjBadge />
+                <ListenersChip />
               </SwapText>
               <LikeButton liked={liked} size={20} />
             </>

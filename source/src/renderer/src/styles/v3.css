@@ -1495,3 +1495,227 @@
   height: 5px;
   background: #fff;
 }
+
+/* ---------- Floating bits never cover a side panel or each other ---------- */
+/* --dock: how much of the right edge a side panel (queue or lyrics) covers.
+   --dock-main: the part of it the main column doesn't make room for itself (lyrics).
+   --lift: the "Listening with" bar is showing, so notices above the player go higher. */
+.shell {
+  --dock: 0px;
+  --dock-main: 0px;
+  --lift: 0px;
+  --content-mid: calc(var(--sidebar-w) + 10px + (100vw - var(--sidebar-w) - 20px - var(--dock)) / 2);
+}
+.shell.has-drawer {
+  --dock: 360px;
+}
+.shell.has-drawer:has(.drawer--lyrics) {
+  --dock: 390px;
+  --dock-main: 390px;
+}
+.shell:has(.lwbar) {
+  --lift: 56px;
+}
+.lwbar {
+  left: calc((100% - var(--dock-main)) / 2);
+  max-width: calc(100% - 40px - var(--dock-main));
+  transition: left 0.35s var(--ease-out);
+}
+.toasts {
+  left: var(--content-mid);
+  bottom: calc(118px + var(--lift));
+  max-width: calc(100vw - var(--sidebar-w) - 60px - var(--dock));
+  transition: left 0.35s var(--ease-out), bottom 0.35s var(--ease-out);
+}
+.toast {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.djpill {
+  left: calc(var(--sidebar-w) + 10px);
+  right: calc(10px + var(--dock));
+  bottom: calc(124px + var(--lift));
+  max-width: min(720px, calc(100vw - var(--sidebar-w) - 60px - var(--dock)));
+}
+.xfade {
+  left: var(--content-mid);
+  bottom: calc(118px + var(--lift));
+}
+.np ~ .xfade {
+  left: 50%;
+  bottom: 118px;
+}
+.update {
+  right: calc(18px + var(--dock));
+}
+.ratelimit {
+  left: var(--content-mid);
+}
+
+/* ---------- A friend started listening along with you ---------- */
+.lnotice {
+  position: fixed;
+  top: 62px;
+  left: var(--content-mid);
+  z-index: 65;
+  translate: -50% 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 10px 10px 12px;
+  border-radius: 28px;
+  color: #fff;
+  background:
+    radial-gradient(120% 140% at 0% 50%, color-mix(in srgb, var(--accent) 38%, transparent), transparent 60%),
+    color-mix(in srgb, #0d0c12 82%, transparent);
+  backdrop-filter: blur(22px) saturate(170%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 22px 50px -14px rgba(0, 0, 0, 0.7),
+    0 0 60px -20px var(--accent);
+}
+.lnotice__body {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  text-align: left;
+}
+/* the picture with sound rings going out from it */
+.lnotice__face {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  flex: none;
+}
+.lnotice__face .cover {
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 80%, #fff);
+}
+.lnotice__face i {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  animation: lnotice-ring 2.1s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+}
+.lnotice__face i:nth-child(2) {
+  animation-delay: 0.7s;
+}
+.lnotice__face i:nth-child(3) {
+  animation-delay: 1.4s;
+}
+@keyframes lnotice-ring {
+  from {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+.lnotice__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 320px;
+  padding-right: 8px;
+}
+.lnotice__text b {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lnotice__text > span {
+  font-size: var(--fs-sm);
+  opacity: 0.85;
+}
+.lnotice__text small {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 4px;
+  font-size: var(--fs-xs);
+  opacity: 0.65;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lnotice__eq {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 11px;
+  flex: none;
+}
+.lnotice__eq i {
+  width: 3px;
+  height: 100%;
+  border-radius: 1px;
+  background: var(--accent);
+  transform-origin: bottom;
+  animation: lnotice-eq 0.9s ease-in-out infinite alternate;
+}
+.lnotice__eq i:nth-child(2) {
+  animation-delay: -0.3s;
+}
+.lnotice__eq i:nth-child(3) {
+  animation-delay: -0.6s;
+}
+@keyframes lnotice-eq {
+  from {
+    transform: scaleY(0.25);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+.lnotice__x {
+  align-self: flex-start;
+  width: 28px;
+  height: 28px;
+  color: rgba(255, 255, 255, 0.7);
+}
+.reduce-motion .lnotice__face i,
+.reduce-motion .lnotice__eq i {
+  animation: none;
+}
+
+/* faces of the people listening along, under the song in the player bar */
+.lchip {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: 22px;
+  margin-top: 4px;
+  padding: 0 9px 0 3px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lchip__faces {
+  display: flex;
+}
+.lchip__faces .cover {
+  flex: none;
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.lchip__faces .cover + .cover {
+  margin-left: -6px;
+}

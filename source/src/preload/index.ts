@@ -63,6 +63,7 @@ const api: PulseApi = {
     friendAction: (action, id, who) => ipcRenderer.invoke('people:friend-action', action, id, who),
     shareNow: (now) => ipcRenderer.invoke('people:share-now', now),
     nowOf: (id) => ipcRenderer.invoke('people:now-of', id),
+    listeners: () => ipcRenderer.invoke('people:listeners'),
     followsOf: (id) => ipcRenderer.invoke('people:follows-of', id),
     spotifyFollows: (id, kind) => ipcRenderer.invoke('people:spotify-follows', id, kind)
   },

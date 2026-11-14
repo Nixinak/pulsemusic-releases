@@ -1,7 +1,7 @@
 // Following people in Pulse. You can follow anyone; two people who follow each other are
 // friends. People who use Pulse share what they play, so you can see it and listen with them.
 import { create } from 'zustand'
-import type { FriendAction, FriendsState, NowPlaying } from '@shared/types'
+import type { FriendAction, FriendsState, Listener, NowPlaying } from '@shared/types'
 import { pulseServerOn, rememberPeople } from './people'
 import { useApp, errorText } from './store'
 import { useProfile } from './profile'
@@ -156,18 +156,24 @@ function startSharingNow(): () => void {
       return
     }
     const party = useParty.getState().url
+    const withId = useListenWith.getState().with?.id ?? null
     const now = {
       track: { uri: s.track.uri, name: s.track.name, artists: s.track.artists.map((a) => a.name).join(', '), image: sharpCover(s.track.artUrl ?? s.track.artUrlSmall), durationMs: s.track.durationMs },
       positionMs: Math.round(livePosition(s)),
       paused: s.paused,
-      party: party && party.startsWith('https://') ? party : null
+      party: party && party.startsWith('https://') ? party : null,
+      // tells the person you listen along with (they get a notice)
+      with: withId
     }
-    const sig = `${now.track.uri}|${now.paused}|${now.party}`
+    const sig = `${now.track.uri}|${now.paused}|${now.party}|${now.with}`
     // the same song still playing: only a heartbeat now and then
     if (sig === lastSig && Date.now() - lastAt < 85_000) return
     lastSig = sig
     lastAt = Date.now()
-    await window.pulse.people.shareNow(now).catch((e) => console.info('[friends] could not share what plays', message(e)))
+    await window.pulse.people
+      .shareNow(now)
+      .then(gotListeners)
+      .catch((e) => console.info('[friends] could not share what plays', message(e)))
   }
   const soon = (ms = 1500): void => {
     window.clearTimeout(timer)
@@ -178,11 +184,22 @@ function startSharingNow(): () => void {
   })
   const beat = window.setInterval(() => !usePlayer.getState().paused && void send(), 90_000)
   const unsubProfile = useProfile.subscribe((s, p) => s.profile.shared !== p.profile.shared && soon(500))
+  // starting or stopping Listen along is sent right away, so the other person sees it
+  const unsubWith = useListenWith.subscribe((s, p) => s.with?.id !== p.with?.id && soon(200))
+  // while music plays, look every 30 s who listens along with you
+  const ask = window.setInterval(() => {
+    if (stopped || usePlayer.getState().paused || document.hidden) return
+    void pulseServerOn().then((on) => {
+      if (on) void window.pulse.people.listeners().then(gotListeners).catch(() => {})
+    })
+  }, 30_000)
   soon(6000)
   return () => {
     stopped = true
     unsub()
     unsubProfile()
+    unsubWith()
+    window.clearInterval(ask)
     window.clearTimeout(timer)
     window.clearInterval(beat)
   }
@@ -284,4 +301,35 @@ export function useNewFollowers(): number {
   const seen = useSeenFollowers((s) => s.seen)
   const list = useFriends((s) => s.incoming)
   return list.filter((u) => !seen.includes(u.id)).length
+}
+
+/* ---------- People listening along with you ---------- */
+
+interface Listeners {
+  list: Listener[]
+  /** Someone who just started: shown in a big notice for a few seconds. */
+  arrived: Listener | null
+}
+export const useListeners = create<Listeners>(() => ({ list: [], arrived: null }))
+let arrivedTimer = 0
+
+function gotListeners(list: Listener[] | void): void {
+  if (!Array.isArray(list)) return
+  const before = useListeners.getState().list
+  const known = new Set(before.map((l) => l.id))
+  const fresh = list.filter((l) => !known.has(l.id))
+  const gone = before.filter((l) => !list.some((x) => x.id === l.id))
+  useListeners.setState({ list })
+  if (fresh[0]) {
+    window.clearTimeout(arrivedTimer)
+    useListeners.setState({ arrived: fresh[0] })
+    arrivedTimer = window.setTimeout(() => useListeners.setState({ arrived: null }), 7000)
+  }
+  for (const l of gone) toast(`${l.displayName} stopped listening along`)
+}
+
+/** Hides the big "is listening with you" notice. */
+export const dismissArrived = (): void => {
+  window.clearTimeout(arrivedTimer)
+  useListeners.setState({ arrived: null })
 }

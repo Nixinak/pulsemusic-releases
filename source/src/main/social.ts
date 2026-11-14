@@ -10,7 +10,7 @@
 // MAIN_VITE_PULSE_SERVER at build time.
 import { BrowserWindow, session } from 'electron'
 import { getAccessToken } from './auth'
-import type { PulseProfile, PulseSummary, SpotifyUserPage, SpotifyUserHit, EmbedPlaylist, FriendsState, FriendAction, NowPlaying, FollowLists } from '@shared/types'
+import type { PulseProfile, PulseSummary, SpotifyUserPage, SpotifyUserHit, EmbedPlaylist, FriendsState, FriendAction, NowPlaying, FollowLists, Listener } from '@shared/types'
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
@@ -478,9 +478,16 @@ export async function friendAction(action: FriendAction, id: string, who?: { nam
   return signedIn<FriendsState>(`/v1/friends/${action}`, { method: 'POST', body: JSON.stringify({ id, name: who?.name, image: who?.image }) })
 }
 
-export async function shareNow(now: Omit<NowPlaying, 'at'> | null): Promise<void> {
-  if (!SERVER) return
-  await signedIn('/v1/now', now ? { method: 'PUT', body: JSON.stringify(now) } : { method: 'DELETE' })
+export async function shareNow(now: Omit<NowPlaying, 'at'> | null): Promise<Listener[]> {
+  if (!SERVER) return []
+  const r = await signedIn<{ listeners?: Listener[] }>('/v1/now', now ? { method: 'PUT', body: JSON.stringify(now) } : { method: 'DELETE' })
+  return Array.isArray(r?.listeners) ? r.listeners : []
+}
+
+export async function getListeners(): Promise<Listener[]> {
+  if (!SERVER) return []
+  const r = await signedIn<{ listeners?: Listener[] }>('/v1/listeners')
+  return Array.isArray(r?.listeners) ? r.listeners : []
 }
 
 /** Someone's Pulse follow lists (null when the server doesn't have them yet). */

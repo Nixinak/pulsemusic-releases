@@ -194,7 +194,9 @@ function cleanNow(b) {
     positionMs: Number.isFinite(b?.positionMs) ? Math.max(0, Math.round(b.positionMs)) : 0,
     paused: !!b?.paused,
     // their party link, when they have one on (others can join it)
-    party: typeof b?.party === 'string' && /^https:\/\/[^\s"'<>]{4,300}$/.test(b.party) ? b.party : null
+    party: typeof b?.party === 'string' && /^https:\/\/[^\s"'<>]{4,300}$/.test(b.party) ? b.party : null,
+    // who they're listening along with (that person sees it)
+    with: typeof b?.with === 'string' && ID.test(b.with) ? b.with : null
   }
 }
 
@@ -203,7 +205,11 @@ async function nowRoute(req, env, path) {
   if (!me) return json(401, { error: 'Sign in with Spotify again.' })
   if (path === '/v1/now' && req.method === 'PUT') {
     await hub(env, 'PUT', { id: me, now: cleanNow(await req.json().catch(() => ({}))) })
-    return json(200, { ok: true })
+    // the answer says who listens along with you right now
+    return json(200, { ok: true, listeners: await hub(env, 'LISTENERS', { id: me }) })
+  }
+  if (path === '/v1/listeners' && req.method === 'GET') {
+    return json(200, { listeners: await hub(env, 'LISTENERS', { id: me }) })
   }
   if (path === '/v1/now' && req.method === 'DELETE') {
     await hub(env, 'DELETE', { id: me })
@@ -293,6 +299,20 @@ export class Presence {
         for (const id of ids) {
           const n = this.mem.get(id)
           if (n && Date.now() - n.at < FRESH) out[id] = n
+        }
+        return Response.json(out)
+      }
+
+      /* people listening along with someone: everyone whose "with" is them, still sending */
+      case 'LISTENERS': {
+        const index = await this.loadIndex()
+        const out = []
+        for (const [k, n] of await this.ctx.storage.list({ prefix: 'n:' })) {
+          const id = k.slice(2)
+          const live = this.mem.get(id) ?? n
+          if (live?.with !== b.id || Date.now() - live.at >= FRESH) continue
+          const who = index.get(id)
+          out.push({ id, displayName: who?.displayName || id, thumb: who?.thumb ?? null, track: live.track?.name ?? null })
         }
         return Response.json(out)
       }
@@ -416,7 +436,7 @@ async function handle(req, env) {
   }
 
   if (path === '/v1/friends' || path.startsWith('/v1/friends/')) return friendsRoute(req, env, path)
-  if (path === '/v1/now' || path.startsWith('/v1/now/')) return nowRoute(req, env, path)
+  if (path === '/v1/now' || path.startsWith('/v1/now/') || path === '/v1/listeners') return nowRoute(req, env, path)
 
   return json(404, { error: 'Not found' })
 }

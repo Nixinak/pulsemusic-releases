@@ -420,8 +420,19 @@ export interface NowPlaying {
   paused: boolean
   /** Their party link, when one is on. */
   party: string | null
+  /** Who they're listening along with (a Spotify id), if anyone. */
+  with?: string | null
   /** When this was sent (epoch ms, server clock). */
   at: number
+}
+
+/** Someone listening along with you right now. */
+export interface Listener {
+  id: string
+  displayName: string
+  thumb: string | null
+  /** The song they're on (yours). */
+  track: string | null
 }
 
 /** Who you follow and who follows you. People who follow each other are friends. */
@@ -560,7 +571,10 @@ export interface PulseApi {
     /** Ask, accept, or remove (also cancels or declines a request). Returns your lists afterwards. */
     friendAction(action: FriendAction, id: string, who?: { name: string; image: string | null }): Promise<FriendsState>
     /** Shares what you play with the people who follow you (null: stop sharing). */
-    shareNow(now: Omit<NowPlaying, 'at'> | null): Promise<void>
+    /** Sends what you play; answers with who listens along with you. */
+    shareNow(now: Omit<NowPlaying, 'at'> | null): Promise<Listener[]>
+    /** Who listens along with you right now. */
+    listeners(): Promise<Listener[]>
     /** What someone you follow is playing. */
     nowOf(id: string): Promise<NowPlaying | null>
     /** Who follows someone in Pulse and who they follow (null: the server can't tell). */

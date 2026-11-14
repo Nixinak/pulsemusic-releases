@@ -28,7 +28,7 @@ import appIconPath from '../../build/icon.png?asset'
 import { getAccessToken, grantedScopes, isLoggedIn, loadTokens, login, logout, customClientId, setCustomClientId } from './auth'
 import { isStoreName, readStore, writeStore } from './datastore'
 import { djChat } from './dj'
-import { friendAction, nowOf, followsOf, getSpotifyFollows, shareNow, userFromHtml, getEmbedPlaylist, getFriends, getPulseProfile, getSpotifyUser, lookupPulse, publishPulse, pulseServerOn, searchPulse, searchSpotifyUsers } from './social'
+import { friendAction, nowOf, followsOf, getListeners, getSpotifyFollows, shareNow, userFromHtml, getEmbedPlaylist, getFriends, getPulseProfile, getSpotifyUser, lookupPulse, publishPulse, pulseServerOn, searchPulse, searchSpotifyUsers } from './social'
 import { cleanOldVoices, installVoice, speak, voiceStatus } from './voice'
 import { discordStatus, refreshPresence, setDiscordEnabled, setDiscordGetButton, updatePresence } from './discord'
 import { fetchGenius, fetchLrclib, fetchLyricsOvh } from './lyrics'
@@ -389,6 +389,7 @@ function registerIpc(): void {
   })
   ipcMain.handle('people:share-now', (_e, now: unknown) => shareNow((now ?? null) as Parameters<typeof shareNow>[0]))
   ipcMain.handle('people:now-of', (_e, id: unknown) => (sid(id) ? nowOf(sid(id)!) : null))
+  ipcMain.handle('people:listeners', () => getListeners())
   ipcMain.handle('people:follows-of', (_e, id: unknown) => (sid(id) ? followsOf(sid(id)!) : null))
   ipcMain.handle('people:spotify-follows', (_e, id: unknown, kind: unknown) =>
     sid(id) && (kind === 'followers' || kind === 'following') ? getSpotifyFollows(sid(id)!, kind) : []

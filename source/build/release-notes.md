@@ -10,3 +10,5 @@
 - **Smooth scrolling in long playlists.**
 - **The AI DJ never plays the same song twice**, and its list shows only the artists (click one to open them).
 - A cleaner DJ badge in the player bar.
+- **Your friends know when you listen along**: they get a notice with your picture in sound rings, and your face stays under the song in their player bar while you're with them.
+- **Nothing covers the lyrics or the queue any more**: notices, the "Listening with" bar and the DJ subtitles stay in the free space, and stack above each other instead of overlapping.
