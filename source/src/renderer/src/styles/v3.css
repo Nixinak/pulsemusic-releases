@@ -812,6 +812,30 @@
   gap: 12px;
 }
 
+/* ---------- Friends: people who follow you ---------- */
+/* The box hugs its tiles, so lay them out in a wrapping row (a grid with auto-fill
+   inside a fit-content box collapses to one squeezed column). */
+.friends__requests .ptiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px 18px;
+}
+.friends__requests .ptile {
+  width: 168px;
+}
+.friends__requests .ptile__actions {
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+}
+.friends__requests .ptile__actions .btn {
+  justify-content: center;
+}
+/* The Pulse badge under a name keeps its own width */
+.profile__names .pulse-badge {
+  align-self: flex-start;
+}
+
 /* ---------- Like button (LikeButton.tsx) ---------- */
 .like {
   --like-a: color-mix(in srgb, var(--accent) 70%, #ff4f8b);

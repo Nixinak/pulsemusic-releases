@@ -1,19 +1,15 @@
-## Pulse Music 1.3.0
+## Pulse Music 1.5.0
 
-**Friends can sign in now.** If Spotify doesn't let your account in, the sign-in screen walks you through using your own free Spotify app (about 2 minutes) and you're in.
+**Friends, fixed.** Follow requests no longer vanish and come back, and you see what your friends are playing right away. Ask your friends to update too, so they share what they play.
 
 ### New
-- **Autoplay** – when a song, album or playlist ends with nothing after it, Pulse keeps going with similar songs (same artist and artists like them). Can be turned off in Settings → Playback.
-- **Lyrics on the side** – the Lyrics button docks the lyrics at the right edge while you browse.
-- **Crop images** – profile photo, banner, profile images and playlist covers open in a crop window (drag, zoom).
-- **Party over the internet** – share a link, friends join from anywhere, and with Pulse Music installed they can play along in sync on their own device.
-
-### Faster
-- Artist pages open in about a second.
-- The AI DJ starts right away and keeps its lines short.
-- Playlists and your library load all at once.
+- **Discord status that looks the part**: the cover in full quality, a live progress bar, and a badge on the cover for paused, a liked song, the AI DJ on air or a party.
+- **A nicer like button**: the heart fills with the song's colours and pops when you like a song.
+- **Pictures on the DJ moods**: dumbbells for Gym, rain for Sad hours, a cassette for Throwback, and more.
+- **The taskbar icon takes the song's colours.**
 
 ### Fixed
-- Song transitions: smoother fade, the next-song card shows up reliably and lands in place.
-- The queue no longer lists the same song ten times.
-- Discord status: Settings shows whether it reached Discord.
+- Friends: a follow request no longer shows up twice or comes back after you answered it.
+- Friends: friends who play music now show up under "Listening now" even before they set up their profile.
+- The Pulse badge on profiles no longer stretches across the page.
+- The player bar no longer shows a faint second rectangle inside the glass.

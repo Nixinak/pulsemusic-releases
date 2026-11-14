@@ -24,21 +24,32 @@ interface Friends extends FriendsState {
 const EMPTY: FriendsState = { friends: [], incoming: [], outgoing: [], now: {} }
 const toast = (text: string, tone?: 'info' | 'error'): void => useApp.getState().toast(text, tone)
 
+/** Goes up with every follow, unfollow or remove: a list loaded before that is out of date. */
+let generation = 0
+/** People we already said "followed you" about, so it isn't said twice. */
+const announced = new Set<string>()
+
 export const useFriends = create<Friends>((set, get) => ({
   ...EMPTY,
   loaded: false,
   busy: null,
   refresh: async () => {
     if (!(await pulseServerOn())) return set({ loaded: true })
+    const started = generation
     try {
       const next = await window.pulse.people.friends()
+      // you followed or removed someone while this was loading: these lists are older than that
+      if (started !== generation) return
       const before = get()
-      // someone new follows you since the last look
+      // someone new follows you since the last look (said once per person)
+      const fresh = [...next.incoming, ...next.friends].filter((u) => !announced.has(u.id))
+      for (const u of fresh) announced.add(u.id)
       if (before.loaded) {
-        const known = new Set([...before.incoming, ...before.friends].map((u) => u.id))
-        const fresh = [...next.incoming, ...next.friends].filter((u) => !known.has(u.id))
-        if (fresh.length === 1) toast(`${fresh[0].displayName} followed you`)
-        else if (fresh.length > 1) toast(`${fresh.length} people followed you`)
+        const mine = new Set([...before.outgoing, ...before.friends].map((u) => u.id))
+        // when you followed first and they follow back, the "now friends" toast says it already
+        const news = fresh.filter((u) => !mine.has(u.id))
+        if (news.length === 1) toast(`${news[0].displayName} followed you`)
+        else if (news.length > 1) toast(`${news.length} people followed you`)
       }
       set({ ...next, loaded: true })
       rememberPeople([...next.friends, ...next.incoming, ...next.outgoing].map((u) => ({ id: u.id, name: u.displayName, image: u.thumb?.startsWith('https://') ? u.thumb : null })))
@@ -49,9 +60,12 @@ export const useFriends = create<Friends>((set, get) => ({
   },
   act: async (action, id, who) => {
     set({ busy: id })
+    generation++
     try {
       const was = statusOf(get(), id)
       const next = await window.pulse.people.friendAction(action, id, who)
+      generation++
+      for (const u of [...next.incoming, ...next.friends]) announced.add(u.id)
       set({ ...next, loaded: true })
       const name = who?.name || id
       const now = statusOf(next, id)
