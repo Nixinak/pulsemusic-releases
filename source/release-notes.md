@@ -16,3 +16,4 @@
 - **Every play counts, like on stats.fm**: Pulse starts quietly with Windows and keeps running in the tray when you close it, picking up what you play on your phone and other devices. Both can be switched off in Settings → System, and your Spotify data download can be imported in Settings → Listening history.
 - **Your year in music arrives in December**, like Spotify Wrapped: a big card on Home and a special card in Replay, through January.
 - Now Playing: the turning background always fills the window (no more dark corners sliding in).
+- **The AI DJ understands where and when**: "classic czech songs", "polský rap", "90s rock" or "german rap 2000s" now play exactly that, and the whole show keeps to it, instead of songs that just have the word in their title.
