@@ -6,3 +6,7 @@
 - **Mixes go up to 200 songs.**
 - **Sharp pictures on the Friends page**: song covers and profile pictures were blurry, now they are full quality.
 - **Updates come faster**: Pulse looks for a new version every hour and when you come back to the app.
+- **Volume that feels right**: low settings are really quiet now (the slider follows how loud it sounds, not a straight line). In a small window the volume grows into a big slider when you point at it, and the mouse wheel changes it too.
+- **Smooth scrolling in long playlists.**
+- **The AI DJ never plays the same song twice**, and its list shows only the artists (click one to open them).
+- A cleaner DJ badge in the player bar.

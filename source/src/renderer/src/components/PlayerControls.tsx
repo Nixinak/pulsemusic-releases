@@ -98,21 +98,34 @@ export function Volume(): React.JSX.Element {
   const volume = usePlayer((s) => s.volume)
   const before = useRef(0.7)
   const level = volume === 0 ? 0 : volume < 0.5 ? 0.5 : 1
+  // In the player bar the control is a pill that grows over its neighbours while you point at
+  // it or drag, so the slider is long enough to pick a volume even in a small window.
   return (
-    <div className="volume">
-      <button
-        className="icon-btn"
-        aria-label={volume === 0 ? 'Unmute' : 'Mute'}
-        onClick={() => {
-          if (volume > 0) {
-            before.current = volume
-            setVolume(0)
-          } else setVolume(before.current || 0.6)
-        }}
-      >
-        <VolumeIcon size={19} level={level} />
-      </button>
-      <Slider value={volume} max={1} onCommit={setVolume} onPreview={(v) => v !== null && setVolume(v)} label="Volume" className="slider--volume" />
+    <div
+      className="volume"
+      onWheel={(e) => {
+        const step = e.deltaY < 0 ? 0.05 : -0.05
+        setVolume(Math.round((volume + step) * 20) / 20)
+      }}
+    >
+      <div className="volume__pill">
+        <button
+          className="icon-btn"
+          aria-label={volume === 0 ? 'Unmute' : 'Mute'}
+          onClick={() => {
+            if (volume > 0) {
+              before.current = volume
+              setVolume(0)
+            } else setVolume(before.current || 0.6)
+          }}
+        >
+          <VolumeIcon size={19} level={level} />
+        </button>
+        <Slider value={volume} max={1} onCommit={setVolume} onPreview={(v) => v !== null && setVolume(v)} label="Volume" className="slider--volume" />
+        <span className="volume__pct" aria-hidden="true">
+          {Math.round(volume * 100)}
+        </span>
+      </div>
     </div>
   )
 }

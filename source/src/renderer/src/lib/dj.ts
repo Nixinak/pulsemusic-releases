@@ -16,9 +16,36 @@ export interface DjPick {
   id: string
   name: string
   artist: string
+  /** The artists with their ids, so their names can be opened. */
+  artists?: { id: string; name: string }[]
   image: string | null
   note: string
   discovered?: boolean
+}
+
+/** The same song, whatever version or album it comes from ("Song - Remastered", "Song (feat. X)"). */
+function songKey(name: string, artist: string): string {
+  const title = name
+    .toLowerCase()
+    .replace(/\s*[([].*?[)\]]/g, '')
+    .replace(/\s+-\s+.*$/, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+  return `${title}|${artist.split(',')[0].trim().toLowerCase()}`
+}
+
+/** Drops songs that are already in `against` or earlier in the list: the DJ never plays a song twice. */
+function uniquePicks(picks: DjPick[], against: DjPick[] = []): DjPick[] {
+  const seen = new Set(against.flatMap((p) => [p.id, songKey(p.name, p.artist)]))
+  const out: DjPick[] = []
+  for (const p of picks) {
+    const key = songKey(p.name, p.artist)
+    if (seen.has(p.id) || seen.has(key)) continue
+    seen.add(p.id)
+    seen.add(key)
+    out.push(p)
+  }
+  return out
 }
 
 export interface DjMessage {
@@ -397,6 +424,7 @@ function toPick(t: STrack, note: string, discovered = false): DjPick {
     id: t.id,
     name: t.name,
     artist: t.artists.map((a) => a.name).join(', '),
+    artists: t.artists.map((a) => ({ id: a.id, name: a.name })),
     image: sp.pickImage(t.album?.images, 300),
     note,
     discovered
@@ -544,7 +572,8 @@ async function buildSet(
     // The model ignored the list: take songs found for the theme (else the library).
     for (const t of (found.length ? found : pool).slice(0, size - picks.length)) if (!picks.some((x) => x.id === t.id)) picks.push(toPick(t, ''))
   }
-  const block = picks.slice(0, size + 1)
+  // the same song from another album, or one already in this show, doesn't play again
+  const block = uniquePicks(picks, get().set).slice(0, size + 1)
   block.forEach((p) => usedIds.add(p.id))
   return { intro: (ans.intro ?? '').trim(), picks: block, theme }
 }
@@ -664,7 +693,10 @@ async function recoverShow(): Promise<void> {
   try {
     let uris = takeDjContinuation()
     if (!uris) {
-      const picks = (await candidates()).slice(0, 6).map((t) => toPick(t, ''))
+      const picks = uniquePicks(
+        (await candidates()).map((t) => toPick(t, '')),
+        get().set
+      ).slice(0, 6)
       if (!picks.length || !get().active) return
       set((s) => ({ set: [...s.set, ...picks] }))
       uris = picks.map((p) => p.uri)
@@ -999,8 +1031,10 @@ async function understand(request: string, hints: string): Promise<Intent> {
 }
 
 /** Plays a list of picks and has the DJ introduce them. */
-async function playPicks(picks: DjPick[], line: string, context?: string, ready?: string | null): Promise<void> {
+async function playPicks(all: DjPick[], line: string, context?: string, ready?: string | null): Promise<void> {
   if (!get().active) return
+  // played as a context (an album), the list must stay as it is
+  const picks = context ? all : uniquePicks(all)
   set({ set: picks })
   picks.forEach((p) => usedIds.add(p.id))
   // the voice is made while the music starts, not before
@@ -1028,7 +1062,7 @@ function followUp(first: DjPick, theme: string, mood: Mood | null, seeds: STrack
   void buildSet(theme, true, { mood, seeds })
     .then(({ intro, picks, theme: t }) => {
       if (!get().active || get().set[0]?.id !== first.id) return
-      const rest = picks.filter((p) => p.id !== first.id)
+      const rest = uniquePicks(picks, get().set)
       flavour = t
       setDjContinuation(first.id, rest.map((p) => p.uri))
       set((s) => ({ set: [...s.set, ...rest] }))

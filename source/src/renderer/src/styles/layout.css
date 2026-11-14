@@ -2547,11 +2547,13 @@ html.is-mini body {
     grid-template-columns: minmax(150px, 1fr) minmax(250px, 1.3fr) auto;
     gap: 12px;
   }
-  .playerbar .slider--volume {
-    display: none;
-  }
+  /* small window: just the speaker, the pill opens with the slider when you point at it */
   .playerbar .volume {
-    width: auto;
+    width: 36px;
+  }
+  .playerbar .volume:not(:hover):not(:focus-within):not(:has(.is-dragging)) .slider--volume {
+    opacity: 0;
+    pointer-events: none;
   }
 }
 @container (max-width: 760px) {

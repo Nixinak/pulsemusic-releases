@@ -1381,3 +1381,117 @@
   background: rgba(0, 0, 0, 0.28);
   backdrop-filter: blur(12px);
 }
+
+/* ---------- Volume in the player bar: a pill that grows over its neighbours ---------- */
+.volume {
+  position: relative;
+}
+.volume__pill {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.playerbar .volume {
+  height: 40px;
+}
+.playerbar .volume__pill {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  z-index: 8;
+  height: 44px;
+  margin-top: -22px;
+  padding-right: 6px;
+  border-radius: 999px;
+  transition:
+    width 0.38s var(--ease-out),
+    padding 0.38s var(--ease-out),
+    background-color 0.25s,
+    box-shadow 0.25s;
+}
+.playerbar .volume:hover .volume__pill,
+.playerbar .volume:focus-within .volume__pill,
+.playerbar .volume:has(.is-dragging) .volume__pill {
+  width: 270px;
+  padding-right: 16px;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(18px) saturate(160%);
+  box-shadow:
+    0 12px 34px -10px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 1px var(--hair, rgba(255, 255, 255, 0.1));
+}
+.playerbar .volume__pill .slider--volume {
+  flex: 1;
+  min-width: 0;
+  transition: opacity 0.2s;
+}
+.volume__pct {
+  width: 0;
+  overflow: hidden;
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+  text-align: right;
+  opacity: 0;
+  transition:
+    opacity 0.2s,
+    width 0.3s var(--ease-out);
+}
+.playerbar .volume:hover .volume__pct,
+.playerbar .volume:focus-within .volume__pct,
+.playerbar .volume:has(.is-dragging) .volume__pct {
+  width: 30px;
+  opacity: 1;
+}
+/* a thicker track while it's open, easier to hit */
+.playerbar .volume:hover .slider--volume,
+.playerbar .volume:has(.is-dragging) .slider--volume {
+  height: 24px;
+}
+
+/* ---------- Smooth scrolling in long lists ---------- */
+/* While the page scrolls, the glass floating over it (player bar, top pills) uses a plain
+   blur: its refraction filter would be redrawn on every frame, which made long playlists
+   stutter. It comes back the moment scrolling stops. */
+.is-scrolling .playerbar.glass,
+.is-scrolling .topbar__pill.glass,
+.is-scrolling .topbar .glass,
+.is-scrolling .winctl.glass {
+  -webkit-backdrop-filter: blur(26px) saturate(170%) !important;
+  backdrop-filter: blur(26px) saturate(170%) !important;
+}
+/* Rows far off screen aren't drawn at all (a 1000-song playlist draws only what you see). */
+.track {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 56px;
+}
+
+/* ---------- DJ badge under the song in the player bar ---------- */
+.playerbar__meta .dj-badge,
+.np .dj-badge {
+  align-self: flex-start;
+  height: 20px;
+  margin: 4px 0 0;
+  padding: 0 9px 0 7px;
+  gap: 5px;
+  border: 0;
+  line-height: 20px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: linear-gradient(110deg, color-mix(in srgb, var(--accent) 85%, #fff 0%), color-mix(in srgb, var(--accent) 55%, #b03cff));
+  box-shadow: 0 3px 10px -3px color-mix(in srgb, var(--accent) 70%, transparent);
+  cursor: pointer;
+  transition: filter 0.2s, transform 0.2s var(--ease-out);
+}
+.playerbar__meta .dj-badge:hover {
+  filter: brightness(1.12);
+}
+.playerbar__meta .dj-badge:active {
+  transform: scale(0.95);
+}
+.playerbar__meta .dj-badge i {
+  width: 5px;
+  height: 5px;
+  background: #fff;
+}

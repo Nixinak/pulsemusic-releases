@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useApp } from '@/lib/store'
 import { startDj, stopDj, useDj, voiceLevel } from '@/lib/dj'
 import { playUris, usePlayer } from '@/lib/player'
-import { Cover, EqBars } from '@/components/common'
+import { ArtistLinks, Cover, EqBars } from '@/components/common'
 import { SparkleIcon } from '@/components/Icons'
 import { SpokenLine } from '@/components/DjVoice'
 import { AiSetup } from '@/components/AiSetup'
@@ -170,7 +170,7 @@ export function DjView(): React.JSX.Element {
                   <Cover src={p.image} size={44} radius={8} />
                   <span className="djv__song">
                     <b>{p.name}</b>
-                    <small>{p.note ? `${p.artist}. ${p.note}` : p.artist}</small>
+                    <small>{p.artists?.length ? <ArtistLinks artists={p.artists} onOpen={(id) => navigate({ name: 'artist', id })} /> : p.artist}</small>
                   </span>
                   {p.discovered && <span className="djv__new">New</span>}
                   {now && <EqBars playing={!paused} />}

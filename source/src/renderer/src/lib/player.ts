@@ -199,7 +199,7 @@ export function duck(target: number, ms = 450): Promise<void> {
 }
 
 function applyGain(): void {
-  if (sdk && get().isLocal) void sdk.setVolume(get().volume * gain * sleepGain * duckGain)
+  if (sdk && get().isLocal) void sdk.setVolume(loudness(get().volume) * gain * sleepGain * duckGain)
   // Shown in the transition card so it is visible that the fade is happening.
   set({ fadeGain: gain })
 }
@@ -488,7 +488,7 @@ export async function initPlayer(initialVolume: number): Promise<void> {
 
   sdk = new window.Spotify.Player({
     name: 'Pulse Music',
-    volume: initialVolume,
+    volume: loudness(initialVolume),
     getOAuthToken: (cb) => {
       void window.pulse.auth.token().then((t) => cb(t ?? ''))
     }
@@ -795,10 +795,18 @@ export async function seekTo(ms: number): Promise<void> {
 }
 
 let volumeTimer: number | null = null
+/**
+ * How loud the slider position really is. Ears hear loudness on a curve, so a straight line
+ * makes the bottom half of the slider far too loud (a friend at "20 %" heard about half volume).
+ * Squaring it puts 50 % at a quarter of the power, close to how Spotify's own app feels.
+ * Other devices (a phone, a speaker) keep their own scale, so their slider matches.
+ */
+export const loudness = (v: number): number => v * v
+
 export function setVolume(v: number): void {
   const vol = Math.max(0, Math.min(1, v))
   set({ volume: vol })
-  if (get().isLocal && sdk) void sdk.setVolume(vol * gain * sleepGain * duckGain)
+  if (get().isLocal && sdk) void sdk.setVolume(loudness(vol) * gain * sleepGain * duckGain)
   if (volumeTimer) clearTimeout(volumeTimer)
   volumeTimer = window.setTimeout(() => {
     if (!get().isLocal && get().activeDevice) void guard(() => sp.setVolume(vol * 100, activeId()), 'This device does not allow volume control.')
