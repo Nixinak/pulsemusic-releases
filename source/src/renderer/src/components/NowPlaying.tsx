@@ -17,7 +17,9 @@ import { TransitionStage } from './TransitionCard'
 import { useTransition } from '@/lib/transition'
 import type { NpPanel } from '@/lib/store'
 import type { NpTheme } from '@shared/types'
-import { CdDeck, LockClock, LockWall, NpEdgeMenu, Turntable } from './NpThemes'
+import { LockClock, LockWall, NpEdgeMenu } from './NpThemes'
+import { CdDeck, Turntable } from './NpDevices'
+import { useNpSounds } from '@/lib/npSounds'
 
 const TABS: { id: NpPanel; label: string; Icon: typeof LyricsIcon }[] = [
   { id: 'lyrics', label: 'Lyrics', Icon: LyricsIcon },
@@ -42,6 +44,8 @@ export function NowPlaying(): React.JSX.Element {
   const theme: NpTheme = useApp((s) => s.settings.npTheme) ?? 'classic'
   const wantFull = useApp((s) => !!s.settings.npFullscreen)
   const updateSettings = useApp((s) => s.updateSettings)
+  const sounds = useApp((s) => s.settings.npSounds) ?? true
+  useNpSounds(theme, open && !!track, sounds)
   const [isFull, setIsFull] = useState(false)
 
   // Full screen (over the taskbar) is remembered: Now Playing opens that way next time, and the
@@ -211,6 +215,8 @@ export function NowPlaying(): React.JSX.Element {
           <NpEdgeMenu
             theme={theme}
             full={isFull}
+            sounds={sounds}
+            onSounds={(on) => void updateSettings({ npSounds: on })}
             onTheme={(t) => void updateSettings({ npTheme: t })}
             onFull={() => {
               const next = !isFull

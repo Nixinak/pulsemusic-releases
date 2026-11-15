@@ -177,7 +177,7 @@ export function Lyrics({ track }: { track: PlayerTrack }): React.JSX.Element {
       </div>
     )
   if (data.kind === 'plain') return <PlainLyrics track={track} data={data} />
-  return <SyncedLyrics track={track} lines={data.lines} />
+  return <SyncedLyrics track={track} lines={data.lines} source={data.source} />
 }
 
 function PlainLyrics({
@@ -188,9 +188,59 @@ function PlainLyrics({
   data: Extract<LyricsData, { kind: 'plain' }>
 }): React.JSX.Element {
   const share = useShare(track)
+  const scroller = useRef<HTMLDivElement>(null)
+  const selecting = share.selecting
+  // Lyrics without timings still move with the song: the page scrolls through them at the
+  // song's pace (a little after the intro, done a little before the end). Scrolling yourself
+  // takes over for a few seconds.
+  useEffect(() => {
+    const el = scroller.current
+    if (!el || selecting) return
+    let userUntil = 0
+    const mine = (): void => {
+      userUntil = Date.now() + 6000
+    }
+    el.addEventListener('wheel', mine, { passive: true })
+    el.addEventListener('pointerdown', mine)
+    el.addEventListener('touchstart', mine, { passive: true })
+    let raf = 0
+    let last = performance.now()
+    // kept as a fraction: the page only takes whole pixels, small steps would get lost
+    let cur = el.scrollTop
+    const tick = (): void => {
+      raf = requestAnimationFrame(tick)
+      const now = performance.now()
+      const dt = Math.min(100, now - last)
+      last = now
+      if (Date.now() < userUntil) {
+        cur = el.scrollTop
+        return
+      }
+      const st = usePlayer.getState()
+      const dur = st.track?.durationMs ?? track.durationMs
+      if (!dur || st.track?.id !== track.id) return
+      const pos = livePosition(st)
+      const intro = Math.min(15_000, dur * 0.08)
+      const outro = Math.min(20_000, dur * 0.1)
+      const p = Math.max(0, Math.min(1, (pos - intro) / Math.max(1, dur - intro - outro)))
+      const room = el.scrollHeight - el.clientHeight
+      if (room <= 0) return
+      const target = p * room
+      // glide towards it (quick after a seek, gentle while the song plays)
+      cur += (target - cur) * Math.min(1, dt / 600)
+      if (Math.abs(el.scrollTop - cur) >= 0.5) el.scrollTop = cur
+    }
+    raf = requestAnimationFrame(tick)
+    return () => {
+      cancelAnimationFrame(raf)
+      el.removeEventListener('wheel', mine)
+      el.removeEventListener('pointerdown', mine)
+      el.removeEventListener('touchstart', mine)
+    }
+  }, [track.id, track.durationMs, selecting])
   return (
     <div className={`lyrics lyrics--plain ${share.selecting ? 'is-selecting' : ''}`}>
-      <div className="lyrics__scroll" data-own-scroll>
+      <div className="lyrics__scroll" data-own-scroll ref={scroller}>
           {data.lines.map((l, i) =>
             /^\[.*\]$/.test(l) ? (
               <div key={i} className="lyrics__section">
@@ -298,7 +348,7 @@ function WordLine({ line, nextStart }: { line: SyncedLine; nextStart?: number })
   )
 }
 
-function SyncedLyrics({ track, lines }: { track: PlayerTrack; lines: SyncedLine[] }): React.JSX.Element {
+function SyncedLyrics({ track, lines, source }: { track: PlayerTrack; lines: SyncedLine[]; source: string }): React.JSX.Element {
   const scroller = useRef<HTMLDivElement>(null)
   const lineRefs = useRef<(HTMLElement | null)[]>([])
   const [active, setActive] = useState(-1)
@@ -386,7 +436,7 @@ function SyncedLyrics({ track, lines }: { track: PlayerTrack; lines: SyncedLine[
           )
         })}
         <div className="lyrics__pad lyrics__pad--end" />
-        <footer className="lyrics__source">Synced lyrics from LRCLIB</footer>
+        <footer className="lyrics__source">Synced lyrics from {source}</footer>
       </div>
       {share.bar(lines.map((l) => l.text))}
     </div>

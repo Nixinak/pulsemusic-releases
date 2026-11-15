@@ -37,6 +37,7 @@ import { fetchGenius, fetchLrclib, fetchLyricsOvh } from './lyrics'
 import { getArtistInfo } from './artistInfo'
 import { ensureEngine, localReady, setupLocal, stopEngine } from './aiSetup'
 import { getArtistPage, getArtistQuick } from './spotifyPage'
+import { connectSpotifyAccount, disconnectSpotifyAccount, spotifyAccountStatus, spotifyFriends, spotifyLyrics } from './spotifyAccount'
 import { relatedArtists, songPreview } from './recs'
 import { connectLastfm, disconnectLastfm, lastfmNowPlaying, lastfmScrobble, lastfmStatus, setLastfmEnabled, startLastfm } from './lastfm'
 import { checkForUpdatesNow, initUpdates, installUpdateNow, setAutoUpdates, updateStatus } from './updater'
@@ -494,6 +495,11 @@ function registerIpc(): void {
   })
   ipcMain.handle('artist:page', (_e, id: string) => (/^[A-Za-z0-9]{10,40}$/.test(id) ? getArtistPage(id) : null))
   ipcMain.handle('artist:quick', (_e, id: string) => (/^[A-Za-z0-9]{10,40}$/.test(id) ? getArtistQuick(id) : null))
+  ipcMain.handle('spotify-account:status', () => spotifyAccountStatus())
+  ipcMain.handle('spotify-account:connect', () => connectSpotifyAccount(mainWindow))
+  ipcMain.handle('spotify-account:disconnect', () => disconnectSpotifyAccount())
+  ipcMain.handle('spotify-account:friends', () => spotifyFriends().catch(() => null))
+  ipcMain.handle('spotify-account:lyrics', (_e, id: unknown) => (typeof id === 'string' ? spotifyLyrics(id).catch(() => null) : null))
   ipcMain.handle('lyrics:lrclib', (_e, q) => fetchLrclib(q))
   ipcMain.handle('lyrics:genius', (_e, q) => fetchGenius(q))
   ipcMain.handle('profile:get', () => loadProfile())

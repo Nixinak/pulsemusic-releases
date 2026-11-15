@@ -4,8 +4,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { NpTheme } from '@shared/types'
-import { useLivePosition } from './common'
-import { formatTime } from '@/lib/format'
 import { Glass } from './Glass'
 
 export const NP_THEMES: { id: NpTheme; label: string; hint: string }[] = [
@@ -68,77 +66,6 @@ export function LockClock(): React.JSX.Element {
   )
 }
 
-/* ---------- The record player ---------- */
-
-export function Turntable({ art, paused }: { art: string | null; paused: boolean }): React.JSX.Element {
-  return (
-    <div className={`tt ${paused ? 'is-paused' : ''}`} aria-hidden="true">
-      <div className="tt__plinth">
-        <span className="tt__light" />
-        <div className="tt__platter">
-          <div className="tt__record">
-            <span className="tt__grooves" />
-            <span className="tt__sheen" />
-            <span className="tt__label">{art ? <img src={art} alt="" draggable={false} /> : null}</span>
-            <span className="tt__spindle" />
-          </div>
-        </div>
-        <svg className="tt__arm" viewBox="0 0 100 100">
-          <circle className="tt__arm-base" cx="84" cy="14" r="8" />
-          <circle className="tt__arm-pivot" cx="84" cy="14" r="3.2" />
-          <path className="tt__arm-rod" d="M84 14 L83 56 L64 71" />
-          <rect className="tt__arm-head" x="57" y="68.5" width="10" height="7" rx="1.6" transform="rotate(-38 62 72)" />
-          <rect className="tt__arm-weight" x="80.5" y="2" width="7" height="7" rx="1.5" />
-        </svg>
-        <span className="tt__knob" />
-        <span className="tt__speed">33</span>
-      </div>
-    </div>
-  )
-}
-
-/* ---------- The CD deck ---------- */
-
-export function CdDeck({ art, paused, title, artist, durationMs }: { art: string | null; paused: boolean; title: string; artist: string; durationMs: number }): React.JSX.Element {
-  const pos = useLivePosition()
-  const text = `${title} — ${artist}`
-  return (
-    <div className={`cdd ${paused ? 'is-paused' : ''}`} aria-hidden="true">
-      <div className="cdd__body">
-        <div className="cdd__well">
-          <div className="cdd__disc">
-            {art && <img src={art} alt="" draggable={false} />}
-            <span className="cdd__rainbow" />
-            <span className="cdd__hub" />
-          </div>
-          <span className="cdd__lid" />
-        </div>
-        <div className="cdd__panel">
-          <div className="cdd__lcd">
-            <div className="cdd__row">
-              <span className={`cdd__state ${paused ? '' : 'is-on'}`}>{paused ? '❚❚' : '▶'}</span>
-              <span className="cdd__time">{formatTime(pos)}</span>
-              <span className="cdd__total">/ {formatTime(durationMs)}</span>
-            </div>
-            <div className="cdd__marquee">
-              <span key={text} className={text.length > 26 ? 'is-long' : ''}>
-                {text}
-                {text.length > 26 && <>&nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp;{text}</>}
-              </span>
-            </div>
-          </div>
-          <div className="cdd__leds">
-            <i className={paused ? '' : 'is-on'} />
-            <small>PLAY</small>
-            <i className="is-rec" />
-            <small>REC</small>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 /* ---------- The menu at the edge ---------- */
 
 const MenuIcon = (): React.JSX.Element => (
@@ -188,13 +115,17 @@ function ThemePreview({ id }: { id: NpTheme }): React.JSX.Element {
 export function NpEdgeMenu({
   theme,
   full,
+  sounds,
   onTheme,
-  onFull
+  onFull,
+  onSounds
 }: {
   theme: NpTheme
   full: boolean
+  sounds: boolean
   onTheme: (t: NpTheme) => void
   onFull: () => void
+  onSounds: (on: boolean) => void
 }): React.JSX.Element {
   const [near, setNear] = useState(false)
   const [menu, setMenu] = useState(false)
@@ -292,6 +223,13 @@ export function NpEdgeMenu({
                   </button>
                 ))}
               </div>
+              <button className={`npm__sound ${sounds ? 'is-on' : ''}`} role="switch" aria-checked={sounds} onClick={() => onSounds(!sounds)}>
+                <span>
+                  <b>Device sounds</b>
+                  <small>Vinyl crackle, the needle, the CD spinning up</small>
+                </span>
+                <i aria-hidden="true" />
+              </button>
             </Glass>
           </motion.div>
         )}

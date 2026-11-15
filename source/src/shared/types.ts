@@ -53,6 +53,8 @@ export interface Settings {
   npTheme: NpTheme
   /** Now Playing covers the whole screen (taskbar hidden); remembered for next time. */
   npFullscreen: boolean
+  /** The turntable and the CD deck make their sounds (crackle, needle, spin-up). */
+  npSounds: boolean
 }
 
 export type NpTheme = 'classic' | 'cover' | 'vinyl' | 'cd' | 'lock'
@@ -113,7 +115,8 @@ export const DEFAULT_SETTINGS: Settings = {
   djSpeaker: 'af_heart',
   djChattiness: 'sometimes',
   npTheme: 'classic',
-  npFullscreen: false
+  npFullscreen: false,
+  npSounds: true
 }
 
 export type ProfileBlock =
@@ -231,6 +234,31 @@ export type PlayerCommand =
   | { type: 'previous' }
   | { type: 'seek'; positionMs: number }
   | { type: 'like' }
+
+/** Someone you follow on Spotify and the last song they played (Spotify's Friend Activity). */
+export interface SpotifyFriend {
+  id: string
+  name: string
+  image: string | null
+  /** When they played it (epoch ms); within a few minutes means they're listening now. */
+  at: number
+  track: {
+    id: string
+    uri: string
+    name: string
+    image: string | null
+    artist: { id: string; name: string }
+    album: { id: string; name: string }
+    context: { uri: string; name: string } | null
+  }
+}
+
+/** Lyrics from Spotify itself. */
+export interface SpotifyLyrics {
+  synced: boolean
+  lines: { timeMs: number; text: string }[]
+  provider: string
+}
 
 export interface LrclibQuery {
   trackName: string
@@ -638,6 +666,14 @@ export interface PulseApi {
     /** Windows only: a screen to name in a loopback capture, so the page can hear what the
      *  computer plays (the DJ orb moves with the music). Null elsewhere. */
     loopbackSource(): Promise<string | null>
+  }
+  /** Your Spotify web account, signed in inside Pulse: Friend Activity and Spotify's lyrics. */
+  spotifyAccount: {
+    status(): Promise<{ connected: boolean }>
+    connect(): Promise<boolean>
+    disconnect(): Promise<void>
+    friends(): Promise<SpotifyFriend[] | null>
+    lyrics(trackId: string): Promise<SpotifyLyrics | null>
   }
   lyrics: {
     lrclib(q: LrclibQuery): Promise<LrclibResult | null>

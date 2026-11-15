@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AiSetup } from '@/components/AiSetup'
 import { previewVoice, testDj } from '@/lib/dj'
+import { connectSpotifyFriends, disconnectSpotifyFriends, refreshSpotifyFriends, useSpotifyFriends } from '@/lib/spotifyFriends'
 import { motion } from 'motion/react'
 import { importSpotifyExport, useHistory } from '@/lib/history'
 import { useApp } from '@/lib/store'
@@ -53,6 +54,32 @@ function Row({ title, hint, children }: { title: string; hint?: React.ReactNode;
       </div>
       <div className="srow__control">{children}</div>
     </div>
+  )
+}
+
+/** Your Spotify web account inside Pulse: Friend Activity and Spotify's own lyrics. */
+function SpotifyAccountRow(): React.JSX.Element {
+  const { connected, connecting } = useSpotifyFriends()
+  useEffect(() => void refreshSpotifyFriends(false), [])
+  return (
+    <Row
+      title="Spotify account"
+      hint={
+        connected
+          ? 'Connected: the Friends page shows what your Spotify friends play, and lyrics come from Spotify too when LRCLIB has no timings.'
+          : 'Sign in to Spotify once inside Pulse to see your Spotify friends’ activity and get Spotify’s synced lyrics. The sign-in stays on this computer.'
+      }
+    >
+      {connected ? (
+        <button className="btn" onClick={() => void disconnectSpotifyFriends()}>
+          Disconnect
+        </button>
+      ) : (
+        <button className="btn btn--accent" disabled={connecting || connected === null} onClick={() => void connectSpotifyFriends()}>
+          {connecting ? 'Waiting…' : 'Connect'}
+        </button>
+      )}
+    </Row>
   )
 }
 
@@ -282,6 +309,7 @@ export function SettingsView({ onSignOut }: { onSignOut: () => void }): React.JS
 
       <section className="sgroup">
         <h2>Lyrics</h2>
+        <SpotifyAccountRow />
         <Row title="Word by word" hint="Lights up each word as it is sung. Uses exact word timings when LRCLIB has them, otherwise follows the line.">
           <Toggle label="Word by word lyrics" on={settings.wordLyrics} onChange={(wordLyrics) => void update({ wordLyrics })} />
         </Row>

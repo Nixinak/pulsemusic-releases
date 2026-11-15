@@ -9,3 +9,10 @@
   - Pulse in the tray asks Spotify much less often what is playing.
   - After any refusal from Spotify, background work rests for two hours.
 - **Skip a long pause**: if Spotify still pauses Pulse for a long time, the notice has a button to sign in with your own Spotify app, which has its own allowance, so everything works again right away.
+- **Your Spotify friends on the Friends page**: connect your Spotify account once (Friends or Settings → Lyrics) and see what the people you follow on Spotify are playing, like the Friend Activity in the Spotify app. Play their song with one click. The Friends page itself got a fresh look.
+- **More synced lyrics**: with your Spotify account connected, Pulse also uses Spotify's own line-by-line lyrics, and it looks harder on LRCLIB for a synced version before settling for plain text.
+- **Lyrics without timings now scroll along with the song** (scroll yourself and it waits a few seconds).
+- **A real turntable and CD deck**: the turntable has a strobe-dotted platter, a record with grooves and a reflection that stays put while it spins, and an S-shaped arm that drops onto the record and creeps inwards as the song plays. The CD deck is brushed aluminium with a smoked lid, a shimmering disc, a glowing display and level meters that move with the music.
+- **Device sounds**: the needle dropping, vinyl crackle while it plays and the arm lifting off; the CD spinning up and down and the laser jumping between songs. Made on the spot, quiet under the music, and can be switched off in the Now Playing menu.
+- **The DJ page has no frame any more**: the song's colours glow straight on the page.
+- **The mix show is back to the swirl of covers** (no more box), ending in your new playlist with its songs listed.

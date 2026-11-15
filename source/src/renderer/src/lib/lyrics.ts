@@ -1,4 +1,6 @@
-// Lyrics resolution: LRCLIB synced → LRCLIB plain → Genius → lyrics.ovh → link to Genius.
+// Lyrics resolution: synced lyrics first, from LRCLIB or (when your Spotify account is connected
+// in Pulse) from Spotify itself, then plain ones: LRCLIB, Spotify, Genius, lyrics.ovh, and
+// finally a link to Genius.
 
 export interface SyncedWord {
   timeMs: number
@@ -16,8 +18,8 @@ const stampMs = (m: string, s: string, f?: string): number =>
   Number(m) * 60_000 + Number(s) * 1000 + (f ? Number(f.padEnd(3, '0').slice(0, 3)) : 0)
 
 export type Lyrics =
-  | { kind: 'synced'; source: 'LRCLIB'; lines: SyncedLine[] }
-  | { kind: 'plain'; source: 'LRCLIB' | 'Genius' | 'lyrics.ovh'; lines: string[]; url?: string }
+  | { kind: 'synced'; source: 'LRCLIB' | 'Spotify'; lines: SyncedLine[] }
+  | { kind: 'plain'; source: 'LRCLIB' | 'Spotify' | 'Genius' | 'lyrics.ovh'; lines: string[]; url?: string }
   | { kind: 'instrumental' }
   | { kind: 'none'; reason?: string; geniusUrl?: string }
 
@@ -73,20 +75,31 @@ const primaryTitle = (name: string): string =>
   name.replace(/\s*-\s*(\d{4}\s*)?(remaster(ed)?|live|radio edit|single version|mono|stereo).*$/i, '').trim()
 
 async function resolve(t: LyricsTrack): Promise<Lyrics> {
-  const lr = await window.pulse.lyrics.lrclib({
-    trackName: primaryTitle(t.name),
-    artistName: t.artists[0] ?? '',
-    albumName: t.album,
-    durationSec: t.durationMs / 1000
-  })
-  if (lr?.instrumental) return { kind: 'instrumental' }
+  // both at once: LRCLIB, and Spotify's own lyrics when the account is connected
+  const [lr, spl] = await Promise.all([
+    window.pulse.lyrics.lrclib({
+      trackName: primaryTitle(t.name),
+      artistName: t.artists[0] ?? '',
+      albumName: t.album,
+      durationSec: t.durationMs / 1000
+    }),
+    window.pulse.spotifyAccount?.lyrics(t.id).catch(() => null) ?? Promise.resolve(null)
+  ])
+  if (lr?.syncedLyrics) {
+    const lines = parseLrc(lr.syncedLyrics)
+    // LRCLIB's word timings are the richest; Spotify's line timings when LRCLIB has none
+    if (lines.length > 0 && (lines.some((l) => l.words) || !spl?.synced)) return { kind: 'synced', source: 'LRCLIB', lines }
+  }
+  if (spl?.synced && spl.lines.length) return { kind: 'synced', source: 'Spotify', lines: spl.lines.map((l) => ({ timeMs: l.timeMs, text: l.text })) }
   if (lr?.syncedLyrics) {
     const lines = parseLrc(lr.syncedLyrics)
     if (lines.length > 0) return { kind: 'synced', source: 'LRCLIB', lines }
   }
+  if (lr?.instrumental) return { kind: 'instrumental' }
   if (lr?.plainLyrics) {
     return { kind: 'plain', source: 'LRCLIB', lines: lr.plainLyrics.split(/\r?\n/) }
   }
+  if (spl && spl.lines.length) return { kind: 'plain', source: 'Spotify', lines: spl.lines.map((l) => l.text) }
 
   const q = { title: primaryTitle(t.name), artist: t.artists[0] ?? '' }
   const g = await window.pulse.lyrics.genius(q)

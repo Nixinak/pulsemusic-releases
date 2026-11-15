@@ -30,15 +30,22 @@ export async function fetchLrclib(q: LrclibQuery): Promise<LrclibResult | null> 
       duration: String(Math.round(q.durationSec))
     })
     const res = await fetch(`https://lrclib.net/api/get?${exact}`, { headers })
+    let plainOnly: LrclibRecord | null = null
     if (res.ok) {
       const r = (await res.json()) as LrclibRecord
-      if (r.syncedLyrics || r.plainLyrics || r.instrumental) return toResult(r)
+      if (r.syncedLyrics || r.instrumental) return toResult(r)
+      // plain only: another upload of the same song often has the timings, so look on
+      if (r.plainLyrics) plainOnly = r
     }
 
     const search = new URLSearchParams({ track_name: q.trackName, artist_name: q.artistName })
     const sres = await fetch(`https://lrclib.net/api/search?${search}`, { headers })
-    if (!sres.ok) return null
-    const list = (await sres.json()) as LrclibRecord[]
+    let list = sres.ok ? ((await sres.json()) as LrclibRecord[]) : []
+    // nothing synced by title and artist: a looser search by words (other spellings, features)
+    if (!list.some((r) => r.syncedLyrics && Math.abs(r.duration - q.durationSec) <= 4)) {
+      const loose = await fetch(`https://lrclib.net/api/search?${new URLSearchParams({ q: `${q.artistName} ${q.trackName}` })}`, { headers }).catch(() => null)
+      if (loose?.ok) list = [...list, ...((await loose.json()) as LrclibRecord[])]
+    }
     const candidates = list
       .filter((r) => Math.abs(r.duration - q.durationSec) <= 4)
       .sort((a, b) => {
@@ -48,7 +55,9 @@ export async function fetchLrclib(q: LrclibQuery): Promise<LrclibResult | null> 
         if (sa !== sb) return sa - sb
         return Math.abs(a.duration - q.durationSec) - Math.abs(b.duration - q.durationSec)
       })
-    return candidates[0] ? toResult(candidates[0]) : null
+    const best = candidates[0]
+    if (best?.syncedLyrics) return toResult(best)
+    return plainOnly ? toResult(plainOnly) : best ? toResult(best) : null
   } catch (e) {
     console.error('[lyrics] lrclib failed', e)
     return null

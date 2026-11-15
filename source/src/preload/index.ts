@@ -87,6 +87,13 @@ const api: PulseApi = {
     preview: (title, artist) => ipcRenderer.invoke('recs:preview', title, artist),
     loopbackSource: () => ipcRenderer.invoke('recs:loopback-source')
   },
+  spotifyAccount: {
+    status: () => ipcRenderer.invoke('spotify-account:status'),
+    connect: () => ipcRenderer.invoke('spotify-account:connect'),
+    disconnect: () => ipcRenderer.invoke('spotify-account:disconnect'),
+    friends: () => ipcRenderer.invoke('spotify-account:friends'),
+    lyrics: (id) => ipcRenderer.invoke('spotify-account:lyrics', id)
+  },
   lyrics: {
     lrclib: (q) => ipcRenderer.invoke('lyrics:lrclib', q),
     genius: (q) => ipcRenderer.invoke('lyrics:genius', q),

@@ -55,7 +55,7 @@ Six **Daily Mixes**, **On Repeat** and **Repeat Rewind**, new every day. **Disco
 
 ### 👥 Listen along with friends
 
-Follow anyone on Spotify from their profile; when you follow each other, you're friends. If a friend uses Pulse too, you see what they're playing right now, and **Listen along** puts you in the same song at the same second. Search finds people by name, and Pulse users get a Pulse badge and their own profile page.
+Connect your Spotify account once and see what the people you follow on Spotify are playing, like Friend Activity in the Spotify app. Follow anyone from their profile; when you follow each other on Pulse, you're friends. If a friend uses Pulse too, you see what they're playing right now, and **Listen along** puts you in the same song at the same second. Search finds people by name, and Pulse users get a Pulse badge and their own profile page.
 
 ### 🎤 Lyrics that follow every word
 
@@ -134,7 +134,7 @@ Your friends see the song with its cover in full size, a live progress bar and a
 | 🎨 **Colours that follow the music** | The whole app takes its colours from the album cover that's playing. |
 | 🔁 **Autoplay** | When a song, album or playlist ends, similar music keeps playing. |
 | 📋 **A real queue** | Drag anything coming up into a new order, double-click to play it, remove or clear songs. Spotify's own API allows none of that. |
-| 💿 **Looks for Now Playing** | Classic, a big album cover, a spinning turntable, a CD deck or a lock screen with the cover as wallpaper, and real full screen over the taskbar. |
+| 💿 **Looks for Now Playing** | Classic, a big album cover, a detailed turntable with needle drop and vinyl crackle, a CD deck that spins up, or a lock screen with the cover as wallpaper, and real full screen over the taskbar. |
 | 🖼️ **Picture walls** | A mosaic of your own pictures on your profile, next to your songs and links. |
 | 🔔 **Starts with Windows** | Quietly, in the tray, so every play counts. Both can be switched off in Settings. |
 | 🌊 **Song transitions** | Optional fades between songs with both covers on screen (Settings → Playback). |
