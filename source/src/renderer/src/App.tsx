@@ -3,7 +3,7 @@ import { useLayoutEffect, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { useApp, currentRoute, errorText, type Route } from '@/lib/store'
 import { warmDj } from '@/lib/dj'
-import { ApiError } from '@/lib/spotify'
+import { ApiError, clearRateLimit } from '@/lib/spotify'
 import { pruneSaved } from '@/lib/persist'
 import { disposePlayer, initPlayer, nextTrack, previousTrack, startPublishing, togglePlay, usePlayer } from '@/lib/player'
 import { Ambient } from '@/components/Ambient'
@@ -286,17 +286,21 @@ function Login({ onDone }: { onDone: () => void }): React.JSX.Element {
   const [waiting, setWaiting] = useState(false)
   const notAllowed = (() => {
     try {
-      const n = sessionStorage.getItem('pulse-login-notice') === 'not-allowed'
+      const n = sessionStorage.getItem('pulse-login-notice')
       sessionStorage.removeItem('pulse-login-notice')
-      return n
+      return n === 'not-allowed' ? 'not-allowed' : n === 'blocked' ? 'blocked' : null
     } catch {
       return false
     }
   })()
   const [error, setError] = useState<string | null>(
-    notAllowed ? 'Spotify didn’t let this account in: Pulse Music’s Spotify app only works for people its owner added. Use your own Spotify app below (free, about 2 minutes).' : null
+    notAllowed === 'not-allowed'
+      ? 'Spotify didn’t let this account in: Pulse Music’s Spotify app only works for people its owner added. Use your own Spotify app below (free, about 2 minutes).'
+      : notAllowed === 'blocked'
+        ? 'Spotify is pausing the Spotify app Pulse Music signs in with. Your own Spotify app has its own allowance, so with it everything works again right away (free, about 2 minutes).'
+        : null
   )
-  const [ownOpen, setOwnOpen] = useState(notAllowed)
+  const [ownOpen, setOwnOpen] = useState(!!notAllowed)
   const [ownId, setOwnId] = useState('')
   const [savedId, setSavedId] = useState<string | null>(null)
   useEffect(() => {
@@ -390,6 +394,8 @@ function Login({ onDone }: { onDone: () => void }): React.JSX.Element {
                   onClick={async () => {
                     try {
                       await window.pulse.auth.setClientId(ownId)
+                      // a different app key: a pause on the old one doesn't apply to it
+                      if (ownId !== savedId) clearRateLimit()
                       setSavedId(ownId)
                       await signIn()
                     } catch (e) {

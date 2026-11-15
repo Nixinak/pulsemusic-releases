@@ -33,6 +33,9 @@ interface Options {
   body?: unknown
   /** Polls and prefetches: they give way when the app is busy, so taps always get through. */
   background?: boolean
+  /** Background work that can wait (made-for-you mixes): it waits for room in the long
+   *  windows instead of giving up. */
+  patient?: boolean
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
@@ -90,7 +93,7 @@ export const rateLimitedUntil = (): number => (rateLimited() ? blockedUntil : 0)
  */
 const WINDOW = 30_000
 const BUDGET = 60
-const BG_BUDGET = 25
+const BG_BUDGET = 12
 const MIN_SCALE = 0.25
 /** Fraction of the budget in use: halves after a refusal, grows back 10 % every 2 minutes. */
 let scale = (() => {
@@ -130,7 +133,17 @@ const prune = (): void => {
  * long: if no slot opens within 1.5 s the tap is refused, so hammering a button can't build
  * a backlog that keeps firing at Spotify.
  */
-async function takeTurn(background: boolean, isTap = false): Promise<void> {
+async function takeTurn(background: boolean, isTap = false, patient = false, poll = false): Promise<void> {
+  // the long windows first (asking what is playing keeps the player right: it only counts
+  // toward the overall caps, not the background ones)
+  for (;;) {
+    const wait = Math.max(overallWait(), background && !poll ? backgroundWait() : 0)
+    if (!wait) break
+    // a poll or prefetch just skips this round; patient work waits; a tap says so
+    if (background && !patient) throw new DeferredError()
+    if (isTap) throw new SlowDownError()
+    await sleep(Math.min(wait, 60_000) + Math.random() * 2000)
+  }
   // taps may use the whole budget; page loads leave 4 slots free for taps; polls stop at BG_BUDGET
   const cap = Math.max(isTap ? 3 : 2, Math.floor((isTap ? BUDGET : background ? BG_BUDGET : BUDGET - 10) * scale))
   const giveUpAt = Date.now() + 1500
@@ -150,11 +163,134 @@ async function takeTurn(background: boolean, isTap = false): Promise<void> {
     await sleep(free)
   }
   sent.push(Date.now())
+  count(background && !poll)
 }
+
+/* ---------- Long windows ----------
+ * Spotify also blocks an app for hours (not minutes) when it keeps sending a lot over a longer
+ * time, even if no 30 s window was ever full. So every request is also counted per minute for
+ * the last 24 hours, kept across restarts, and:
+ *  - background work (polls, prefetches, the made-for-you mixes) has small hard caps per
+ *    10 minutes, hour and day, smaller still while the window is hidden (Pulse in the tray),
+ *  - everything, taps included, waits in the rare case the app as a whole gets near what a
+ *    long block was seen at; a person clicking around never gets close to that,
+ *  - after any refusal, background work rests for two hours.
+ */
+const LEDGER_KEY = 'pulse-ledger1'
+const BG_REST_KEY = 'pulse-bg-rest'
+const MIN = 60_000
+/** Requests per minute (epoch minute → count), last 24 h. */
+const ledger = new Map<number, { all: number; bg: number }>(
+  (() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(LEDGER_KEY) ?? '[]') as [number, number, number][]
+      const from = Math.floor(Date.now() / MIN) - 24 * 60
+      return raw.filter((r) => Array.isArray(r) && r[0] > from).map(([m, a, b]) => [m, { all: a, bg: b }] as [number, { all: number; bg: number }])
+    } catch {
+      return []
+    }
+  })()
+)
+let ledgerDirty = false
+setInterval(() => {
+  if (!ledgerDirty) return
+  ledgerDirty = false
+  const from = Math.floor(Date.now() / MIN) - 24 * 60
+  for (const k of ledger.keys()) if (k <= from) ledger.delete(k)
+  try {
+    localStorage.setItem(LEDGER_KEY, JSON.stringify([...ledger.entries()].map(([m, c]) => [m, c.all, c.bg])))
+  } catch {
+    /* storage unavailable */
+  }
+}, 15_000)
+function count(background: boolean): void {
+  const m = Math.floor(Date.now() / MIN)
+  const c = ledger.get(m) ?? { all: 0, bg: 0 }
+  c.all++
+  if (background) c.bg++
+  ledger.set(m, c)
+  ledgerDirty = true
+}
+function since(minutes: number): { all: number; bg: number } {
+  const from = Math.floor(Date.now() / MIN) - minutes
+  let all = 0
+  let bg = 0
+  for (const [m, c] of ledger) {
+    if (m <= from) continue
+    all += c.all
+    bg += c.bg
+  }
+  return { all, bg }
+}
+/** Background caps: per 10 min, per hour, per day (the first one is lower while hidden). */
+const BG_CAPS = { tenMin: 70, tenMinHidden: 25, hour: 260, day: 1600 }
+/** Caps for everything together: far above what a person does, well below a long block. */
+const ALL_CAPS = { tenMin: 700, hour: 2400, day: 12_000 }
+let bgRestUntil = (() => {
+  try {
+    return Number(localStorage.getItem(BG_REST_KEY) ?? 0) || 0
+  } catch {
+    return 0
+  }
+})()
+function restBackground(ms: number): void {
+  bgRestUntil = Math.max(bgRestUntil, Date.now() + ms)
+  try {
+    localStorage.setItem(BG_REST_KEY, String(bgRestUntil))
+  } catch {
+    /* storage unavailable */
+  }
+}
+/** How long background work must wait for room (0 = it may go now). */
+function backgroundWait(): number {
+  if (Date.now() < bgRestUntil) return bgRestUntil - Date.now()
+  const ten = since(10)
+  const cap10 = document.hidden ? BG_CAPS.tenMinHidden : BG_CAPS.tenMin
+  if (ten.bg >= cap10 || ten.all >= ALL_CAPS.tenMin * 0.6) return 60_000
+  const hour = since(60)
+  if (hour.bg >= BG_CAPS.hour || hour.all >= ALL_CAPS.hour * 0.6) return 5 * 60_000
+  const day = since(24 * 60)
+  if (day.bg >= BG_CAPS.day || day.all >= ALL_CAPS.day * 0.6) return 30 * 60_000
+  return 0
+}
+/** How long anything must wait because the app as a whole sent a lot lately (0 = go). */
+function overallWait(): number {
+  if (since(10).all >= ALL_CAPS.tenMin) return 20_000
+  if (since(60).all >= ALL_CAPS.hour) return 60_000
+  if (since(24 * 60).all >= ALL_CAPS.day) return 5 * 60_000
+  return 0
+}
+/** Thrown to background work when it has to wait for room (callers just skip that round). */
+export class DeferredError extends ApiError {
+  constructor() {
+    super(503, 'Waiting for room in Spotify’s limits.')
+  }
+}
+/** A different Spotify app key has its own allowance: forget the block and the counts. */
+export function clearRateLimit(): void {
+  blockedUntil = 0
+  strikes = 0
+  bgRestUntil = 0
+  ledger.clear()
+  scale = 1
+  try {
+    for (const k of [BLOCK_KEY, BG_REST_KEY, LEDGER_KEY, 'pulse-budget2']) localStorage.removeItem(k)
+  } catch {
+    /* storage unavailable */
+  }
+  window.dispatchEvent(new CustomEvent('pulse:rate-limit', { detail: 0 }))
+}
+
+/** For the Settings page or a debug line: requests in the last hour and day. */
+export const requestCounts = (): { hour: { all: number; bg: number }; day: { all: number; bg: number } } => ({ hour: since(60), day: since(24 * 60) })
 
 const inflight = new Map<string, Promise<unknown>>()
 const recent = new Map<string, { at: number; value: unknown }>()
 const RECENT_MS = 4000
+/** Searches, songs, artists and album track lists hardly change: the same one asked again
+ *  within 20 minutes (the DJ, autoplay and artist pages often ask the same) is answered from memory. */
+const STATIC_MS = 20 * 60_000
+const isStatic = (path: string): boolean => /^\/(search|tracks\/[A-Za-z0-9]+|artists\/[A-Za-z0-9]+|albums\/[A-Za-z0-9]+(\/tracks)?)$/.test(path)
 /** Requests per endpoint in the last minutes, for spotting what eats the allowance. */
 const usage = new Map<string, number>()
 setInterval(() => {
@@ -173,22 +309,22 @@ export async function api<T = unknown>(path: string, opts: Options = {}): Promis
   if (method !== 'GET') {
     // During a block a tap must not sit waiting for hours and then fire.
     if (rateLimited()) throw new ApiError(429, 'Spotify is pausing Pulse for a moment. Try again when the notice is gone.')
-    // a change makes cached answers stale
-    recent.clear()
+    // a change makes cached answers stale (searches, songs and artists stay)
+    for (const k of [...recent.keys()]) if (!isStatic(k.slice(0, k.indexOf('?')))) recent.delete(k)
     await takeTurn(false, true)
     return rawApi<T>(path, opts)
   }
   const key = path + '?' + JSON.stringify(opts.query ?? {})
   const hit = recent.get(key)
-  if (hit && Date.now() - hit.at < (isPlayerPoll(path) ? 1500 : RECENT_MS)) return structuredClone(hit.value) as T
+  if (hit && Date.now() - hit.at < (isPlayerPoll(path) ? 1500 : isStatic(path) ? STATIC_MS : RECENT_MS)) return structuredClone(hit.value) as T
   // everyone gets their own copy, so a caller changing its answer can't change the cache
   const running = inflight.get(key)
   if (running) return running.then((v) => structuredClone(v)) as Promise<T>
   const p = (async () => {
-    await takeTurn(background)
+    await takeTurn(background, false, !!opts.patient, isPlayerPoll(path))
     const value = await rawApi<T>(path, opts)
     recent.set(key, { at: Date.now(), value })
-    if (recent.size > 200) recent.delete(recent.keys().next().value as string)
+    if (recent.size > 500) recent.delete(recent.keys().next().value as string)
     return value
   })().finally(() => inflight.delete(key))
   inflight.set(key, p)
@@ -229,6 +365,8 @@ async function rawApi<T = unknown>(path: string, opts: Options = {}, attempt = 0
     if (sentAt < lastRefusalAt) throw new ApiError(429, 'Spotify is limiting requests for a moment. Try again shortly.')
     lastRefusalAt = Date.now()
     strikes++
+    // background work rests for two hours after any refusal, so it can't keep a block going
+    restBackground(2 * 3600_000)
     const after = header > 0 ? header : Math.min(120, 5 * 2 ** (strikes - 1))
     setBlocked(Date.now() + after * 1000)
     scale = Math.max(MIN_SCALE, scale * 0.5)
@@ -323,7 +461,7 @@ export async function getFollowedArtists(): Promise<SArtist[]> {
 }
 
 export const getRecentlyPlayed = (): Promise<CursorPaging<{ track: STrack; played_at: string }>> =>
-  api('/me/player/recently-played', { query: { limit: 50 } })
+  api('/me/player/recently-played', { query: { limit: 50 }, background: true })
 
 export type TimeRange = 'short_term' | 'medium_term' | 'long_term'
 

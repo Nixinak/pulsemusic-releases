@@ -450,11 +450,13 @@ function startPolling(): void {
   void pollRemote()
   // How often to ask Spotify what is playing (each ask counts against the app's allowance):
   // another device playing 5 s, paused 20 s; this computer playing 15 s (the in-app player
-  // reports its own changes, this only notices a phone taking over); window hidden 60 s.
+  // reports its own changes, this only notices a phone taking over). Window hidden (Pulse in
+  // the tray): 90 s while something plays, 4 min when nothing does (plays on other devices are
+  // still counted: the listening history reads Spotify's recently played list).
   let last = 0
   pollTimer = window.setInterval(() => {
     const st = get()
-    const every = document.hidden ? 60_000 : st.isLocal ? 15_000 : st.paused ? 20_000 : 5000
+    const every = document.hidden ? (st.paused || !st.track ? 240_000 : 90_000) : st.isLocal ? 15_000 : st.paused ? 20_000 : 5000
     if (Date.now() - last < every) return
     last = Date.now()
     void pollRemote()

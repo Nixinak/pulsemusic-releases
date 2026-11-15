@@ -371,9 +371,26 @@ export function RateLimitNotice(): React.JSX.Element | null {
   if (left <= 3) return null
   const mins = Math.floor(left / 60)
   const time = left >= 3600 ? `${Math.floor(left / 3600)} h ${Math.floor((left % 3600) / 60)} min` : mins ? `${mins} min ${left % 60} s` : `${left} s`
+  // a long pause: the way out right now is the listener's own Spotify app (its own allowance)
+  const long = left > 20 * 60
   return (
     <div className="ratelimit" role="status">
       Spotify is limiting requests from Pulse Music. Things will load again in <b>{time}</b>.
+      {long && (
+        <button
+          className="ratelimit__own"
+          onClick={() => {
+            try {
+              sessionStorage.setItem('pulse-login-notice', 'blocked')
+            } catch {
+              /* storage unavailable */
+            }
+            void window.pulse.auth.logout().then(() => window.location.reload())
+          }}
+        >
+          Skip the wait with your own Spotify app
+        </button>
+      )}
     </div>
   )
 }

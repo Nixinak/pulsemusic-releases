@@ -4,7 +4,9 @@
 // It powers Stats, Replay, Recap and the profile.
 import { create } from 'zustand'
 import { usePlayer, type PlayerTrack } from './player'
-import { getRecentlyPlayed, getTrack, pickImage, searchArtists, searchTracks } from './spotify'
+import * as sp from './spotify'
+import { getRecentlyPlayed, pickImage } from './spotify'
+import type { STrack } from './types'
 
 /** Where a play was seen: in Pulse, in another Spotify app (recently played), or in the
  *  Spotify data download. */
@@ -274,25 +276,75 @@ export async function importSpotifyExport(files: File[]): Promise<ImportResult> 
 /* ---------- Filling in ids and covers ---------- */
 
 let enriching: Promise<void> | null = null
-const tried = new Set<string>()
+/* What was already looked up (found or not) is remembered across restarts for two weeks, and
+   each round looks up only a few: an imported history of thousands of songs used to send
+   hundreds of requests every few minutes, which got the whole app blocked for hours. */
+const TRIED_KEY = 'pulse-enrich-tried'
+const TRIED_MS = 14 * 86_400_000
+const triedAt = new Map<string, number>(
+  (() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(TRIED_KEY) ?? '[]') as [string, number][]
+      return raw.filter((r) => Array.isArray(r) && Date.now() - r[1] < TRIED_MS)
+    } catch {
+      return []
+    }
+  })()
+)
+const tried = {
+  has: (k: string): boolean => {
+    const at = triedAt.get(k)
+    return !!at && Date.now() - at < TRIED_MS
+  },
+  add: (k: string): void => {
+    triedAt.set(k, Date.now())
+  }
+}
+function saveTried(): void {
+  try {
+    const list = [...triedAt.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6000)
+    localStorage.setItem(TRIED_KEY, JSON.stringify(list))
+  } catch {
+    /* storage unavailable */
+  }
+}
+/** Songs and artists looked up per round, and how often a round may run. */
+const SONGS_PER_ROUND = 30
+const ARTISTS_PER_ROUND = 15
+const ROUND_EVERY = 30 * 60_000
+let lastRound = 0
+// background work that waits for room in Spotify's limits instead of crowding out the app
+const bgTrack = (id: string): Promise<STrack> => sp.api<STrack>(`/tracks/${id}`, { background: true, patient: true })
+const bgSearchTrack = (q: string): Promise<STrack[]> =>
+  sp
+    .api<{ tracks?: { items: (STrack | null)[] } }>('/search', { query: { q, type: 'track', limit: 5 }, background: true, patient: true })
+    .then((r) => (r.tracks?.items ?? []).filter((t): t is STrack => !!t?.id))
+const bgSearchArtist = (q: string): Promise<{ id: string; name: string }[]> =>
+  sp
+    .api<{ artists?: { items: ({ id: string; name: string } | null)[] } }>('/search', { query: { q, type: 'artist', limit: 5 }, background: true, patient: true })
+    .then((r) => (r.artists?.items ?? []).filter((a): a is { id: string; name: string } => !!a?.id))
 
 /** Imported plays come with names only. For the songs and artists you play most, this finds
  *  them on Spotify so they get covers, photos and play buttons. */
 export function enrich(): Promise<void> {
-  enriching ??= (async () => {
+  if (enriching) return enriching
+  if (Date.now() - lastRound < ROUND_EVERY) return Promise.resolve()
+  lastRound = Date.now()
+  enriching = (async () => {
     try {
       await enrichSongs()
       await enrichArtists()
     } catch (e) {
       console.warn('[history] could not fill in imported plays', e)
     } finally {
+      saveTried()
       enriching = null
     }
   })()
   return enriching
 }
 
-async function pool<T>(items: T[], run: (t: T) => Promise<void>, size = 3): Promise<void> {
+async function pool<T>(items: T[], run: (t: T) => Promise<void>, size = 2): Promise<void> {
   let i = 0
   await Promise.all(
     Array.from({ length: size }, async () => {
@@ -321,15 +373,18 @@ async function enrichSongs(): Promise<void> {
   for (const [k, t] of [...totals].sort((a, b) => b[1].ms - a[1].ms)) {
     const own = known.get(k)
     if (own) found.set(k, own)
-    else if (!tried.has(k) && todo.length < 150) todo.push(t.p)
+    else if (!tried.has(k) && todo.length < SONGS_PER_ROUND) todo.push(t.p)
   }
+  // two at a time: it's background work
   await pool(todo, async (p) => {
     const k = songKey(p)
     tried.add(k)
-    let t = isRealId(p.id) ? await getTrack(p.id).catch(() => null) : null
-    if (!t) {
-      const res = await searchTracks(`track:"${p.name}" artist:"${p.artists[0]?.name ?? ''}"`, 0).catch(() => null)
-      t = (res?.tracks?.items ?? []).find((x) => x && songKey({ name: x.name, artists: x.artists }) === k) ?? null
+    // one request per song: by its id when the import had it, otherwise one search
+    let t: STrack | null = null
+    if (isRealId(p.id)) t = await bgTrack(p.id).catch(() => null)
+    else {
+      const items = await bgSearchTrack(`track:"${p.name}" artist:"${p.artists[0]?.name ?? ''}"`).catch(() => [] as STrack[])
+      t = items.find((x) => songKey({ name: x.name, artists: x.artists }) === k) ?? null
     }
     if (!t?.id) return
     found.set(k, {
@@ -369,10 +424,10 @@ async function enrichArtists(): Promise<void> {
   const todo = [...totals]
     .filter(([k]) => !real.has(k) && !tried.has(`a:${k}`))
     .sort((a, b) => b[1].ms - a[1].ms)
-    .slice(0, 80)
+    .slice(0, ARTISTS_PER_ROUND)
   await pool(todo, async ([k, t]) => {
     tried.add(`a:${k}`)
-    const hit = (await searchArtists(t.name).catch(() => [])).find((a) => artistKey(a) === k)
+    const hit = (await bgSearchArtist(t.name).catch(() => [])).find((a) => artistKey(a) === k)
     if (hit) real.set(k, hit.id)
   })
   let changed = false
@@ -414,10 +469,15 @@ export function startHistory(): () => void {
     lastImport = Date.now()
     void importRecent()
   }
+  // Spotify keeps the last 50 plays (two hours or more of music), so every 8 minutes is plenty,
+  // and every 20 while the window is hidden.
+  let lastTimed = Date.now()
   const poll = window.setInterval(() => {
+    if (Date.now() - lastTimed < (document.hidden ? 20 : 8) * 60_000) return
+    lastTimed = Date.now()
     lastImport = 0
     pull()
-  }, 4 * 60_000)
+  }, 60_000)
   window.addEventListener('focus', pull)
 
   const flush = (): void => {

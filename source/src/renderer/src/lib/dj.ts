@@ -850,11 +850,27 @@ function similarTo(seed: { id: string; name: string }[]): Promise<{ id: string; 
           if (n && !own.has(norm(n)) && !names.some((x) => norm(x) === norm(n))) names.push(n)
         }
       const known = await knownArtists()
-      const found = await Promise.all(names.slice(0, 8).map((n) => resolveArtists([n], known).then((r) => r?.[0] ?? null).catch(() => null)))
+      const found = await Promise.all(names.slice(0, 5).map((n) => resolveArtists([n], known).then((r) => r?.[0] ?? null).catch(() => null)))
       return found.filter((a): a is { id: string; name: string } => !!a && !seed.some((x) => x.id === a.id))
     })()
     similarCache.set(key, p)
     p.catch(() => similarCache.delete(key))
+  }
+  return p
+}
+
+/** An artist's songs for the show, asked once per show: the requested artists get two pages,
+ *  the ones like them one (the next blocks reuse them instead of asking again). */
+const artistSongs = new Map<string, Promise<STrack[]>>()
+function songsOf(a: { id: string; name: string }, seed: boolean): Promise<STrack[]> {
+  let p = artistSongs.get(a.id)
+  if (!p) {
+    p = seed
+      ? loadArtistPopular(a.id, a.name)
+      : sp.searchTracks(`artist:"${a.name}"`, 0).then((r) => (r.tracks?.items ?? []).filter((t): t is STrack => !!t?.id && t.artists.some((x) => x.id === a.id)))
+    artistSongs.set(a.id, p)
+    p.catch(() => artistSongs.delete(a.id))
+    if (artistSongs.size > 60) artistSongs.delete(artistSongs.keys().next().value as string)
   }
   return p
 }
@@ -869,7 +885,7 @@ async function familyPool(seed: { id: string; name: string }[]): Promise<STrack[
     candidates().catch(() => [] as STrack[]),
     Promise.all(
       family.map((a, i) =>
-        loadArtistPopular(a.id, a.name)
+        songsOf(a, i < seed.length)
           .then((l) => shuffle(l.filter((t) => t.artists[0]?.id === a.id)).slice(0, i < seed.length ? 10 : 5))
           .catch(() => [] as STrack[])
       )

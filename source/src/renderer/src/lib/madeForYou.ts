@@ -157,7 +157,7 @@ const slim = (t: STrack): STrack => ({
 
 const searchSongs = (q: string, offset = 0): Promise<STrack[]> =>
   sp
-    .api<{ tracks?: { items: (STrack | null)[] } }>('/search', { query: { q, type: 'track', limit: 10, offset }, background: true })
+    .api<{ tracks?: { items: (STrack | null)[] } }>('/search', { query: { q, type: 'track', limit: 10, offset }, background: true, patient: true })
     .then((r) => (r.tracks?.items ?? []).filter((t): t is STrack => !!t?.id && t.is_playable !== false))
     .catch(() => [])
 
@@ -214,7 +214,7 @@ async function readLibrary(): Promise<Library> {
   const liked: STrack[] = []
   let likedTotal = 0
   for (let offset = 0; offset < 300; offset += 50) {
-    const page = await sp.api<LikedPage>('/me/tracks', { query: { limit: 50, offset }, background: true }).catch(() => null)
+    const page = await sp.api<LikedPage>('/me/tracks', { query: { limit: 50, offset }, background: true, patient: true }).catch(() => null)
     if (!page) break
     likedTotal = page.total ?? likedTotal
     liked.push(...page.items.map((i) => i.track).filter((t): t is STrack => !!t?.id))
@@ -226,7 +226,7 @@ async function readLibrary(): Promise<Library> {
     const rnd = seeded(weekKey())
     for (let n = 0; n < 2; n++) {
       const offset = 300 + Math.floor(rnd() * Math.max(1, likedTotal - 350))
-      const page = await sp.api<LikedPage>('/me/tracks', { query: { limit: 50, offset }, background: true }).catch(() => null)
+      const page = await sp.api<LikedPage>('/me/tracks', { query: { limit: 50, offset }, background: true, patient: true }).catch(() => null)
       if (page) keepOld(page)
     }
   }
@@ -238,13 +238,13 @@ async function readLibrary(): Promise<Library> {
     ['short_term', 30],
     ['medium_term', 15]
   ] as const) {
-    const top = await sp.api<{ items: STrack[] }>('/me/top/tracks', { query: { limit: 50, time_range: range }, background: true }).catch(() => null)
+    const top = await sp.api<{ items: STrack[] }>('/me/top/tracks', { query: { limit: 50, time_range: range }, background: true, patient: true }).catch(() => null)
     ;(top?.items ?? []).forEach((t, i) => {
       addSong(t, w * (1 - i / 60))
       t.artists.forEach((a, j) => addArtist(a, (j === 0 ? w : w * 0.3) * (1 - i / 60)))
     })
   }
-  const long = await sp.api<{ items: STrack[] }>('/me/top/tracks', { query: { limit: 50, time_range: 'long_term' }, background: true }).catch(() => null)
+  const long = await sp.api<{ items: STrack[] }>('/me/top/tracks', { query: { limit: 50, time_range: 'long_term' }, background: true, patient: true }).catch(() => null)
   return { songs, artists, plays, longTop: (long?.items ?? []).filter((t) => t?.id && isRealId(t.id) && !t.is_local), oldLiked }
 }
 
@@ -309,7 +309,7 @@ async function dailyMixes(lib: Library, day: string): Promise<Draft[]> {
     const knownKeys = new Set([...lib.songs.keys()])
     const fresh: STrack[] = []
     const want = Math.max(10, SIZE - known.length)
-    for (const a of group.slice(0, 4)) {
+    for (const a of group.slice(0, 3)) {
       for (const offset of [0, 10]) {
         if (fresh.length >= want) break
         const found = await searchSongs(`artist:"${a.name}"`, offset)
@@ -320,7 +320,7 @@ async function dailyMixes(lib: Library, day: string): Promise<Draft[]> {
         }
         await pause(150)
         // the second page only when the group is small
-        if (known.length >= 24) break
+        if (known.length >= 20) break
       }
     }
     // the new songs are mixed in after the first few favourites
@@ -401,7 +401,7 @@ async function discoverWeekly(lib: Library, week: string): Promise<Draft | null>
       fresh.set(k, e)
     })
   }
-  const picks = [...fresh.values()].sort((a, b) => b.w - a.w).slice(0, 30)
+  const picks = [...fresh.values()].sort((a, b) => b.w - a.w).slice(0, 24)
   const knownKeys = new Set(lib.songs.keys())
   const tracks: STrack[] = []
   const vias: string[] = []
@@ -430,7 +430,7 @@ async function discoverWeekly(lib: Library, week: string): Promise<Draft | null>
 async function releaseRadar(lib: Library): Promise<Draft | null> {
   const year = new Date().getFullYear()
   const since = Date.now() - 42 * 86_400_000
-  const artists = [...lib.artists.values()].sort((a, b) => b.score - a.score).slice(0, 30)
+  const artists = [...lib.artists.values()].sort((a, b) => b.score - a.score).slice(0, 24)
   const tracks: STrack[] = []
   const albums = new Map<string, number>()
   for (const a of artists) {
@@ -465,12 +465,12 @@ async function releaseRadar(lib: Library): Promise<Draft | null> {
 async function deepCuts(lib: Library, week: string): Promise<Draft | null> {
   const rnd = seeded(`${week}-deep`)
   const knownKeys = new Set(lib.songs.keys())
-  const artists = [...lib.artists.values()].sort((a, b) => b.score - a.score).slice(0, 10)
+  const artists = [...lib.artists.values()].sort((a, b) => b.score - a.score).slice(0, 9)
   const tracks: STrack[] = []
   for (const a of artists) {
     if (tracks.length >= SIZE) break
     const found: STrack[] = []
-    for (const offset of [10, 20]) {
+    for (const offset of [10]) {
       const page = await searchSongs(`artist:"${a.name}"`, offset)
       found.push(...page.filter((t) => t.artists[0]?.id === a.id && !knownKeys.has(songKey(t)) && !found.some((x) => songKey(x) === songKey(t)) && !tracks.some((x) => songKey(x) === songKey(t))))
       await pause(150)
@@ -829,6 +829,19 @@ async function make(user: string, listener: string, keepWeekly: GenMix[], keepDa
   useMadeForYou.setState({ mixes: all })
 }
 
+/* The last try is remembered across restarts: when making the mixes fails or is cut short, it
+   isn't started again (with all its requests) every half hour or at every start, only after six
+   hours or on a new day or week. */
+const ATTEMPT_KEY = 'pulse-mfy-attempt'
+function lastAttempt(): { day: string; week: string; at: number } | null {
+  try {
+    const a = JSON.parse(localStorage.getItem(ATTEMPT_KEY) ?? 'null') as { day: string; week: string; at: number } | null
+    return a && typeof a.at === 'number' ? a : null
+  } catch {
+    return null
+  }
+}
+
 /** Makes whatever is due: the daily mixes once a day, the weekly ones once a week. */
 function refresh(): void {
   if (making) return
@@ -842,6 +855,13 @@ function refresh(): void {
   const dailyDue = !keepDaily.length
   const weeklyDue = !keepWeekly.length
   if (!dailyDue && !weeklyDue) return
+  const tried = lastAttempt()
+  if (tried && Date.now() - tried.at < 6 * 3600_000 && (!dailyDue || tried.day === day) && (!weeklyDue || tried.week === week)) return
+  try {
+    localStorage.setItem(ATTEMPT_KEY, JSON.stringify({ day, week, at: Date.now() }))
+  } catch {
+    /* storage unavailable */
+  }
   const listener = (me.display_name ?? '').split(/\s+/)[0] ?? ''
   making = make(me.id, listener, weeklyDue ? [] : keepWeekly, dailyDue ? [] : keepDaily)
     .catch((e) => console.warn('[made for you] could not make the mixes', e))
