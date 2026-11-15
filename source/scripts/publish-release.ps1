@@ -7,6 +7,11 @@
 param([string]$Dir = 'release')
 
 $ErrorActionPreference = 'Stop'
+# PowerShell's progress bar slows its web requests down many times over (it redraws for every
+# few kilobytes): off. The installer itself goes up with curl.exe (built into Windows 10 and
+# 11), which sends it at full speed and shows one quiet progress line.
+$ProgressPreference = 'SilentlyContinue'
+$curl = (Get-Command curl.exe -ErrorAction SilentlyContinue).Source
 $repo = 'Nixinak/pulsemusic-releases'
 if (-not $env:GH_TOKEN) { throw 'Set GH_TOKEN first (a GitHub token with the "repo" scope).' }
 $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
@@ -36,6 +41,16 @@ foreach ($f in $files) {
   $old = $release.assets | Where-Object { $_.name -eq $name }
   if ($old) { Invoke-RestMethod -Method Delete -Headers $headers -Uri "https://api.github.com/repos/$repo/releases/assets/$($old.id)" | Out-Null }
   Write-Output "Uploading $name ($([math]::Round((Get-Item $f).Length / 1MB)) MB)..."
-  Invoke-RestMethod -Method Post -Headers $headers -Uri "https://uploads.github.com/repos/$repo/releases/$($release.id)/assets?name=$name" -InFile $f -ContentType 'application/octet-stream' | Out-Null
+  $url = "https://uploads.github.com/repos/$repo/releases/$($release.id)/assets?name=$name"
+  $started = Get-Date
+  if ($curl) {
+    & $curl --fail --show-error --progress-bar --http1.1 -X POST `
+      -H "Authorization: Bearer $($env:GH_TOKEN)" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/octet-stream' `
+      --data-binary "@$f" -o NUL $url
+    if ($LASTEXITCODE -ne 0) { throw "Uploading $name failed (curl exit code $LASTEXITCODE)." }
+  } else {
+    Invoke-RestMethod -Method Post -Headers $headers -Uri $url -InFile $f -ContentType 'application/octet-stream' | Out-Null
+  }
+  Write-Output ("  done in {0:N0} s" -f ((Get-Date) - $started).TotalSeconds)
 }
 Write-Output "Done: https://github.com/$repo/releases/tag/$tag"
