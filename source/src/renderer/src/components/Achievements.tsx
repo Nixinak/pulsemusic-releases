@@ -5,6 +5,23 @@ import { motion } from 'motion/react'
 import { achievements } from '@/lib/achievements'
 import { useHistory } from '@/lib/history'
 
+/** A button at the top of Your stats: how many are earned; it scrolls down to them. */
+export function AchievementsChip(): React.JSX.Element | null {
+  const plays = useHistory((s) => s.plays)
+  const loaded = useHistory((s) => s.loaded)
+  const list = useMemo(() => (loaded ? achievements(plays) : []), [plays, loaded])
+  if (!list.length) return null
+  const earned = list.filter((a) => a.done)
+  const best = earned.find((a) => a.tier === 'gold') ?? earned.find((a) => a.tier === 'silver') ?? earned[0]
+  return (
+    <button className="ach-chip" onClick={() => document.getElementById('achievements')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+      <span aria-hidden="true">{best?.icon ?? '🏆'}</span>
+      <b>{earned.length}</b>
+      <small>of {list.length} achievements</small>
+    </button>
+  )
+}
+
 export function Achievements(): React.JSX.Element | null {
   const plays = useHistory((s) => s.plays)
   const loaded = useHistory((s) => s.loaded)
@@ -17,7 +34,7 @@ export function Achievements(): React.JSX.Element | null {
   const sorted = [...list].sort((a, b) => Number(b.done) - Number(a.done) || (b.done ? order[b.tier] - order[a.tier] : b.progress - a.progress))
   const shown = all ? sorted : sorted.slice(0, 8)
   return (
-    <section className="ach">
+    <section className="ach" id="achievements">
       <header className="ach__head">
         <h2 className="stats__h">Achievements</h2>
         <span className="ach__count">

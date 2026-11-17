@@ -229,7 +229,7 @@ export function FriendsView(): React.JSX.Element {
         pulse: !!u && u.pulse !== false,
         user: u,
         at: f.at,
-        now: whenPlayed(f.at).now,
+        now: f.playing === true || whenPlayed(f.at).now,
         paused: false,
         party: null,
         track: {
@@ -282,33 +282,23 @@ export function FriendsView(): React.JSX.Element {
 
   return (
     <div className="friends fz">
-      <header className="fz-hero">
-        <span className="fz-hero__glow" aria-hidden="true" />
-        <div className="fz-hero__text">
-          <h1>Friends</h1>
-          <p>
+      <header className="fz-top">
+        <div>
+          <h1 className="page-title">Friends</h1>
+          <p className="muted">
             {live.length
               ? `${live.length} ${live.length === 1 ? 'person is' : 'people are'} listening right now`
               : feed.length
                 ? `${feed.length} ${feed.length === 1 ? 'person' : 'people'} played something lately`
                 : 'See what the people you follow are playing'}
           </p>
-          <div className="fz-hero__row">
-            <button className="btn btn--accent" onClick={() => navigate({ name: 'search' })}>
-              <SearchIcon size={16} /> Find people
-            </button>
-            {me && loaded && server !== false && <FollowCounts id={me.id} followers={friends.length + incoming.length} following={following.length} />}
-          </div>
         </div>
-        {feed.length > 0 && (
-          <div className="fz-hero__faces" aria-hidden="true">
-            {feed.slice(0, 7).map((a, i) => (
-              <span key={a.id} className={`fz-hero__face ${a.now ? 'is-now' : ''}`} style={{ ['--i' as string]: i }}>
-                <Cover src={a.image} round />
-              </span>
-            ))}
-          </div>
-        )}
+        <div className="fz-top__row">
+          {me && loaded && server !== false && <FollowCounts id={me.id} followers={friends.length + incoming.length} following={following.length} />}
+          <button className="btn btn--accent" onClick={() => navigate({ name: 'search' })}>
+            <SearchIcon size={16} /> Find people
+          </button>
+        </div>
       </header>
 
       {connected === false && <ConnectSpotify />}

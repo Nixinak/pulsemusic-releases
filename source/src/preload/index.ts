@@ -96,7 +96,9 @@ const api: PulseApi = {
     connect: () => ipcRenderer.invoke('spotify-account:connect'),
     disconnect: () => ipcRenderer.invoke('spotify-account:disconnect'),
     friends: () => ipcRenderer.invoke('spotify-account:friends'),
-    lyrics: (id) => ipcRenderer.invoke('spotify-account:lyrics', id)
+    lyrics: (id) => ipcRenderer.invoke('spotify-account:lyrics', id),
+    analysis: (id) => ipcRenderer.invoke('spotify-account:analysis', id),
+    canvas: (id) => ipcRenderer.invoke('spotify-account:canvas', id)
   },
   lyrics: {
     lrclib: (q) => ipcRenderer.invoke('lyrics:lrclib', q),

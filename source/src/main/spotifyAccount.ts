@@ -83,12 +83,15 @@ async function webToken(fresh = false): Promise<string | null> {
   return fetching
 }
 
-async function webGet<T>(url: string, extra: Record<string, string> = {}): Promise<T | null> {
+async function webGet<T>(url: string, extra: Record<string, string> = {}, body?: unknown): Promise<T | null> {
   for (let attempt = 0; attempt < 2; attempt++) {
     const t = await webToken(attempt > 0)
     if (!t) return null
     const res = await fetch(url, {
+      method: body === undefined ? 'GET' : 'POST',
+      body: body === undefined ? undefined : JSON.stringify(body),
       headers: {
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
         Authorization: `Bearer ${t}`,
         'User-Agent': UA,
         Accept: 'application/json',
@@ -277,20 +280,108 @@ function fromWebPlayer(): Promise<Json | null> {
   })
 }
 
+/* ---------- The listening activity feed ----------
+ * What Spotify's own Friend Activity reads now (the old buddylist leaves out many people and is
+ * often days behind). The feed has only ids, so names and pictures are looked up (and kept). */
+const B62 = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+const idToGid = (id: string): string => {
+  let n = 0n
+  for (const ch of id) n = n * 62n + BigInt(B62.indexOf(ch))
+  return n.toString(16).padStart(32, '0')
+}
+const gidToId = (gid: string): string => {
+  let n = BigInt(`0x${gid}`)
+  let id = ''
+  while (n > 0n) {
+    id = B62[Number(n % 62n)] + id
+    n /= 62n
+  }
+  return id.padStart(22, '0')
+}
+const lookups = new Map<string, Promise<Json | null>>()
+const lookup = (key: string, load: () => Promise<Json | null>): Promise<Json | null> => {
+  let p = lookups.get(key)
+  if (!p) {
+    p = load().then((v) => {
+      if (!v) lookups.delete(key)
+      return v
+    })
+    lookups.set(key, p)
+  }
+  return p
+}
+const coverOf = (album: Json): string | null => {
+  const imgs: Json[] = album?.cover_group?.image ?? album?.cover ?? []
+  const best = imgs.find((i) => i.size === 'DEFAULT') ?? imgs.find((i) => i.size === 'LARGE') ?? imgs[0]
+  return best?.file_id ? `https://i.scdn.co/image/${best.file_id}` : null
+}
+
+async function fromFeed(): Promise<SpotifyFriend[] | null> {
+  const feed = await webGet<Json>('https://spclient.wg.spotify.com/listening-activity/v1/feed', {}, { unused: true, resultLimit: 100 })
+  if (!feed || !Array.isArray(feed.entities)) return null
+  noteRaw('feed', { friends: feed.entities })
+  const list = await Promise.all(
+    (feed.entities as Json[]).map(async (item): Promise<SpotifyFriend | null> => {
+      const e = item.userEntity ?? item.followEntity
+      const a = e?.activity
+      if (!e?.uri || !String(a?.entityUri ?? '').startsWith('spotify:track:')) return null
+      const userId = idOf(e.uri)
+      const trackId = idOf(a.entityUri)
+      const [profile, track] = await Promise.all([
+        lookup(e.uri, () => webGet<Json>(`https://spclient.wg.spotify.com/user-profile-view/v3/profile/${encodeURIComponent(userId)}`)),
+        lookup(a.entityUri, () => webGet<Json>(`https://spclient.wg.spotify.com/metadata/4/track/${idToGid(trackId)}?market=from_token`))
+      ])
+      if (!track) return null
+      const artist = (track.artist ?? [])[0]
+      const ctxUri = String(a.contextUri ?? '')
+      let context: SpotifyFriend['track']['context'] = null
+      if (ctxUri.endsWith(':collection')) context = { uri: ctxUri, name: 'Liked Songs' }
+      else if (/^spotify:(album|artist):/.test(ctxUri)) {
+        const [, type, cid] = ctxUri.split(':')
+        const meta = await lookup(ctxUri, () => webGet<Json>(`https://spclient.wg.spotify.com/metadata/4/${type}/${idToGid(cid)}?market=from_token`))
+        if (meta?.name) context = { uri: ctxUri, name: String(meta.name) }
+      } else if (ctxUri.startsWith('spotify:playlist:')) context = { uri: ctxUri, name: 'a playlist' }
+      return {
+        id: decodeURIComponent(userId),
+        name: String(profile?.name ?? userId),
+        image: profile?.image_url || null,
+        at: Date.parse(a.timestamp) || Number(a.timestamp) || 0,
+        playing: a.isPlaying === true,
+        track: {
+          id: trackId,
+          uri: String(a.entityUri),
+          name: String(track.name ?? ''),
+          image: coverOf(track.album),
+          artist: { id: artist?.gid ? gidToId(artist.gid) : '', name: String(artist?.name ?? '') },
+          album: { id: track.album?.gid ? gidToId(track.album.gid) : '', name: String(track.album?.name ?? '') },
+          context
+        }
+      }
+    })
+  )
+  return list.filter((x): x is SpotifyFriend => !!x).sort((x, y) => Number(!!y.playing) - Number(!!x.playing) || y.at - x.at)
+}
+
 let deepAt = 0
 
 export async function spotifyFriends(): Promise<SpotifyFriend[] | null> {
   // at most every 30 s, however many pages ask
   if (friendsCache && Date.now() - friendsCache.at < 30_000) return friendsCache.list
-  let list: SpotifyFriend[] | null = null
-  let raw: Json = null
-  for (const host of ['https://guc-spclient.spotify.com', 'https://spclient.wg.spotify.com']) {
-    raw = await webGet<Json>(`${host}/presence-view/v1/buddylist`)
-    list = parse(raw)
-    if (list?.length) break
+  // Spotify's current feed first; the old buddylist only when that doesn't answer
+  let list: SpotifyFriend[] | null = await fromFeed().catch(() => null)
+  if (!list?.length) {
+    let raw: Json = null
+    for (const host of ['https://guc-spclient.spotify.com', 'https://spclient.wg.spotify.com']) {
+      raw = await webGet<Json>(`${host}/presence-view/v1/buddylist`)
+      const old = parse(raw)
+      if (old?.length) {
+        list = old
+        break
+      }
+    }
+    noteRaw('buddylist', raw)
   }
-  noteRaw('direct', raw)
-  // nothing that way: ask the web player (at most every 5 minutes, it takes a few seconds)
+  // nothing either way: ask the web player (at most every 5 minutes, it takes a few seconds)
   if (!list?.length && Date.now() - deepAt > 5 * 60_000 && (await signedIn())) {
     deepAt = Date.now()
     const j = await fromWebPlayer()
@@ -302,6 +393,86 @@ export async function spotifyFriends(): Promise<SpotifyFriend[] | null> {
   if (!list) return friendsCache?.list ?? null
   friendsCache = { at: Date.now(), list }
   return list
+}
+
+/* ---------- Canvas: the short looping video an artist puts on a song ----------
+ * Read like the Spotify app reads it (a small protobuf request); only the video's address is
+ * taken from the answer. */
+const canvasCache = new Map<string, Promise<string | null>>()
+export function spotifyCanvas(trackId: string): Promise<string | null> {
+  if (!/^[A-Za-z0-9]{22}$/.test(trackId)) return Promise.resolve(null)
+  let p = canvasCache.get(trackId)
+  if (!p) {
+    p = (async () => {
+      if (!(await signedIn())) return null
+      const uri = Buffer.from(`spotify:track:${trackId}`)
+      // EntityCanvazRequest { entities: [{ entity_uri }] }
+      const entity = Buffer.concat([Buffer.from([0x0a, uri.length]), uri])
+      const body = Buffer.concat([Buffer.from([0x0a, entity.length]), entity])
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const t = await webToken(attempt > 0)
+        if (!t) return null
+        const res = await fetch('https://spclient.wg.spotify.com/canvaz-cache/v0/canvases', {
+          method: 'POST',
+          body,
+          headers: {
+            Authorization: `Bearer ${t}`,
+            'User-Agent': UA,
+            'Content-Type': 'application/x-protobuf',
+            Accept: 'application/protobuf',
+            ...(token?.clientToken ? { 'client-token': token.clientToken } : {})
+          },
+          signal: AbortSignal.timeout(8000)
+        }).catch(() => null)
+        if (!res) return null
+        if (res.status === 401) continue
+        if (!res.ok) return null
+        const text = Buffer.from(await res.arrayBuffer()).toString('latin1')
+        return /https:\/\/canvaz\.scdn\.co\/[!-~]+?\.mp4/.exec(text)?.[0] ?? null
+      }
+      return null
+    })().catch(() => null)
+    canvasCache.set(trackId, p)
+    if (canvasCache.size > 300) canvasCache.delete(canvasCache.keys().next().value as string)
+  }
+  return p
+}
+
+/* ---------- Spotify's analysis of a song ----------
+ * Beats, and for every short slice of the song its loudness and its sound (12 pitch classes and
+ * 12 timbre values), as the web player gets it. The visualizer follows this when it can't listen
+ * to the computer's sound. */
+const analysisCache = new Map<string, Promise<Json | null>>()
+export function spotifyAnalysis(trackId: string): Promise<Json | null> {
+  if (!/^[A-Za-z0-9]{22}$/.test(trackId)) return Promise.resolve(null)
+  let p = analysisCache.get(trackId)
+  if (!p) {
+    p = (async () => {
+      if (!(await signedIn())) return null
+      const j = await webGet<Json>(`https://spclient.wg.spotify.com/audio-attributes/v1/audio-analysis/${trackId}?format=json`)
+      if (!j || !Array.isArray(j.segments)) return null
+      // only what the visualizer needs, rounded, to keep it small
+      const r = (n: number): number => Math.round(n * 1000) / 1000
+      return {
+        beats: (j.beats ?? []).map((b: Json) => r(b.start)),
+        bars: (j.bars ?? []).map((b: Json) => r(b.start)),
+        segments: (j.segments as Json[]).map((s) => [
+          r(s.start),
+          r(s.loudness_max),
+          r(s.loudness_start),
+          r(s.loudness_max_time),
+          ...(s.pitches ?? []).map(r),
+          ...(s.timbre ?? []).map(r)
+        ])
+      }
+    })().catch(() => null)
+    analysisCache.set(trackId, p)
+    void p.then((v) => {
+      if (!v) analysisCache.delete(trackId)
+      if (analysisCache.size > 40) analysisCache.delete(analysisCache.keys().next().value as string)
+    })
+  }
+  return p
 }
 
 /* ---------- Spotify's lyrics ---------- */

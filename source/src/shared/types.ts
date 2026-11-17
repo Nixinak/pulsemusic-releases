@@ -287,6 +287,8 @@ export interface SpotifyFriend {
   image: string | null
   /** When they played it (epoch ms); within a few minutes means they're listening now. */
   at: number
+  /** Spotify says they're playing right now. */
+  playing?: boolean
   track: {
     id: string
     uri: string
@@ -296,6 +298,12 @@ export interface SpotifyFriend {
     album: { id: string; name: string }
     context: { uri: string; name: string } | null
   }
+}
+
+export interface SongAnalysis {
+  beats: number[]
+  bars: number[]
+  segments: number[][]
 }
 
 /** Lyrics from Spotify itself. */
@@ -755,6 +763,10 @@ export interface PulseApi {
     disconnect(): Promise<void>
     friends(): Promise<SpotifyFriend[] | null>
     lyrics(trackId: string): Promise<SpotifyLyrics | null>
+    /** Spotify's analysis of a song: beat times and per-slice [start, loudness max, loudness start, time of max, 12 pitches, 12 timbre]. */
+    analysis(trackId: string): Promise<SongAnalysis | null>
+    /** The short looping video (Canvas) the artist put on a song, if any (an mp4 address). */
+    canvas(trackId: string): Promise<string | null>
   }
   lyrics: {
     lrclib(q: LrclibQuery): Promise<LrclibResult | null>

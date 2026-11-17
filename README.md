@@ -47,7 +47,7 @@ A free Spotify app for Windows with an AI DJ that talks, word-by-word lyrics, pa
 
 | | |
 |:--|:--|
-| 📱 **Discover** | New music one song at a time, like a video feed. Each song plays its preview on its own; like it, queue it, play it in full or skip it. |
+| 📱 **Discover** | Swipe through new songs like on Tinder: drag right to like, left to pass. The artist's Canvas clip plays on the card and the music starts by itself. |
 | 💞 **Taste match** | On a friend's profile: how close your music is (a percentage), the artists you share and a blend of your favourites to play. |
 | 🧪 **Smart playlists** | Playlists by rules: *liked songs, 120–140 BPM, from 2020 on, played twice at most.* Pulse measures the tempo itself. |
 | 🏆 **Achievements** | Badges for streaks, marathons, superfans and night owls, in bronze, silver and gold, next to fun facts about your listening. |
@@ -147,7 +147,7 @@ Your friends see the song with its cover in full size, a live progress bar and a
 | 🎨 **Colours that follow the music** | The whole app takes its colours from the album cover that's playing. |
 | 🔁 **Autoplay** | When a song, album or playlist ends, similar music keeps playing. |
 | 📋 **A real queue** | Drag anything coming up into a new order, double-click to play it, remove or clear songs. Spotify's own API allows none of that. |
-| 💿 **Looks for Now Playing** | A big album cover, a turntable you can grab and scratch (needle drop and vinyl crackle), a cartoon poster, a visualizer that moves with the beat, or a lock screen with the cover as wallpaper, and real full screen over the taskbar. |
+| 💿 **Looks for Now Playing** | A big album cover, a turntable you can grab and scratch (needle drop and vinyl crackle), a cartoon poster, an NCS-style visualizer that moves with the beat, or a lock screen with the cover as wallpaper, and real full screen over the taskbar. |
 | 🖼️ **Picture walls** | A mosaic of your own pictures on your profile, next to your songs and links. |
 | 🔔 **Starts with Windows** | Quietly, in the tray, so every play counts. Both can be switched off in Settings. |
 | 🌊 **Song transitions** | Optional fades between songs with both covers on screen (Settings → Playback). |

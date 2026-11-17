@@ -3453,6 +3453,14 @@
 }
 .npm__panel {
   transform-origin: right center;
+  /* its own layer: the moving backdrop under it never makes it blink */
+  will-change: transform, opacity;
+  contain: paint;
+}
+.npm__glass,
+.npm__pill {
+  background: rgba(22, 22, 28, 0.62) !important;
+  backdrop-filter: blur(28px) saturate(1.4);
 }
 .npm__glass {
   width: 300px;
@@ -4649,13 +4657,14 @@
 }
 .pulsev__canvas {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  inset: -30%;
+  width: 160%;
+  height: 160%;
+  pointer-events: none;
 }
 .pulsev__disc {
   position: absolute;
-  inset: 17.5%;
+  inset: 22.5%;
   border-radius: 50%;
   overflow: hidden;
   background: #111;
@@ -5095,6 +5104,24 @@
 }
 
 /* ---- Friends: one feed ---- */
+.fz-top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.fz-top .page-title {
+  margin: 0 0 6px;
+}
+.fz-top p {
+  margin: 0;
+}
+.fz-top__row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
 .fz {
   display: flex;
   flex-direction: column;
@@ -5988,95 +6015,143 @@
   color: var(--text);
 }
 
-/* ---- Discover: a feed of songs, one at a time ---- */
+/* ---- Discover: a stack of cards, swiped like Tinder ---- */
 .disc {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   height: calc(100vh - 240px);
-  min-height: 520px;
-  max-width: 1100px;
-  margin: 0 auto;
+  min-height: 560px;
 }
 .disc--empty {
   height: auto;
   min-height: 0;
+  align-items: flex-start;
 }
-.disc__feed {
-  height: 100%;
-  overflow-y: auto;
-  scroll-snap-type: y mandatory;
-  scrollbar-width: none;
-  border-radius: 34px;
-  box-shadow: inset 0 0 0 1px var(--hair), var(--glass-shadow);
-  background: #08080b;
+.disc__stack {
+  position: relative;
+  flex: 1;
+  width: min(470px, 90%);
+  max-height: 760px;
 }
-.disc__feed::-webkit-scrollbar {
-  display: none;
+.disc__fly {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
 }
 .disc__card {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  overflow: hidden;
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
-  isolation: isolate;
-}
-.disc__bg {
   position: absolute;
-  inset: -12%;
-  z-index: -1;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+  border-radius: 30px;
+  color: #fff;
+  background: #0b0b0e;
+  box-shadow: 0 40px 90px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  isolation: isolate;
+  user-select: none;
+  touch-action: none;
 }
-.disc__bg img {
+.disc__card.is-top {
+  cursor: grab;
+}
+.disc__card.is-top:active {
+  cursor: grabbing;
+}
+.disc__media {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+}
+.disc__blur {
+  position: absolute;
+  inset: -15%;
+  width: 130%;
+  height: 130%;
+  object-fit: cover;
+  filter: blur(50px) saturate(1.6) brightness(0.7);
+}
+.disc__canvas {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  filter: blur(70px) saturate(1.7) brightness(0.65);
-  transform: scale(1.1);
+  animation: disc-in 0.6s ease both;
 }
-.disc__bg::after {
-  content: '';
+@keyframes disc-in {
+  from {
+    opacity: 0;
+  }
+}
+.disc__shade {
   position: absolute;
   inset: 0;
-  background: radial-gradient(80% 70% at 50% 45%, transparent, rgba(0, 0, 0, 0.55));
-}
-.disc__stage {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 26px;
-  max-width: 70%;
-  color: #fff;
-  text-align: center;
+  z-index: -1;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.25), transparent 25%, transparent 50%, rgba(0, 0, 0, 0.82));
 }
 .disc__art {
-  position: relative;
-  width: min(46vh, 440px);
+  position: absolute;
+  left: 50%;
+  top: 9%;
+  width: 72%;
   aspect-ratio: 1;
   overflow: hidden;
-  border-radius: 26px;
-  box-shadow: 0 40px 90px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.12);
+  border-radius: 22px;
+  translate: -50% 0;
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.14);
 }
 .disc__art img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  pointer-events: none;
 }
-.disc__card.is-on .disc__art {
-  animation: disc-breathe 6s ease-in-out infinite;
+.disc__info {
+  position: relative;
+  padding: 0 26px 26px;
 }
-@keyframes disc-breathe {
-  50% {
-    transform: scale(1.02) rotate(0.6deg);
-  }
+.disc__thumb {
+  float: right;
+  width: 58px;
+  height: 58px;
+  margin: 6px 0 0 12px;
+  border-radius: 12px;
+  object-fit: cover;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+}
+.disc__info h2 {
+  margin: 8px 0 2px;
+  font-family: var(--font-display);
+  font-size: clamp(24px, 2.6vw, 34px);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+.disc__info p {
+  margin: 0;
+  font-size: var(--fs-lg);
+  color: rgba(255, 255, 255, 0.8);
+}
+.disc__why {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(10px);
 }
 .disc__progress {
-  position: absolute;
-  left: 14px;
-  right: 14px;
-  bottom: 14px;
+  display: block;
+  clear: both;
   height: 4px;
+  margin-top: 16px;
   overflow: hidden;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.25);
@@ -6088,94 +6163,159 @@
   background: #fff;
   transition: width 0.2s linear;
 }
-.disc__info h2 {
-  margin: 6px 0 4px;
-  font-family: var(--font-display);
-  font-size: clamp(26px, 3vw, 40px);
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  line-height: 1.05;
-}
-.disc__info p {
-  margin: 0;
-  font-size: var(--fs-lg);
-  color: rgba(255, 255, 255, 0.75);
-}
-.disc__why {
-  display: inline-block;
-  padding: 5px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  background: rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(10px);
-}
-.disc__rail {
+.disc__stamp {
   position: absolute;
-  right: 26px;
-  bottom: 50%;
+  top: 34px;
+  z-index: 3;
+  padding: 6px 16px;
+  border: 4px solid currentColor;
+  border-radius: 12px;
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  pointer-events: none;
+}
+.disc__stamp--like {
+  left: 28px;
+  color: #3ddc84;
+  rotate: -14deg;
+}
+.disc__stamp--nope {
+  right: 28px;
+  color: #ff5a6a;
+  rotate: 14deg;
+}
+.disc__bar {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
-  transform: translateY(50%);
+  align-items: center;
+  gap: 18px;
+  padding: 18px 0 4px;
 }
 .disc__act {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-}
-.disc__act > svg,
-.disc__nope {
   display: grid;
   place-items: center;
-  width: 56px;
-  height: 56px;
-  padding: 15px;
+  width: 58px;
+  height: 58px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(12px);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
-  transition: transform 0.25s var(--ease-out), background-color 0.2s;
-  box-sizing: border-box;
+  color: var(--text);
+  background: var(--glass-tint-thick);
+  box-shadow: inset 0 0 0 1px var(--hair), 0 10px 26px rgba(0, 0, 0, 0.3);
+  transition: transform 0.25s var(--ease-out);
 }
-.disc__nope {
-  padding: 0;
-  font-size: 20px;
-}
-.disc__act:hover > svg,
-.disc__act:hover .disc__nope {
+.disc__act:hover {
   transform: scale(1.1);
-  background: rgba(255, 255, 255, 0.24);
 }
-.disc__act.is-on > svg {
+.disc__act--like,
+.disc__act--nope {
+  width: 70px;
+  height: 70px;
+}
+.disc__act--like {
   color: #ff4f8b;
-  background: rgba(255, 79, 139, 0.2);
+  box-shadow: inset 0 0 0 2px rgba(255, 79, 139, 0.5), 0 12px 30px rgba(255, 79, 139, 0.25);
+}
+.disc__act--nope {
+  color: #ff5a6a;
+  box-shadow: inset 0 0 0 2px rgba(255, 90, 106, 0.45), 0 12px 30px rgba(0, 0, 0, 0.3);
+}
+.disc__x {
+  font-size: 26px;
+  font-weight: 800;
 }
 .disc__mute {
   position: absolute;
-  top: 18px;
-  right: 18px;
+  top: 6px;
+  right: 6px;
   display: grid;
   place-items: center;
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(10px);
+  background: var(--glass-tint-thick);
+  box-shadow: inset 0 0 0 1px var(--hair);
 }
 .disc__hint {
-  position: absolute;
-  left: 50%;
-  bottom: 14px;
-  translate: -50% 0;
+  margin-top: 8px;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--text-3);
+}
+
+/* ---- Making a mix: the deck shuffle ---- */
+.mixdeck {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  perspective: 1400px;
   pointer-events: none;
+  transition: opacity 0.6s ease;
+}
+.mixdeck__table {
+  position: relative;
+  width: 210px;
+  height: 210px;
+  margin-top: -60px;
+  transform: rotateX(22deg);
+  transform-style: flat;
+}
+.mixdeck__card {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  opacity: 0;
+  background: #1a1a1f;
+  box-shadow:
+    0 26px 50px -18px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(255, 255, 255, 0.12);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+.mixdeck__card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.mixdeck__card img:not([src]) {
+  visibility: hidden;
+}
+.mixshow--deck .mixshow__orb {
+  display: none;
+}
+.mixshow--deck .mixshow__status {
+  top: auto;
+  bottom: 16vh;
+  transform: translateX(-50%);
+}
+
+/* ---- Your stats: the achievements button at the top ---- */
+.ach-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto;
+  margin-left: 18px;
+  padding: 8px 16px 8px 10px;
+  border-radius: 999px;
+  background:
+    linear-gradient(120deg, rgba(255, 204, 61, 0.22), transparent 70%),
+    var(--glass-tint-thick);
+  box-shadow: inset 0 0 0 1px rgba(255, 204, 61, 0.3);
+  transition: transform 0.25s var(--ease-out);
+}
+.ach-chip:hover {
+  transform: translateY(-2px);
+}
+.ach-chip span {
+  font-size: 20px;
+}
+.ach-chip b {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+}
+.ach-chip small {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
 }

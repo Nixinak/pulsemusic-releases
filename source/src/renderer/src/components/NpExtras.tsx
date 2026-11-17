@@ -1,7 +1,8 @@
 // More Now Playing looks:
 //  - Poster: a cartoon poster: the cover as a taped-on sticker, the title written by hand,
 //    stickers for the artist and album, doodles and a squiggly progress line,
-//  - Visualizer: the cover as a round disc inside a ring of bars that moves with the music.
+//  - Visualizer: NCS style: the cover pumping with the bass inside rings of the spectrum, with
+//    sparks flying out.
 import { useEffect, useRef } from 'react'
 import { useLivePosition } from './common'
 import { formatTime } from '@/lib/format'
@@ -125,73 +126,135 @@ export function Poster({
 export function PulseRing({ art, paused }: { art: string | null; paused: boolean }): React.JSX.Element {
   const canvas = useRef<HTMLCanvasElement>(null)
   const disc = useRef<HTMLDivElement>(null)
+  const box = useRef<HTMLDivElement>(null)
   const reduce = useApp((s) => s.settings.reduceMotion)
   useBeat(!reduce && !paused)
 
+  // An NCS-style visualizer: the cover in the middle, pumping with the bass; around it a few
+  // smooth rings of the spectrum in the song's colours, laid over each other; sparks flying out,
+  // faster when it's loud; the whole thing shakes a little on a hard kick.
   useEffect(() => {
     const cv = canvas.current
     if (!cv) return
     const g = cv.getContext('2d')
     if (!g) return
     const shown = new Float32Array(BANDS)
-    let spin = 0
+    const sparks = Array.from({ length: 150 }, () => ({
+      a: Math.random() * Math.PI * 2,
+      r: Math.random(),
+      v: 0.4 + Math.random() * 0.8,
+      s: 0.6 + Math.random() * 1.6
+    }))
+    let colors = ['#ffffff', '#ffffff', '#ffffff']
+    let colorsAt = 0
     let raf = 0
-    let tint = '#ffffff'
-    let tintAt = 0
     let last = performance.now()
+    let bass = 0
     const tick = (now: number): void => {
       raf = requestAnimationFrame(tick)
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
       const dpr = Math.min(2, window.devicePixelRatio || 1)
       const w = cv.clientWidth
-      if (!w) return
-      if (cv.width !== Math.round(w * dpr)) {
+      const h = cv.clientHeight
+      if (!w || !h) return
+      if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
         cv.width = Math.round(w * dpr)
-        cv.height = Math.round(w * dpr)
+        cv.height = Math.round(h * dpr)
+      }
+      if (now - colorsAt > 1000) {
+        colorsAt = now
+        const css = getComputedStyle(cv)
+        colors = ['--amb-1', '--amb-2', '--amb-3'].map((v) => css.getPropertyValue(v).trim() || '#ffffff')
       }
       const b = readBeat()
       const still = paused || reduce
       for (let i = 0; i < BANDS; i++) {
-        const want = still ? 0.04 : Math.min(1, b.bands[i] * 1.1 + b.kick * 0.18 * (i < 14 ? 1 : 0.4))
-        shown[i] += (want - shown[i]) * (want > shown[i] ? 0.9 : 0.2)
+        const want = still ? 0.02 : Math.min(1, b.bands[i])
+        shown[i] += (want - shown[i]) * (want > shown[i] ? 0.75 : 0.16)
       }
-      if (!still) spin += dt * 4
+      let low = 0
+      for (let i = 0; i < 8; i++) low += shown[i]
+      low /= 8
       const kick = still ? 0 : b.kick
-      if (disc.current) disc.current.style.transform = `scale(${1 + kick * 0.06}) rotate(${spin}deg)`
-      g.setTransform(dpr, 0, 0, dpr, 0, 0)
-      g.clearRect(0, 0, w, w)
-      const c = w / 2
-      const r0 = w * 0.335
-      const len = w * (0.13 + kick * 0.05)
-      const bars = BANDS * 2
-      // the song's colour (read once a second: it only changes with the song)
-      if (now - tintAt > 1000) {
-        tintAt = now
-        tint = getComputedStyle(cv).getPropertyValue('--amb-1').trim() || '#ffffff'
+      bass += (Math.max(low, kick * 0.9) - bass) * (low > bass ? 0.6 : 0.12)
+
+      // the cover pumps with the bass; everything shakes a little on a hard kick
+      if (disc.current) disc.current.style.transform = `scale(${(1 + bass * 0.09).toFixed(4)})`
+      if (box.current) {
+        const sh = kick > 0.7 ? (kick - 0.7) * 10 : 0
+        box.current.style.transform = sh ? `translate(${((Math.random() - 0.5) * sh).toFixed(2)}px, ${((Math.random() - 0.5) * sh).toFixed(2)}px)` : ''
       }
-      // a soft glow behind the bars on each kick
-      const glow = g.createRadialGradient(c, c, r0 * 0.9, c, c, r0 + len * 1.3)
-      glow.addColorStop(0, 'rgba(255,255,255,0)')
-      glow.addColorStop(0.35, `rgba(255,255,255,${0.04 + kick * 0.1})`)
+
+      g.setTransform(dpr, 0, 0, dpr, 0, 0)
+      g.clearRect(0, 0, w, h)
+      const cx = w / 2
+      const cy = h / 2
+      const size = Math.min(w, h)
+      // the cover's edge (its box is 55 % of the deck; the canvas is 160 % of it)
+      const r0 = size * 0.172 * (1 + bass * 0.09)
+      const len = size * 0.15
+
+      // a glow behind, brighter on the bass
+      const glow = g.createRadialGradient(cx, cy, r0 * 0.8, cx, cy, r0 + len * 1.6)
+      glow.addColorStop(0, `rgba(255,255,255,${0.05 + bass * 0.18})`)
       glow.addColorStop(1, 'rgba(255,255,255,0)')
       g.fillStyle = glow
-      g.fillRect(0, 0, w, w)
-      g.lineCap = 'round'
-      g.lineWidth = Math.max(2, ((Math.PI * 2 * r0) / bars) * 0.48)
-      for (let i = 0; i < bars; i++) {
-        // the lows at the top, mirrored left and right
-        const band = i < BANDS ? i : bars - 1 - i
-        const v = shown[band]
-        const ang = (i / bars) * Math.PI * 2 - Math.PI / 2 + (spin * Math.PI) / 180
-        const r1 = r0 + 6
-        const r2 = r1 + 4 + v * len
-        g.strokeStyle = i % 2 ? tint : 'rgba(255,255,255,0.88)'
-        g.globalAlpha = 0.45 + v * 0.55
+      g.fillRect(0, 0, w, h)
+
+      // the spectrum rings: mirrored left and right, the lows at the bottom like NCS
+      const N = 120
+      const ring = (scale: number, shift: number, color: string, alpha: number): void => {
+        const pts: [number, number][] = []
+        for (let i = 0; i < N; i++) {
+          const t = i / N
+          // mirrored: 0 → 0.5 is one half, 0.5 → 1 the other
+          const half = t < 0.5 ? t * 2 : (1 - t) * 2
+          const bi = Math.min(BANDS - 1, Math.floor(half * (BANDS - 1) * 0.85 + shift))
+          const v = shown[bi]
+          const ang = Math.PI / 2 + t * Math.PI * 2
+          const rr = r0 + 3 + Math.pow(v, 1.3) * len * scale
+          pts.push([cx + Math.cos(ang) * rr, cy + Math.sin(ang) * rr])
+        }
         g.beginPath()
-        g.moveTo(c + Math.cos(ang) * r1, c + Math.sin(ang) * r1)
-        g.lineTo(c + Math.cos(ang) * r2, c + Math.sin(ang) * r2)
-        g.stroke()
+        for (let i = 0; i <= N; i++) {
+          const p = pts[i % N]
+          const q = pts[(i + 1) % N]
+          const mx = (p[0] + q[0]) / 2
+          const my = (p[1] + q[1]) / 2
+          if (i === 0) g.moveTo(mx, my)
+          else g.quadraticCurveTo(p[0], p[1], mx, my)
+        }
+        g.closePath()
+        g.globalAlpha = alpha
+        g.fillStyle = color
+        g.fill()
+      }
+      g.globalCompositeOperation = 'lighter'
+      ring(1.15, 3, colors[2], 0.55)
+      ring(1.0, 1.5, colors[1], 0.6)
+      ring(0.82, 0, colors[0], 0.75)
+      g.globalCompositeOperation = 'source-over'
+      ring(0.55, 0, '#ffffff', 0.92)
+      g.globalAlpha = 1
+
+      // the sparks
+      const level = still ? 0 : b.level
+      const speed = 0.08 + level * 0.5 + bass * 0.9
+      g.fillStyle = '#ffffff'
+      for (const s of sparks) {
+        s.r += s.v * speed * dt
+        if (s.r > 1) {
+          s.r = 0
+          s.a = Math.random() * Math.PI * 2
+        }
+        const rr = r0 + len * 0.4 + s.r * size * 0.48
+        const x = cx + Math.cos(s.a) * rr
+        const y = cy + Math.sin(s.a) * rr
+        g.globalAlpha = Math.min(1, s.r * 4) * (1 - s.r) * (0.35 + bass * 0.65)
+        g.beginPath()
+        g.arc(x, y, s.s * (1 + bass), 0, Math.PI * 2)
+        g.fill()
       }
       g.globalAlpha = 1
     }
@@ -200,11 +263,10 @@ export function PulseRing({ art, paused }: { art: string | null; paused: boolean
   }, [paused, reduce])
 
   return (
-    <div className={`pulsev ${paused ? 'is-paused' : ''}`} aria-hidden="true">
+    <div className={`pulsev ${paused ? 'is-paused' : ''}`} aria-hidden="true" ref={box}>
       <canvas ref={canvas} className="pulsev__canvas" />
       <div className="pulsev__disc" ref={disc}>
         {art && <img src={art} alt="" draggable={false} />}
-        <span className="pulsev__hole" />
       </div>
     </div>
   )

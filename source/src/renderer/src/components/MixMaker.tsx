@@ -1,39 +1,16 @@
-// The full-screen show while a mix is made: covers from your library circle into the middle
-// like water down a drain (a whirlpool seen at an angle, each cover turning along its path), then the new playlist opens: its cover, name and buttons, with the
-// songs listed right below. Covers never pass over each other: they travel in rings that stay
-// apart. Esc or the cross closes the show; the mix keeps being made and shows up on the page.
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+// The full-screen show while a mix is made: covers from your library are shuffled like a deck of
+// cards (split in two, riffled back together, squared up, again with new covers on top), then the
+// new playlist opens: its cover, name and buttons, with the songs listed right below. Esc or the
+// cross closes the show; the mix keeps being made and shows up on the page.
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { CloseIcon, PlayIcon, PlusIcon } from './Icons'
 import { formatTime } from '@/lib/format'
 
 const STEPS = ['Reading your library', 'Listening through your songs', 'Picking the best ones', 'Spacing out the artists', 'Putting it in order']
-/** The swirl runs at least this long, so a quick mix still gets its moment. */
+/** The shuffle runs at least this long, so a quick mix still gets its moment. */
 const MIN_SWIRL_MS = 2600
-
-/* The swirl: rings of upright covers, PER_RING evenly spaced on each ring. A cover is SIZE ×
-   its ring's radius wide (at most MAX_COVER), and each ring is RATIO the size of the one
-   outside it. With these numbers neighbours on a ring and covers on neighbouring rings always
-   keep a gap, however the rings turn. */
-const PER_RING = 12
-const SIZE = 0.32
-const RATIO = 0.58
-const MAX_COVER = 150
-/** Rings that move one place inwards per second. */
-const INWARD = 0.32
-/** Below this radius covers fade out, so the words in the middle stay readable. */
-const INNER = 70
-
-interface Ring {
-  /** Place from the outside (0 = outermost); grows as the ring moves in. */
-  level: number
-  /** Turn of the ring in radians. */
-  angle: number
-  cards: { el: HTMLDivElement | null; src: string }[]
-}
-
-const rand = (a: number, b: number): number => a + Math.random() * (b - a)
 
 export interface MixSong {
   image: string | null
@@ -107,9 +84,9 @@ export function MixMaker({
 
   if (!open) return null
   return createPortal(
-    <div className={`mixshow ${done ? 'is-done' : ''}`} role="dialog" aria-label="Making your mix">
+    <div className={`mixshow mixshow--deck ${done ? 'is-done' : ''}`} role="dialog" aria-label="Making your mix">
       <div className="mixshow__bg" aria-hidden="true" />
-      <Swirl images={images} done={done} />
+      <Deck images={images} done={done} />
       <button className="mixshow__close icon-btn" aria-label="Close (the mix keeps going)" title="Close (Esc)" onClick={onClose}>
         <CloseIcon size={22} />
       </button>
@@ -134,154 +111,130 @@ export function MixMaker({
   )
 }
 
-/** Rings of covers turning into the middle, faster as they get close, then reborn outside. */
-function Swirl({ images, done }: { images: string[]; done: boolean }): React.JSX.Element {
+/** How many cards are in the deck. */
+const CARDS = 26
+/** One shuffle (split, riffle, square up), in seconds. */
+const ROUND = 2.6
+const ease = (x: number): number => (x <= 0 ? 0 : x >= 1 ? 1 : 1 - Math.pow(1 - x, 3))
+const easeInOut = (x: number): number => (x <= 0 ? 0 : x >= 1 ? 1 : x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2)
+
+/**
+ * The deck: covers stacked in the middle, cut into two halves that slide apart, riffled back
+ * together one by one in an arc, squared up with a little bounce, and after each round a few new
+ * covers go on top. When the mix is ready the cards fly out in a ring and fade.
+ */
+function Deck({ images, done }: { images: string[]; done: boolean }): React.JSX.Element {
   const list = useMemo(() => images.filter(Boolean), [images])
-  const listRef = useRef(list)
-  listRef.current = list
+  const ready = useRef<string[]>([])
+  const cards = useRef<{ el: HTMLDivElement | null; src: string }[]>(Array.from({ length: CARDS }, () => ({ el: null, src: '' })))
   const doneRef = useRef(done)
   doneRef.current = done
-  const rings = useRef<Ring[]>([])
 
-  // Enough rings to reach the corners of the biggest window this screen can show.
-  if (rings.current.length === 0) {
-    const far = Math.hypot(window.screen.width || 1920, window.screen.height || 1080) / 2 + MAX_COVER
-    const count = Math.ceil(Math.log(far / (INNER * 0.8)) / Math.log(1 / RATIO)) + 1
-    rings.current = Array.from({ length: count }, (_, i) => ({
-      level: i,
-      angle: rand(0, Math.PI * 2),
-      cards: Array.from({ length: PER_RING }, () => ({ el: null, src: '' }))
-    }))
-  }
-
-  // Covers are loaded before a card shows them (a card swapping to a picture that is still
-  // loading flashed empty for a moment).
-  const ready = useRef<string[]>([])
+  // covers are loaded before they're shown (no empty flashes)
   useEffect(() => {
     for (const u of list) {
       if (ready.current.includes(u)) continue
       const im = new Image()
-      im.decoding = 'async'
       im.onload = () => {
         void im
           .decode?.()
           .catch(() => undefined)
-          .finally(() => {
-            if (!ready.current.includes(u)) ready.current.push(u)
-          })
+          .finally(() => !ready.current.includes(u) && ready.current.push(u))
       }
       im.src = u
     }
   }, [list])
-  const pick = (): string | null => {
+  const give = (c: { el: HTMLDivElement | null; src: string }): void => {
     const l = ready.current
-    return l.length ? l[Math.floor(Math.random() * l.length)] : null
+    if (!l.length) return
+    const u = l[Math.floor(Math.random() * l.length)]
+    c.src = u
+    const img = c.el?.querySelector('img')
+    if (img && img.getAttribute('src') !== u) img.src = u
   }
-
-  // new covers (the pool is read while the show runs) go to cards that have none yet
-  useLayoutEffect(() => {
-    const t = window.setInterval(() => {
-      let empty = false
-      for (const r of rings.current)
-        for (const c of r.cards) {
-          if (c.src) continue
-          const u = pick()
-          if (!u) {
-            empty = true
-            continue
-          }
-          c.src = u
-          const img = c.el?.querySelector('img')
-          if (img) img.src = u
-        }
-      if (!empty) window.clearInterval(t)
-    }, 120)
-    return () => window.clearInterval(t)
-  }, [list])
 
   useEffect(() => {
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
-    const all = rings.current
-    const span = all.length
     let raf = 0
-    let last = performance.now()
+    const t0 = performance.now()
+    let round = -1
+    let doneAt = 0
+    // the order of the stack (bottom first); a riffle interleaves the two halves
+    let order = Array.from({ length: CARDS }, (_, i) => i)
     const loop = (now: number): void => {
       raf = requestAnimationFrame(loop)
-      const dt = Math.min(0.05, (now - last) / 1000)
-      last = now
-      if (document.hidden) return
-      const w = window.innerWidth
-      const h = window.innerHeight
-      const cx = w / 2
-      const cy = h / 2 - 20
-      const outer = Math.hypot(w, h) / 2 + MAX_COVER
-      const ending = doneRef.current
-      const slow = reduce ? 0.3 : 1
-      for (const ring of all) {
-        ring.level += (ending ? 2.4 : INWARD) * dt * slow
-        let r = outer * Math.pow(RATIO, ring.level)
-        if (r < INNER * 0.8 && !ending) {
-          // past the drain: back outside with new covers
-          ring.level -= span
-          r = outer * Math.pow(RATIO, ring.level)
-          ring.angle = rand(0, Math.PI * 2)
-          for (const c of ring.cards) {
-            const u = pick()
-            if (!u) break
-            c.src = u
-            const img = c.el?.querySelector('img')
-            if (img && img.getAttribute('src') !== u) img.src = u
+      const all = cards.current
+      for (const c of all) if (!c.src) give(c)
+      const time = ((now - t0) / 1000) * (reduce ? 0.4 : 1)
+      const r = Math.floor(time / ROUND)
+      const t = (time % ROUND) / ROUND
+      if (r !== round) {
+        round = r
+        // a new round: the riffled order becomes the stack, a few new covers go on top
+        if (r > 0) {
+          const left = order.filter((_, k) => k % 2 === 0)
+          const right = order.filter((_, k) => k % 2 === 1)
+          const next: number[] = []
+          for (let k = 0; k < Math.max(left.length, right.length); k++) {
+            if (left[k] !== undefined) next.push(left[k])
+            if (right[k] !== undefined) next.push(right[k])
           }
+          order = next
+          for (const idx of order.slice(-5)) give(all[idx])
         }
-        // closer to the middle = faster round
-        ring.angle += 0.22 * dt * slow * (1 + 140 / Math.max(40, r))
-        const size = Math.min(MAX_COVER, SIZE * r)
-        const scale = size / MAX_COVER
-        // fades in at the outer edge (where a ring is reborn) and out at the drain
-        const fade = Math.max(0, Math.min(1, (r - INNER) / 80, (outer - r) / (outer * 0.18)))
-        // bigger (nearer) covers above smaller ones: the plane is flat, so overlaps never flicker
-        const z = String(Math.round(size))
-        // a ring that is all outside the window isn't drawn
-        const off = r - size > Math.hypot(w, h) / 2
-        ring.cards.forEach((c, i) => {
-          const el = c.el
-          if (!el) return
-          if (off || fade <= 0 || !c.src) {
-            if (el.style.opacity !== '0') el.style.opacity = '0'
-            return
-          }
-          const a = ring.angle + (i / PER_RING) * Math.PI * 2
-          const x = cx + Math.cos(a) * r - MAX_COVER / 2
-          const y = cy + Math.sin(a) * r - MAX_COVER / 2
-          // each cover turns along its path, like something caught in a whirlpool
-          const turn = (a * 180) / Math.PI + 90
-          el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) rotate(${turn.toFixed(1)}deg) scale(${scale.toFixed(3)})`
-          el.style.opacity = fade.toFixed(3)
-          if (el.style.zIndex !== z) el.style.zIndex = z
-        })
       }
+      if (doneRef.current && !doneAt) doneAt = now
+      const out = doneAt ? ease((now - doneAt) / 700) : 0
+      const n = order.length
+      order.forEach((idx, pos) => {
+        const el = all[idx].el
+        if (!el || !all[idx].src) {
+          if (el) el.style.opacity = '0'
+          return
+        }
+        const side = pos < n / 2 ? -1 : 1
+        const inHalf = side < 0 ? pos : pos - Math.floor(n / 2)
+        // 1. the cut: the halves slide apart and tilt
+        const cut = easeInOut(t / 0.3)
+        // 2. the riffle: cards drop back in from alternating halves, bottom first
+        const riffleOrder = side < 0 ? inHalf * 2 : inHalf * 2 + 1
+        const start = 0.34 + (riffleOrder / n) * 0.36
+        const back = easeInOut((t - start) / 0.14)
+        // 3. squared up, with a small bounce
+        const bounce = t > 0.82 ? Math.sin(((t - 0.82) / 0.18) * Math.PI) * 0.04 : 0
+        const sx = side * 210 * cut * (1 - back)
+        const lift = Math.sin(back * Math.PI) * 70
+        const stackY = -(back > 0 ? riffleOrder : pos) * 1.6
+        const y = stackY - inHalf * 1.2 * cut * (1 - back) - lift
+        const rot = side * 9 * cut * (1 - back) + side * 4 * Math.sin(back * Math.PI)
+        // the end: out in a ring
+        const a = (pos / n) * Math.PI * 2
+        const fx = Math.cos(a) * 900 * out
+        const fy = Math.sin(a) * 600 * out
+        el.style.transform = `translate3d(${(sx + fx).toFixed(1)}px, ${(y + fy).toFixed(1)}px, 0) rotate(${(rot + out * 90).toFixed(2)}deg) scale(${(1 + bounce).toFixed(3)})`
+        el.style.opacity = String(1 - out)
+        // cards that are back on the stack lie above the ones still in the halves
+        el.style.zIndex = String(back > 0 ? 100 + riffleOrder : 50 - Math.abs(inHalf - n / 4))
+      })
     }
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
   }, [])
 
   return (
-    <div className="mixshow__swirl" aria-hidden="true">
-      {/* the whirlpool is seen at an angle, so it has depth */}
-      <div className="mixshow__plane">
-        {rings.current.flatMap((ring, ri) =>
-          ring.cards.map((c, ci) => (
-            <div
-              key={`${ri}-${ci}`}
-              className="mixshow__card"
-              ref={(el) => {
-                c.el = el
-              }}
-            >
-              <img alt="" draggable={false} src={c.src || undefined} />
-            </div>
-          ))
-        )}
+    <div className="mixdeck" aria-hidden="true">
+      <div className="mixdeck__table">
+        {cards.current.map((c, i) => (
+          <div
+            key={i}
+            className="mixdeck__card"
+            ref={(el) => {
+              c.el = el
+            }}
+          >
+            <img alt="" draggable={false} src={c.src || undefined} />
+          </div>
+        ))}
       </div>
     </div>
   )

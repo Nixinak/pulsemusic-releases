@@ -12,7 +12,7 @@ import { computeStats, isRealId, startOfYear, useHistory } from '@/lib/history'
 import { funFacts } from '@/lib/funFacts'
 import { FocusImg } from '@/components/FocusImg'
 import { FunFacts } from '@/components/FunFacts'
-import { Achievements } from '@/components/Achievements'
+import { Achievements, AchievementsChip } from '@/components/Achievements'
 import { formatMinutes } from '@/lib/recap'
 import { useQuery } from '@/lib/useQuery'
 import * as sp from '@/lib/spotify'
@@ -169,6 +169,7 @@ export function StatsView(): React.JSX.Element {
     <div className="stats">
       <header className="stats__top">
         <h1 className="page-title">Your stats</h1>
+        <AchievementsChip />
         <div className="seg">
           {RANGES.map((r) => (
             <button key={r.id} className={`seg__btn ${range === r.id ? 'is-on' : ''}`} onClick={() => setRange(r.id)}>

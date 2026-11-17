@@ -229,7 +229,7 @@ export function NpEdgeMenu({
             }}
             transition={{ type: 'spring', stiffness: 420, damping: 34 }}
           >
-            <Glass radius={24} bezel={14} refraction={36} className="npm__glass">
+            <Glass radius={24} bezel={14} refraction={36} simple className="npm__glass">
               <p className="npm__h">Look</p>
               <div className="npm__list" role="radiogroup" aria-label="Now Playing look">
                 {NP_THEMES.map((t) => (
@@ -261,7 +261,7 @@ export function NpEdgeMenu({
           </motion.div>
         )}
       </AnimatePresence>
-      <Glass radius={999} bezel={10} refraction={30} className="npm__pill">
+      <Glass radius={999} bezel={10} refraction={30} simple className="npm__pill">
         <button className={`npm__btn ${menu ? 'is-on' : ''}`} aria-label="Change the look" aria-expanded={menu} title="Look" onClick={() => setMenu((v) => !v)}>
           <MenuIcon />
         </button>

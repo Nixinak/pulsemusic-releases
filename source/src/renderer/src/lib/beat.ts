@@ -1,8 +1,10 @@
-// The music's beat, for things that move with it (the DJ orb and its ring).
-// Spotify's audio is protected, so the page can't listen to it directly. On Windows Pulse
-// listens to what the computer plays instead (loopback audio: only levels are measured, nothing
-// is recorded or saved) and finds the kicks in the low end. Elsewhere, or when that isn't
-// possible, it pulses at the song's tempo (measured from its preview, lib/audioFeatures).
+// The music's beat, for things that move with it (the DJ orb, the visualizer).
+// Spotify's audio is protected, so the page can't listen to it directly. In order of preference:
+//  1. what the computer plays (Windows loopback audio: only levels are measured, nothing is
+//     recorded or saved), with the kicks found in the low end,
+//  2. Spotify's own analysis of the song (when your Spotify account is connected in Pulse): every
+//     beat, and the loudness and sound of each slice of the song, followed at the exact position,
+//  3. the song's tempo (measured from its preview, lib/audioFeatures).
 import { useEffect } from 'react'
 import { livePosition, usePlayer } from './player'
 import { songFeatures } from './audioFeatures'
@@ -18,13 +20,16 @@ export interface BeatFrame {
   bands: Float32Array
   /** True when this comes from the real sound (not the tempo guess). */
   live: boolean
+  /** Where it comes from: the sound itself, Spotify's analysis of the song, or the tempo. */
+  source: 'sound' | 'analysis' | 'tempo'
 }
 
 const frame: BeatFrame = {
   level: 0,
   kick: 0,
   bands: new Float32Array(BANDS),
-  live: false
+  live: false,
+  source: 'tempo'
 }
 
 let users = 0
@@ -41,6 +46,8 @@ let lastAt = 0
 let bassAvg = 0
 let bassVar = 0
 let lastKick = 0
+/** When the captured sound last had something in it. */
+let loudAt = 0
 /** Each band's recent loudest, so quiet highs move as much as loud lows (it sinks slowly). */
 const peaks = new Float32Array(BANDS).fill(0.3)
 let stopTimer = 0
@@ -138,6 +145,91 @@ export function useBeat(on = true): void {
   }, [on])
 }
 
+/* ---------- Spotify's analysis of the song ---------- */
+
+let analysisFor = ''
+let analysis: { beats: number[]; bars: number[]; segments: number[][] } | null = null
+let segAt = 0
+let beatAt = 0
+let lastPos = -1
+
+function analysisOf(): typeof analysis {
+  const t = usePlayer.getState().track
+  if (!t) return null
+  if (analysisFor !== t.id) {
+    analysisFor = t.id
+    analysis = null
+    segAt = 0
+    beatAt = 0
+    const id = t.id
+    void window.pulse.spotifyAccount
+      ?.analysis(id)
+      .then((a) => {
+        if (analysisFor === id && a?.segments?.length) analysis = a
+      })
+      .catch(() => undefined)
+  }
+  return analysis
+}
+
+/** dB (about -60 to 0) to 0–1. */
+const fromDb = (db: number): number => Math.max(0, Math.min(1, (db + 42) / 38))
+
+/** The beat at the song's position, from Spotify's analysis. */
+function fromAnalysis(a: NonNullable<typeof analysis>, posSec: number, now: number): void {
+  const segs = a.segments
+  // a jump (seek, new song): find the place again
+  if (posSec < lastPos - 0.5 || posSec > lastPos + 2) {
+    segAt = 0
+    beatAt = 0
+  }
+  lastPos = posSec
+  while (segAt < segs.length - 1 && segs[segAt + 1][0] <= posSec) segAt++
+  while (beatAt < a.beats.length && a.beats[beatAt] <= posSec) {
+    beatAt++
+    // a beat: harder on the first of a bar
+    const onBar = a.bars.some((b) => Math.abs(b - a.beats[beatAt - 1]) < 0.05)
+    frame.kick = Math.max(frame.kick, onBar ? 1 : 0.75)
+    lastKick = now
+  }
+  const s = segs[segAt]
+  if (!s) return
+  const [start, maxDb, startDb, maxT] = s
+  const next = segs[segAt + 1]
+  const into = posSec - start
+  // loudness rises to its peak inside the slice, then falls towards the next one
+  const db =
+    into < maxT
+      ? startDb + (maxDb - startDb) * (into / Math.max(0.01, maxT))
+      : maxDb + ((next ? next[2] : maxDb - 20) - maxDb) * Math.min(1, (into - maxT) / Math.max(0.05, (next ? next[0] : start + 0.5) - start - maxT))
+  const level = fromDb(db)
+  frame.level += (level - frame.level) * 0.5
+  const pitches = s.slice(4, 16)
+  const timbre = s.slice(16, 28)
+  // timbre[1] is how bright the sound is, timbre[2] how flat (noisy), timbre[3] how sharp the attack
+  const bright = Math.max(0, Math.min(1, ((timbre[1] ?? 0) + 60) / 220))
+  const attack = Math.max(0, Math.min(1, ((timbre[3] ?? 0) + 40) / 120))
+  for (let b = 0; b < BANDS; b++) {
+    const x = b / (BANDS - 1)
+    let v: number
+    if (x < 0.22) {
+      // the low end: the loudness and the beat
+      v = level * (0.75 + 0.25 * Math.cos(x * 9)) + frame.kick * 0.55 * (1 - x / 0.22)
+    } else if (x < 0.72) {
+      // the middle: the notes being played (12 pitch classes spread over the bands)
+      const p = pitches[Math.floor(((x - 0.22) / 0.5) * 24) % 12] ?? 0
+      v = level * (0.35 + 0.75 * p)
+    } else {
+      // the top: brightness and the attack of each hit
+      v = level * (0.2 + 0.7 * bright) * (0.6 + 0.4 * attack) * (1 - (x - 0.72) * 0.9)
+    }
+    // a little shimmer so neighbouring bars don't move in lockstep
+    v *= 0.88 + 0.12 * Math.sin(now / 90 + b * 1.7)
+    const shaped = Math.max(0, Math.min(1, v))
+    frame.bands[b] += (shaped - frame.bands[b]) * (shaped > frame.bands[b] ? 0.7 : 0.2)
+  }
+}
+
 /* ---------- The tempo guess ---------- */
 
 let shapeBeat = -1
@@ -171,7 +263,16 @@ export function readBeat(): BeatFrame {
   frame.kick *= fade
 
   const playing = !usePlayer.getState().paused && !!usePlayer.getState().track
-  if (analyser && freq) {
+  // the captured sound stays silent while music plays (some systems hand over nothing):
+  // then the analysis below is used instead
+  if (analyser && freq && playing) {
+    analyser.getByteFrequencyData(freq)
+    let sum = 0
+    for (let i = 0; i < freq.length; i += 8) sum += freq[i]
+    if (sum > freq.length * 0.4) loudAt = now
+  }
+  const soundWorks = !!analyser && !!freq && (now - loudAt < 2500 || !playing)
+  if (analyser && freq && soundWorks) {
     analyser.getByteFrequencyData(freq)
     let total = 0
     for (let b = 0; b < BANDS; b++) {
@@ -200,8 +301,18 @@ export function readBeat(): BeatFrame {
       lastKick = now
       frame.kick = 1
     }
+    frame.source = 'sound'
     return frame
   }
+
+  // no sound to listen to: Spotify's analysis of the song, at the exact position
+  const an = playing ? analysisOf() : null
+  if (an) {
+    frame.source = 'analysis'
+    fromAnalysis(an, livePosition(usePlayer.getState()) / 1000, now)
+    return frame
+  }
+  frame.source = 'tempo'
 
   // no sound to listen to: pulse at the song's tempo while it plays
   const tempo = playing ? tempoOf() : 0
