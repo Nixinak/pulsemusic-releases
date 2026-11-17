@@ -538,11 +538,15 @@ function useRecapMusic(open: boolean, data: Recap | null, slideId: string | null
       before.current = undefined
       if (!playing.current) return
       playing.current = null
-      // put things back the way they were
-      if (was?.playing) {
-        if (was.context) void playContext(was.context, was.uri, undefined, { positionMs: was.position })
-        else void playUris([was.uri], undefined, { positionMs: was.position })
-      } else if (!usePlayer.getState().paused) void togglePlay()
+      // put things back the way they were, after any song Recap was just starting has landed
+      window.setTimeout(() => {
+        if (was?.playing) {
+          // an artist (or a radio) can't start at a chosen song: then the song itself plays
+          const offsetOk = !!was.context && (/^spotify:(playlist|album):/.test(was.context) || was.context.endsWith(':collection'))
+          if (offsetOk) void playContext(was.context!, was.uri, undefined, { positionMs: was.position })
+          else void playUris([was.uri], undefined, { positionMs: was.position })
+        } else if (!usePlayer.getState().paused) void togglePlay()
+      }, 350)
     }
   }, [open])
 

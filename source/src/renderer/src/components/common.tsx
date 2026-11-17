@@ -8,6 +8,7 @@ import { extractPalette, setPagePalette, type Palette } from '@/lib/colors'
 import { useBackdrop } from '@/lib/backdrop'
 import { prefetchArtist } from '@/lib/loaders'
 import { useArtistImage } from '@/lib/artistImage'
+import { useApp } from '@/lib/store'
 
 export function Cover({
   src,
@@ -350,14 +351,16 @@ export function MediaCard({
 }
 
 export function PageTransition({ children, id }: { children: ReactNode; id: string }): React.JSX.Element {
+  // Quality mode: a softer, longer glide with a little lift
+  const quality = useApp((s) => s.settings.renderMode === 'quality')
   return (
     <motion.div
       key={id}
       className="page"
-      initial={{ opacity: 0, scale: 0.985, filter: 'blur(6px)' }}
-      animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-      exit={{ opacity: 0, scale: 1.01, filter: 'blur(6px)' }}
-      transition={{ type: 'spring', stiffness: 260, damping: 30, mass: 0.8 }}
+      initial={quality ? { opacity: 0, y: 14, scale: 0.98, filter: 'blur(10px)' } : { opacity: 0, scale: 0.985, filter: 'blur(6px)' }}
+      animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+      exit={quality ? { opacity: 0, y: -8, scale: 1.012, filter: 'blur(10px)' } : { opacity: 0, scale: 1.01, filter: 'blur(6px)' }}
+      transition={quality ? { type: 'spring', stiffness: 170, damping: 26, mass: 0.9 } : { type: 'spring', stiffness: 260, damping: 30, mass: 0.8 }}
     >
       {children}
     </motion.div>

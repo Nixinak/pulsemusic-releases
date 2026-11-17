@@ -3,6 +3,7 @@
 // Spotify's own top lists fill in while the local history is still short.
 import * as sp from './spotify'
 import { artistKey, computeStats, isRealId, startOfMonth, startOfYear, useHistory, type Stats } from './history'
+import { artistPicture, songPicture } from './imageFill'
 import type { SArtist, STrack } from './types'
 
 /** This month, this year, all time, one month (`m:2026-10`) or one whole year (`y:2025`). */
@@ -136,20 +137,27 @@ export async function buildRecap(period: Period): Promise<Recap> {
   if (stats.plays >= ENOUGH || (pastMonth && stats.plays > 0)) {
     const ids = stats.artists.slice(0, 5)
     const full = await Promise.all(ids.map((a) => (isRealId(a.item.id) ? artistById(a.item.id) : Promise.resolve(null))))
+    // imported plays have names only: their pictures are looked up by name
+    const pics = await Promise.all(
+      ids.map((a, i) => (sp.pickImage(full[i]?.images, 640) ? Promise.resolve(sp.pickImage(full[i]?.images, 640)) : artistPicture(a.item.name, a.item.id, true).catch(() => null)))
+    )
+    const covers = await Promise.all(
+      stats.songs.slice(0, 5).map((s) => (s.item.art ? Promise.resolve(s.item.art) : songPicture(s.item.name, s.item.artists[0]?.name ?? '', s.item.id, true).catch(() => null)))
+    )
     topArtists = ids.map((a, i) => ({
       id: a.item.id,
       name: a.item.name,
-      image: sp.pickImage(full[i]?.images, 640),
+      image: pics[i] ?? null,
       uri: isRealId(a.item.id) ? `spotify:artist:${a.item.id}` : '',
       plays: a.plays,
       minutes: Math.round(a.ms / 60_000)
     }))
-    topTracks = stats.songs.slice(0, 5).map((s) => ({
+    topTracks = stats.songs.slice(0, 5).map((s, i) => ({
       id: s.item.id,
       uri: isRealId(s.item.id) ? `spotify:track:${s.item.id}` : '',
       name: s.item.name,
       artist: s.item.artists.map((a) => a.name).join(', '),
-      image: s.item.art,
+      image: covers[i] ?? null,
       plays: s.plays,
       minutes: Math.round(s.ms / 60_000)
     }))
@@ -176,7 +184,7 @@ export async function buildRecap(period: Period): Promise<Recap> {
     streak: stats.streak,
     topArtists,
     topTracks,
-    topAlbum: album ? { name: album.item.name, artist: album.item.artist, image: album.item.art } : null,
+    topAlbum: album ? { name: album.item.name, artist: album.item.artist, image: album.item.art ?? topTracks.find((t) => t.image)?.image ?? null } : null,
     hours: stats.hours,
     weekdays: stats.weekdays,
     newArtists,

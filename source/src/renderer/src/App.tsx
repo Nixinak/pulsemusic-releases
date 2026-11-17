@@ -45,6 +45,7 @@ import { DjVoiceOverlay } from '@/components/DjVoice'
 import { startHistory } from '@/lib/history'
 import { startMadeForYou } from '@/lib/madeForYou'
 import { MadeView } from '@/views/MadeView'
+import { restoreStartPage, startAppExtras } from '@/lib/appExtras'
 
 function useTheme(): void {
   const settings = useApp((s) => s.settings)
@@ -54,6 +55,7 @@ function useTheme(): void {
     root.dataset.glass = settings.glassQuality
     root.dataset.font = settings.font
     root.dataset.density = settings.density
+    root.dataset.render = settings.renderMode ?? 'performance'
     const colors =
       settings.bgPalette === 'custom'
         ? settings.customColors
@@ -116,6 +118,7 @@ function Shell({ onSignOut }: { onSignOut: () => void }): React.JSX.Element {
   const scroller = useRef<HTMLDivElement>(null)
   const started = useRef(false)
   useTransitionDriver()
+  useEffect(() => startAppExtras(), [])
 
   useEffect(() => {
     if (started.current) return
@@ -422,7 +425,10 @@ export default function App(): React.JSX.Element | null {
   useTheme()
 
   useEffect(() => {
-    void window.pulse.settings.get().then(setSettingsLocal)
+    void window.pulse.settings.get().then((st) => {
+      setSettingsLocal(st)
+      if (!isMini) restoreStartPage(st)
+    })
     const off = window.pulse.settings.onChange(setSettingsLocal)
     if (!isMini) void window.pulse.auth.status().then((s) => setAuth(s.loggedIn))
     return off

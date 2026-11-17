@@ -8,10 +8,16 @@ import { motion } from 'motion/react'
 import { useApp } from '@/lib/store'
 import { computeStats, isRealId, useHistory, type Stats } from '@/lib/history'
 import { formatMinutes, monthPeriod, yearPeriod } from '@/lib/recap'
-import { useArtistImage } from '@/lib/artistImage'
+import { useArtistPicture, useSongPicture } from '@/lib/imageFill'
 import { playUris } from '@/lib/player'
 import { Cover, ShelfRow } from '@/components/common'
 import { PlayIcon, SparkleIcon } from '@/components/Icons'
+
+/** A song's cover; imported plays without one get it looked up. */
+function SongArt({ song }: { song: { id: string; name: string; art: string | null; artists: { name: string }[] } }): React.JSX.Element {
+  const src = useSongPicture(song.name, song.artists[0]?.name, song.id, song.art)
+  return <Cover src={src} size={34} radius={6} />
+}
 
 interface Month {
   start: Date
@@ -35,7 +41,7 @@ const topUris = (stats: Stats, n = 25): string[] =>
 function MonthTile({ m, max, now }: { m: Month; max: number; now: boolean }): React.JSX.Element {
   const setRecapOpen = useApp((s) => s.setRecapOpen)
   const lead = m.stats.artists[0]?.item
-  const image = useArtistImage(isRealId(lead?.id) ? lead?.id : undefined, null)
+  const image = useArtistPicture(lead?.name, lead?.id)
   const song = m.stats.songs[0]?.item
   const minutes = Math.round(m.stats.ms / 60_000)
   const hue = HUES[m.start.getMonth()]
@@ -76,7 +82,7 @@ function MonthTile({ m, max, now }: { m: Month; max: number; now: boolean }): Re
         )}
         {song && (
           <p className="rmonth__song">
-            <Cover src={song.art} size={34} radius={6} />
+            <SongArt song={song} />
             <span>
               <small>Top song</small>
               {song.name}
@@ -104,7 +110,7 @@ function MonthTile({ m, max, now }: { m: Month; max: number; now: boolean }): Re
 function YearCard({ year, stats, open }: { year: number; stats: Stats; open: boolean }): React.JSX.Element {
   const setRecapOpen = useApp((s) => s.setRecapOpen)
   const lead = stats.artists[0]?.item
-  const image = useArtistImage(isRealId(lead?.id) ? lead?.id : undefined, null)
+  const image = useArtistPicture(lead?.name, lead?.id)
   const covers = stats.albums
     .map((a) => a.item.art)
     .filter(Boolean)

@@ -398,14 +398,17 @@ async function onTrackChanged(track: PlayerTrack | null): Promise<void> {
   // ten songs doesn't send ten requests, and never twice for the same song.
   const known = likedCache.get(track.id)
   if (known !== undefined && Date.now() - (likedAt.get(track.id) ?? 0) < LIKED_FRESH) return void set({ liked: known })
-  await new Promise((r) => setTimeout(r, 1500))
+  // the heart never shows the previous song's like while this one is checked (it used to
+  // light up for a second and then go out); a like seen earlier is shown right away
+  set({ liked: known ?? false })
+  await new Promise((r) => setTimeout(r, 900))
   if (get().track?.id !== track.id) return
   try {
     const [liked] = await sp.libraryContains([track.uri])
     cacheLiked(track.id, !!liked)
     if (get().track?.id === track.id) set({ liked: !!liked })
   } catch {
-    set({ liked: false })
+    if (get().track?.id === track.id) set({ liked: known ?? false })
   }
 }
 

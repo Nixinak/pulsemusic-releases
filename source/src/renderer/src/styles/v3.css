@@ -1790,7 +1790,7 @@
 }
 /* small window: a frosted pill over the neighbours, light enough to feel like glass */
 .playerbar .volume:not([data-room]):hover .volume__pill,
-.playerbar .volume:not([data-room]):focus-within .volume__pill,
+.playerbar .volume:not([data-room]):has(:focus-visible) .volume__pill,
 .playerbar .volume:not([data-room]):has(.is-dragging) .volume__pill {
   width: 270px;
   padding-right: 16px;
@@ -1810,7 +1810,7 @@
     transform 0.32s var(--ease-out);
 }
 .playerbar__side:has(> .volume:not([data-room]):hover) > :not(.volume):not(:last-child),
-.playerbar__side:has(> .volume:not([data-room]):focus-within) > :not(.volume):not(:last-child),
+.playerbar__side:has(> .volume:not([data-room]) :focus-visible) > :not(.volume):not(:last-child),
 .playerbar__side:has(> .volume:not([data-room]) .is-dragging) > :not(.volume):not(:last-child) {
   opacity: 0;
   transform: scale(0.8);
@@ -1818,7 +1818,7 @@
 }
 /* room in the bar: the control itself gets wider, nothing is covered */
 .playerbar .volume[data-room]:hover,
-.playerbar .volume[data-room]:focus-within,
+.playerbar .volume[data-room]:has(:focus-visible),
 .playerbar .volume[data-room]:has(.is-dragging) {
   width: calc(var(--vol-rest) + var(--vol-grow, 0px));
 }
@@ -1826,7 +1826,7 @@
   width: 100%;
 }
 .playerbar .volume[data-room]:hover .volume__pill,
-.playerbar .volume[data-room]:focus-within .volume__pill,
+.playerbar .volume[data-room]:has(:focus-visible) .volume__pill,
 .playerbar .volume[data-room]:has(.is-dragging) .volume__pill {
   padding-right: 14px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.06));
@@ -1836,7 +1836,7 @@
 }
 @media (prefers-color-scheme: light) {
   .playerbar .volume:hover .volume__pill,
-  .playerbar .volume:focus-within .volume__pill,
+  .playerbar .volume:has(:focus-visible) .volume__pill,
   .playerbar .volume:has(.is-dragging) .volume__pill {
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.55)),
@@ -1865,7 +1865,7 @@
     width 0.3s var(--ease-out);
 }
 .playerbar .volume:hover .volume__pct,
-.playerbar .volume:focus-within .volume__pct,
+.playerbar .volume:has(:focus-visible) .volume__pct,
 .playerbar .volume:has(.is-dragging) .volume__pct {
   width: 30px;
   opacity: 0.9;
@@ -3470,6 +3470,9 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+  scrollbar-width: none;
 }
 .npm__opt {
   display: flex;
@@ -3514,21 +3517,6 @@
 .npm__pv i {
   position: absolute;
   display: block;
-}
-.npm__pv--classic .npm__pv-art {
-  left: 8px;
-  top: 9px;
-  width: 22px;
-  height: 22px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.85);
-}
-.npm__pv--classic .npm__pv-lines {
-  left: 36px;
-  top: 10px;
-  width: 20px;
-  height: 26px;
-  background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.6) 0 3px, transparent 3px 7px);
 }
 .npm__pv--cover .npm__pv-art {
   left: 50%;
@@ -3616,7 +3604,10 @@
   aspect-ratio: 1;
 }
 .np--vinyl .np__body--solo .np__left,
-.np--cd .np__body--solo .np__left {
+.np--cd .np__body--solo .np__left,
+.np--cassette .np__body--solo .np__left,
+.np--poster .np__body--solo .np__left,
+.np--pulse .np__body--solo .np__left {
   flex-direction: row-reverse;
   justify-content: center;
   gap: clamp(36px, 6vw, 110px);
@@ -3626,11 +3617,16 @@
   width: min(64vh, 44vw, 640px);
 }
 .np--vinyl .np__body--solo .np__info,
-.np--cd .np__body--solo .np__info {
+.np--cd .np__body--solo .np__info,
+.np--cassette .np__body--solo .np__info,
+.np--poster .np__body--solo .np__info,
+.np--pulse .np__body--solo .np__info {
   width: min(40vw, 520px);
 }
 .np--vinyl .np__body--solo .np__title,
-.np--cd .np__body--solo .np__title {
+.np--cd .np__body--solo .np__title,
+.np--cassette .np__body--solo .np__title,
+.np--pulse .np__body--solo .np__title {
   font-size: clamp(34px, 4.2vw, 66px);
   line-height: 1.02;
   letter-spacing: -0.035em;
@@ -3640,7 +3636,9 @@
   -webkit-box-orient: vertical;
 }
 .np--vinyl .np__body--solo .np__artist,
-.np--cd .np__body--solo .np__artist {
+.np--cd .np__body--solo .np__artist,
+.np--cassette .np__body--solo .np__artist,
+.np--pulse .np__body--solo .np__artist {
   font-size: clamp(16px, 1.5vw, 22px);
 }
 
@@ -4103,8 +4101,8 @@
 }
 .np--lock .np__bg-shade {
   background:
-    radial-gradient(ellipse 60% 55% at 50% 45%, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.42)),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.22), transparent 30%, transparent 65%, rgba(0, 0, 0, 0.45));
+    radial-gradient(ellipse 60% 55% at 50% 45%, rgba(0, 0, 0, 0.26), rgba(0, 0, 0, 0.6)),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.32), rgba(0, 0, 0, 0.12) 30%, rgba(0, 0, 0, 0.12) 65%, rgba(0, 0, 0, 0.55));
 }
 .np--lock .np__left {
   gap: 18px;
@@ -4193,8 +4191,8 @@
 /* lyrics or the queue over the wallpaper: darker on their side, so they stay readable */
 .np--lock.np--panel .np__bg-shade {
   background:
-    linear-gradient(90deg, rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.55) 55%, rgba(0, 0, 0, 0.62)),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.2), transparent 30%, transparent 65%, rgba(0, 0, 0, 0.45));
+    linear-gradient(90deg, rgba(0, 0, 0, 0.32), rgba(0, 0, 0, 0.66) 55%, rgba(0, 0, 0, 0.72)),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.1) 30%, rgba(0, 0, 0, 0.1) 65%, rgba(0, 0, 0, 0.55));
 }
 
 /* a long pause: the way out with your own Spotify app */
@@ -4631,4 +4629,511 @@
 .npm__sound--sub {
   margin-top: 2px;
   border-top: 0;
+}
+
+/* synced lyrics glide on the GPU instead of scrolling (smooth to a fraction of a pixel) */
+.lyrics__scroll--glide {
+  overflow: hidden;
+}
+.lyrics__track {
+  height: 100%;
+  will-change: transform;
+}
+.lyrics__track--plain {
+  height: auto;
+  min-height: 100%;
+}
+
+/* Party, before it starts: the whole panel, covers circling all around */
+.party__hero--start {
+  height: calc(100vh - 150px);
+  min-height: 520px;
+  margin-bottom: 0;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.party__hero--start .party__hero-text {
+  padding-top: 0;
+}
+.party__hero--start .party__hero-text h1 {
+  font-size: clamp(64px, 9vw, 130px);
+}
+.party__hero--start .carousel__ring {
+  --r: clamp(520px, 50vw, 900px);
+  --tile: clamp(110px, 9vw, 150px);
+  top: 46%;
+}
+
+/* the mix whirlpool, seen at an angle */
+.mixshow__swirl {
+  perspective: 1300px;
+  perspective-origin: 50% 40%;
+}
+.mixshow__plane {
+  position: absolute;
+  inset: 0;
+  transform: rotateX(34deg) scale(1.22);
+  transform-origin: 50% 48%;
+  transform-style: preserve-3d;
+}
+.mixshow__card {
+  box-shadow:
+    0 22px 44px -14px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+
+/* ---- Cassette, Poster and Visualizer ---- */
+.np__deck--wide {
+  width: min(62vh, 40vw, 600px);
+  aspect-ratio: 1000 / 640;
+}
+.np__body--solo .np__deck--wide {
+  width: min(84vh, 52vw, 860px);
+}
+.np__deck--tall {
+  width: min(42vh, 28vw, 400px);
+  aspect-ratio: 3 / 4;
+}
+.np__body--solo .np__deck--tall {
+  width: min(58vh, 36vw, 520px);
+}
+.np--pulse .np__body--solo .np__deck {
+  width: min(70vh, 46vw, 700px);
+}
+
+.cass {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.cass.is-paused {
+  transform: scale(0.97);
+}
+.cass__svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.cass__hand {
+  font-family: 'Segoe Print', 'Bradley Hand', 'Comic Sans MS', cursive;
+  font-size: 34px;
+  fill: #2a2a33;
+}
+.cass__hand--title {
+  font-size: 46px;
+  font-weight: 700;
+  fill: #16161c;
+}
+.cass__side {
+  font-family: var(--font-display);
+  font-size: 92px;
+  font-weight: 800;
+  fill: #16161c;
+}
+.cass__type {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  fill: rgba(0, 0, 0, 0.55);
+}
+
+.poster {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  padding: 5.5%;
+  gap: 3.2%;
+  container-type: inline-size;
+  border-radius: 6px;
+  color: #141414;
+  background:
+    radial-gradient(120% 80% at 20% 0%, rgba(255, 255, 255, 0.5), transparent 60%),
+    color-mix(in srgb, var(--amb-1) 22%, #f1ebdf);
+  box-shadow:
+    0 40px 100px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.poster::after {
+  /* paper grain */
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.18;
+  mix-blend-mode: multiply;
+  background-image: repeating-radial-gradient(circle at 30% 20%, rgba(0, 0, 0, 0.18) 0 1px, transparent 1px 3px);
+}
+.poster.is-paused {
+  transform: scale(0.96) rotate(-0.6deg);
+}
+.poster__art {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.12);
+}
+.poster__art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: contrast(1.05) saturate(1.05);
+}
+.poster__head,
+.poster__foot {
+  flex: none;
+  display: flex;
+  justify-content: space-between;
+  gap: 4cqi;
+  font-size: 3.2cqi;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.poster__head {
+  border-top: 0.6cqi solid currentColor;
+  padding-top: 2cqi;
+}
+.poster__foot {
+  flex-direction: column;
+  gap: 0.6cqi;
+  margin-top: auto;
+  letter-spacing: 0.04em;
+}
+.poster__artist {
+  font-size: 4.2cqi;
+}
+.poster__album {
+  opacity: 0.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.poster__title {
+  flex: none;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 15cqi;
+  font-weight: 800;
+  line-height: 0.88;
+  letter-spacing: -0.045em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.poster__title.is-mid {
+  font-size: 11cqi;
+}
+.poster__title.is-long {
+  font-size: 8cqi;
+}
+.poster__bar {
+  flex: none;
+  height: 0.9cqi;
+  background: rgba(0, 0, 0, 0.14);
+}
+.poster__bar i {
+  display: block;
+  height: 100%;
+  background: currentColor;
+  transition: width 1s linear;
+}
+
+.pulsev {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.pulsev__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.pulsev__disc {
+  position: absolute;
+  inset: 17.5%;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #111;
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.55),
+    0 0 0 2px rgba(255, 255, 255, 0.14);
+  will-change: transform;
+}
+.pulsev__disc img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.pulsev__hole {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 9%;
+  height: 9%;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: rgba(10, 10, 12, 0.85);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.18);
+}
+
+/* menu drawings for the new looks */
+.npm__pv--cassette .npm__pv-tape {
+  left: 50%;
+  top: 9px;
+  width: 44px;
+  height: 28px;
+  translate: -50% 0;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #f1ebdf 0 55%, #222 55%);
+}
+.npm__pv--cassette .npm__pv-reel {
+  top: 24px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #4a3020;
+  box-shadow: inset 0 0 0 2px #e8e6e0;
+}
+.npm__pv--cassette .npm__pv-reel--l {
+  left: 21px;
+}
+.npm__pv--cassette .npm__pv-reel--r {
+  right: 21px;
+}
+.npm__pv--poster .npm__pv-art {
+  left: 50%;
+  top: 5px;
+  width: 24px;
+  height: 24px;
+  translate: -50% 0;
+  background: rgba(255, 255, 255, 0.9);
+}
+.npm__pv--poster .npm__pv-big {
+  left: 50%;
+  top: 32px;
+  width: 24px;
+  height: 8px;
+  translate: -50% 0;
+  background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0 3px, transparent 3px 5px);
+}
+.npm__pv--pulse .npm__pv-ring {
+  left: 50%;
+  top: 4px;
+  width: 38px;
+  height: 38px;
+  translate: -50% 0;
+  border-radius: 50%;
+  background: repeating-conic-gradient(rgba(255, 255, 255, 0.9) 0 5deg, transparent 5deg 15deg);
+  mask: radial-gradient(circle, transparent 0 52%, #000 53% 100%);
+}
+.npm__pv--pulse .npm__pv-dot {
+  left: 50%;
+  top: 13px;
+  width: 20px;
+  height: 20px;
+  translate: -50% 0;
+  border-radius: 50%;
+  background: var(--amb-1);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.4);
+}
+
+/* ---- Your stats: fun facts ---- */
+.facts {
+  margin-top: 40px;
+}
+.facts__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.facts__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 132px;
+  padding: 18px 20px;
+  overflow: hidden;
+  border-radius: 22px;
+  background:
+    radial-gradient(120% 120% at 100% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 60%),
+    var(--glass-tint-thick);
+  box-shadow: inset 0 0 0 1px var(--hair);
+}
+.facts__card small {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.facts__card b {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 2.6vw, 38px);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+.facts__card span {
+  margin-top: auto;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.facts__card .facts__art {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  width: 54px;
+  height: 54px;
+  border-radius: 10px;
+  object-fit: cover;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+.facts__card:has(.facts__art) small,
+.facts__card:has(.facts__art) b {
+  padding-right: 64px;
+}
+
+/* ---- Settings: categories on the left, one at a time on the right ---- */
+.settings--split {
+  max-width: 1120px;
+}
+.settings__layout {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  gap: 40px;
+  align-items: start;
+}
+.settings__rail {
+  position: sticky;
+  top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.settings__search {
+  width: 100%;
+  margin-bottom: 10px;
+}
+.settings__cat {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  text-align: left;
+  color: var(--text-2);
+  transition: color 0.2s, background-color 0.2s;
+}
+.settings__cat:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+.settings__cat.is-on {
+  color: var(--text);
+}
+.settings__cat > svg,
+.settings__cat > span:not(.settings__cat-bg) {
+  position: relative;
+  z-index: 1;
+}
+.settings__cat-bg {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--accent) 16%, var(--press));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.settings__cat.is-on svg {
+  color: var(--accent);
+}
+.settings__body {
+  min-width: 0;
+  max-width: 780px;
+}
+.scat__label {
+  margin: 26px 0 4px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.scat:first-child .scat__label {
+  margin-top: 0;
+}
+.settings__none {
+  padding: 30px 0;
+}
+.shortcuts {
+  display: grid;
+  gap: 2px;
+  margin: 10px 0 0;
+}
+.shortcuts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--hair);
+}
+.shortcuts dt {
+  font-weight: 600;
+}
+.shortcuts dd {
+  margin: 0;
+  color: var(--text-2);
+  text-align: right;
+}
+.shortcuts kbd {
+  display: inline-block;
+  min-width: 24px;
+  padding: 2px 8px;
+  border-radius: 7px;
+  font: 600 12px/1.6 var(--font-ui);
+  text-align: center;
+  background: var(--press);
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25), inset 0 0 0 1px var(--hair);
+}
+@media (max-width: 1100px) {
+  .settings__layout {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .settings__rail {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .settings__search {
+    flex-basis: 100%;
+  }
+  .settings__cat {
+    padding: 8px 12px;
+  }
 }

@@ -2,6 +2,7 @@
 // and any artists you pick (also ones you don't have saved), with a mood, an era and artist
 // spacing. Play it or save it as a playlist.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { coverNewPlaylist } from '@/lib/playlistCover'
 import { AnimatePresence, motion } from 'motion/react'
 import { useApp, errorText } from '@/lib/store'
 import * as sp from '@/lib/spotify'
@@ -411,6 +412,8 @@ export function MixView(): React.JSX.Element {
         p.id,
         mix.map((t) => t.uri)
       )
+      // its own cover: four of its album covers and the name
+      await coverNewPlaylist(p.id, mix.map((t) => sp.pickImage(t.album?.images, 300)), name || 'Pulse mix')
       await refreshPlaylists()
       toast(`Saved ${name}`)
       navigate({ name: 'playlist', id: p.id })
@@ -435,7 +438,12 @@ export function MixView(): React.JSX.Element {
 
   // Songs for the show to look through: a shuffled handful of everything read.
   const showItems = useMemo<MixSong[]>(() => {
-    if (!pool?.length) return []
+    // until the songs are read: the covers of your playlists, so the show never starts empty
+    if (!pool?.length)
+      return playlists
+        .map((p) => sp.pickImage(p.images, 300))
+        .filter((x): x is string => !!x)
+        .map((image) => ({ image, name: '', artist: '' }))
     const out: MixSong[] = []
     const seen = new Set<string>()
     for (let i = 0; i < 600 && out.length < 120; i++) {
@@ -446,7 +454,7 @@ export function MixView(): React.JSX.Element {
       out.push({ image: img, name: c.track.name, artist: c.track.artists.map((a) => a.name).join(', ') })
     }
     return out
-  }, [pool])
+  }, [pool, playlists])
 
   // What the mix will be made of, in words and covers, for the preview next to the controls.
   const chosen = sourceOptions.filter((o) => sources.includes(o.id))

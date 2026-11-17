@@ -10,11 +10,9 @@ import { CoverCarousel } from '@/components/CoverWalls'
 import * as sp from '@/lib/spotify'
 import { joinParty, leaveParty, partyControl, remoteAdd, remoteSearch, setListenDevice, setSync, useListenAlong } from '@/lib/listenAlong'
 import type { PartyTrack } from '@shared/types'
-import { Cover, MediaCard, ShelfRow, usePagePalette } from '@/components/common'
-import { startDj } from '@/lib/dj'
-import { playContext } from '@/lib/player'
+import { Cover, usePagePalette } from '@/components/common'
 import { Glass } from '@/components/Glass'
-import { CloseIcon, ComputerIcon, CopyIcon, MicIcon, NextIcon, PartyIcon, PauseIcon, PhoneIcon, PlayIcon, PrevIcon, SpeakerIcon } from '@/components/Icons'
+import { CloseIcon, ComputerIcon, CopyIcon, NextIcon, PartyIcon, PauseIcon, PhoneIcon, PlayIcon, PrevIcon, SpeakerIcon } from '@/components/Icons'
 
 function Switch({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }): React.JSX.Element {
   return (
@@ -182,45 +180,6 @@ function LinkQr({ url }: { url: string }): React.JSX.Element {
   return <div className="pqr">{src ? <img decoding="async" src={src} alt="QR code of the party link" /> : <span className="cmd__spin" />}</div>
 }
 
-/** Ways to get music going before (or while) guests add theirs. */
-function Starters(): React.JSX.Element {
-  const playlists = useApp((s) => s.playlists)
-  const navigate = useApp((s) => s.navigate)
-  const toast = useApp((s) => s.toast)
-  return (
-    <section className="shelf party__starters">
-      <header className="shelf__head">
-        <h2>Get it started</h2>
-      </header>
-      <ShelfRow>
-        <button
-          className="pstart"
-          onClick={() => {
-            void startDj('party mode')
-            toast('The DJ is picking party songs')
-          }}
-        >
-          <span className="pstart__art">
-            <MicIcon size={34} />
-          </span>
-          <b>DJ party mode</b>
-          <small>Bangers picked for you</small>
-        </button>
-        {playlists.slice(0, 16).map((p) => (
-          <MediaCard
-            key={p.id}
-            image={sp.pickImage(p.images, 300)}
-            title={p.name}
-            subtitle={sp.playlistSongs(p)}
-            onOpen={() => navigate({ name: 'playlist', id: p.id })}
-            onPlay={() => void playContext(p.uri)}
-          />
-        ))}
-      </ShelfRow>
-    </section>
-  )
-}
-
 export function PartyView(): React.JSX.Element {
   const joined = useListenAlong((s) => s.url)
   const guestNow = useListenAlong((s) => s.state?.nowPlaying?.image ?? null)
@@ -293,9 +252,7 @@ export function PartyView(): React.JSX.Element {
 
       {joined ? (
         <GuestParty />
-      ) : !url ? (
-        <Starters />
-      ) : (
+      ) : !url ? null : (
         <div className="party__live">
           <Glass radius={28} tone="clear" simple className="party__invite">
             <LinkQr url={url} />
@@ -364,7 +321,7 @@ export function PartyView(): React.JSX.Element {
                 ))}
               </>
             )}
-            {upNext.length === 0 && <Starters />}
+            {upNext.length === 0 && <p className="muted party__empty">Nothing queued yet. Songs your guests add show up here.</p>}
           </section>
         </div>
       )}

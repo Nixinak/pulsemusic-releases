@@ -2561,7 +2561,7 @@ html.is-mini body {
     gap: 12px;
   }
   /* small window: just the speaker, the pill opens with the slider when you point at it */
-  .playerbar .volume:not(:hover):not(:focus-within):not(:has(.is-dragging)) .slider--volume {
+  .playerbar .volume:not(:hover):not(:has(:focus-visible)):not(:has(.is-dragging)) .slider--volume {
     opacity: 0;
     pointer-events: none;
   }

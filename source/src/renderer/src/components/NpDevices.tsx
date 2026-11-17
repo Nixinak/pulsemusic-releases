@@ -6,10 +6,10 @@
 import { useEffect, useRef } from 'react'
 import { useLivePosition } from './common'
 import { formatTime } from '@/lib/format'
-import { usePlayer } from '@/lib/player'
+import { duck, livePosition, usePlayer } from '@/lib/player'
 import { useApp } from '@/lib/store'
 import { BANDS, readBeat, useBeat } from '@/lib/beat'
-import { scratchMove, scratchStart, scratchStop } from '@/lib/npSounds'
+import { prepareScratch, scratchMove, scratchStart, scratchStop } from '@/lib/npSounds'
 
 /* ================= Turntable ================= */
 
@@ -24,9 +24,9 @@ const SPEED = 200
  * scratching is on, lets you grab it: it follows your hand, and the sound follows how fast and
  * which way you move it.
  */
-function useRecord(spin: React.RefObject<HTMLDivElement | null>, paused: boolean, scratch: boolean, sounds: boolean): void {
-  const live = useRef({ paused, scratch, sounds })
-  live.current = { paused, scratch, sounds }
+function useRecord(spin: React.RefObject<HTMLDivElement | null>, paused: boolean, scratch: boolean): void {
+  const live = useRef({ paused, scratch })
+  live.current = { paused, scratch }
   useEffect(() => {
     const el = spin.current
     if (!el) return
@@ -66,8 +66,15 @@ function useRecord(spin: React.RefObject<HTMLDivElement | null>, paused: boolean
       e.preventDefault()
       el.setPointerCapture(e.pointerId)
       hold = { id: e.pointerId, pointer: pointerAngle(e), at: performance.now(), vel: 0 }
+      // the record stops dead under your hand
+      vel = 0
       el.classList.add('is-held')
-      if (live.current.sounds) scratchStart()
+      const p = usePlayer.getState()
+      // where in the 30 s preview to start: roughly where the song is
+      const at = ((livePosition(p) / 1000) % 30) / 30
+      scratchStart(p.track?.id ?? null, at)
+      // the music stops while you hold the record (only when it plays here: no web calls)
+      if (p.isLocal && !p.paused) void duck(0, 90)
     }
     const move = (e: PointerEvent): void => {
       if (!hold || e.pointerId !== hold.id) return
@@ -82,7 +89,7 @@ function useRecord(spin: React.RefObject<HTMLDivElement | null>, paused: boolean
       hold.vel = hold.vel * 0.4 + (d / dt) * 0.6
       hold.pointer = a
       hold.at = now
-      if (live.current.sounds) scratchMove(hold.vel / SPEED)
+      scratchMove(hold.vel / SPEED)
     }
     const up = (e: PointerEvent): void => {
       if (!hold || e.pointerId !== hold.id) return
@@ -91,6 +98,7 @@ function useRecord(spin: React.RefObject<HTMLDivElement | null>, paused: boolean
       hold = null
       el.classList.remove('is-held')
       scratchStop()
+      if (usePlayer.getState().isLocal) void duck(1, 260)
     }
     el.addEventListener('pointerdown', down)
     el.addEventListener('pointermove', move)
@@ -103,6 +111,10 @@ function useRecord(spin: React.RefObject<HTMLDivElement | null>, paused: boolean
       el.removeEventListener('pointermove', move)
       el.removeEventListener('pointerup', up)
       el.removeEventListener('pointercancel', up)
+      if (hold) {
+        hold = null
+        void duck(1, 200)
+      }
       scratchStop()
     }
   }, [spin])
@@ -111,8 +123,14 @@ function useRecord(spin: React.RefObject<HTMLDivElement | null>, paused: boolean
 export function Turntable({ art, paused }: { art: string | null; paused: boolean }): React.JSX.Element {
   const spin = useRef<HTMLDivElement>(null)
   const scratch = useApp((s) => s.settings.npScratch) ?? true
-  const sounds = useApp((s) => s.settings.npSounds) ?? true
-  useRecord(spin, paused, scratch, sounds)
+  useRecord(spin, paused, scratch)
+  const song = usePlayer((s) => s.track)
+  // the song's preview is fetched ahead, so grabbing the record scratches the song itself
+  useEffect(() => {
+    if (!scratch || !song?.id) return
+    const t = window.setTimeout(() => void prepareScratch(song.id, song.name, song.artists[0]?.name ?? ''), 1200)
+    return () => window.clearTimeout(t)
+  }, [scratch, song?.id])
   const pos = useLivePosition()
   const dur = usePlayer((s) => s.track?.durationMs ?? 0)
   // the arm rests off the record while paused; playing, it creeps inwards with the song

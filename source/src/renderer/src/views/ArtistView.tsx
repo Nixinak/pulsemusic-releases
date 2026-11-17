@@ -3,6 +3,7 @@
 // and profile links. Spotify gives apps no links or bio, so those come from the main process
 // (MusicBrainz, Genius, Deezer, Wikipedia) and fill in when they arrive.
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { FocusImg } from '@/components/FocusImg'
 import { motion, useTransform } from 'motion/react'
 import { useApp } from '@/lib/store'
 import { useQuery } from '@/lib/useQuery'
@@ -530,7 +531,7 @@ export function ArtistView({ id }: { id: string }): React.JSX.Element {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ type: 'spring', stiffness: 140, damping: 22 }}
         >
-          {photo ? <img decoding="async" src={photo} alt="" /> : <span className="ahero__empty" />}
+          {photo ? <FocusImg src={photo} /> : <span className="ahero__empty" />}
         </motion.div>
         <motion.div className="ahero__text" style={{ y: textY, opacity: textOpacity }}>
           <span className="phead__kind">{info?.from ? `Artist · ${info.from}` : 'Artist'}</span>

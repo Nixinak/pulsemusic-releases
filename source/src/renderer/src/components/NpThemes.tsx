@@ -1,4 +1,5 @@
-// Now Playing looks: the usual one, a big cover, a turntable and a CD deck, plus the menu at the
+// Now Playing looks: the big cover (the usual one), a turntable, a CD deck, a cassette, a poster,
+// a visualizer and a lock screen, plus the menu at the
 // right edge of the screen that switches between them (three lines) and turns real full screen
 // on and off. The menu shows when the pointer comes near the right edge.
 import { useEffect, useRef, useState } from 'react'
@@ -7,10 +8,12 @@ import type { NpTheme } from '@shared/types'
 import { Glass } from './Glass'
 
 export const NP_THEMES: { id: NpTheme; label: string; hint: string }[] = [
-  { id: 'classic', label: 'Classic', hint: 'Cover, controls and lyrics' },
   { id: 'cover', label: 'Album cover', hint: 'The cover, big and centre stage' },
   { id: 'vinyl', label: 'Vinyl', hint: 'A turntable spinning the record' },
   { id: 'cd', label: 'CD deck', hint: 'A disc in a player, with a display' },
+  { id: 'cassette', label: 'Cassette', hint: 'A tape with its reels turning' },
+  { id: 'poster', label: 'Poster', hint: 'The song as a printed gig poster' },
+  { id: 'pulse', label: 'Visualizer', hint: 'A ring of bars that moves with the beat' },
   { id: 'lock', label: 'Lock screen', hint: 'The cover as wallpaper, with the time' }
 ]
 
@@ -83,10 +86,23 @@ const FullIcon = ({ on }: { on: boolean }): React.JSX.Element => (
 function ThemePreview({ id }: { id: NpTheme }): React.JSX.Element {
   return (
     <span className={`npm__pv npm__pv--${id}`} aria-hidden="true">
-      {id === 'classic' && (
+      {id === 'cassette' && (
+        <>
+          <i className="npm__pv-tape" />
+          <i className="npm__pv-reel npm__pv-reel--l" />
+          <i className="npm__pv-reel npm__pv-reel--r" />
+        </>
+      )}
+      {id === 'poster' && (
         <>
           <i className="npm__pv-art" />
-          <i className="npm__pv-lines" />
+          <i className="npm__pv-big" />
+        </>
+      )}
+      {id === 'pulse' && (
+        <>
+          <i className="npm__pv-ring" />
+          <i className="npm__pv-dot" />
         </>
       )}
       {id === 'cover' && <i className="npm__pv-art" />}
@@ -115,20 +131,16 @@ function ThemePreview({ id }: { id: NpTheme }): React.JSX.Element {
 export function NpEdgeMenu({
   theme,
   full,
-  sounds,
   scratch,
   onTheme,
   onFull,
-  onSounds,
   onScratch
 }: {
   theme: NpTheme
   full: boolean
-  sounds: boolean
   scratch: boolean
   onTheme: (t: NpTheme) => void
   onFull: () => void
-  onSounds: (on: boolean) => void
   onScratch: (on: boolean) => void
 }): React.JSX.Element {
   const [near, setNear] = useState(false)
@@ -227,15 +239,8 @@ export function NpEdgeMenu({
                   </button>
                 ))}
               </div>
-              <button className={`npm__sound ${sounds ? 'is-on' : ''}`} role="switch" aria-checked={sounds} onClick={() => onSounds(!sounds)}>
-                <span>
-                  <b>Device sounds</b>
-                  <small>Vinyl crackle, the needle, the CD spinning up</small>
-                </span>
-                <i aria-hidden="true" />
-              </button>
               {theme === 'vinyl' && (
-                <button className={`npm__sound npm__sound--sub ${scratch ? 'is-on' : ''}`} role="switch" aria-checked={scratch} onClick={() => onScratch(!scratch)}>
+                <button className={`npm__sound ${scratch ? 'is-on' : ''}`} role="switch" aria-checked={scratch} onClick={() => onScratch(!scratch)}>
                   <span>
                     <b>Scratch the record</b>
                     <small>Grab the vinyl and spin it like a DJ</small>

@@ -776,6 +776,18 @@ async function extend(): Promise<void> {
     // for a few blocks. After that, every block is one genre, and after 5 to 7 songs the DJ
     // moves on to a new one and says so.
     const family = stickyArtists && artistBlocksLeft > 0 ? stickyArtists : null
+    // a show of one artist's newest or oldest songs carries on through their releases
+    if (family && releaseWalk) {
+      const more = await nextReleases().catch(() => [] as STrack[])
+      if (more.length) {
+        const picks = more.map((t) => toPick(t, releaseWalk!.label))
+        if (!get().active) return
+        setDjContinuation(get().set[get().set.length - 1]?.id ?? last?.id ?? null, picks.map((p) => p.uri))
+        set((s) => ({ set: [...s.set, ...picks] }))
+        return
+      }
+      releaseWalk = null
+    }
     if (family) artistBlocksLeft--
     // a request for a country or an era ("Czech classics") stays the whole show
     const { intro, picks, theme } = stickyMood
@@ -824,12 +836,16 @@ let stickyMood: Mood | null = null
  *  like them for a few blocks (like an artist radio), instead of searching Spotify for a
  *  sentence like "more Shimmi mixed with similar artists", which found random songs. */
 let stickyArtists: { id: string; name: string }[] | null = null
+/** The listener asked for these artists only ("jen Shimmi", "only Riad"): no similar ones. */
+let onlyArtists = false
 let artistBlocksLeft = 0
-function followArtists(list: { id: string; name: string }[]): void {
+function followArtists(list: { id: string; name: string }[], only = false): void {
+  onlyArtists = only
   const seen = new Set<string>()
   stickyArtists = list.filter((a) => isRealId(a.id) && !seen.has(a.id) && !!seen.add(a.id)).slice(0, 4)
   if (!stickyArtists.length) stickyArtists = null
-  artistBlocksLeft = 3
+  // only them: for the whole show
+  artistBlocksLeft = only ? 99 : 3
 }
 const familyLabel = (seed: { name: string }[]): string =>
   `${seed.length > 1 ? `${seed.slice(0, -1).map((a) => a.name).join(', ')} and ${seed[seed.length - 1].name}` : seed[0].name}, and artists that sound like them`
@@ -878,7 +894,8 @@ function songsOf(a: { id: string; name: string }, seed: boolean): Promise<STrack
 /** Songs for an artist block: the artists themselves, the ones like them, and the listener's
  *  own songs by any of them (only songs where one of them is the main artist). */
 async function familyPool(seed: { id: string; name: string }[]): Promise<STrack[]> {
-  const similar = await similarTo(seed).catch(() => [] as { id: string; name: string }[])
+  // "only Shimmi": no one else
+  const similar = onlyArtists ? [] : await similarTo(seed).catch(() => [] as { id: string; name: string }[])
   const family = [...seed, ...similar]
   const ids = new Set(family.map((a) => a.id))
   const [library, pages] = await Promise.all([
@@ -1199,9 +1216,168 @@ function followUp(first: DjPick, theme: string, mood: Mood | null, seeds: STrack
     })
 }
 
+/* ---------- "Newest from Shimmi", "his oldest songs", "best of Riad", "only Calin" ----------
+   One artist seen from an angle: their latest or earliest releases (in that order), their
+   biggest hits, the lesser known songs, or nobody but them. Czech and English, with the name
+   before or after, and Czech word forms ("od Shimmiho", "Riadovy novinky"). */
+type Angle = 'newest' | 'oldest' | 'hits' | 'deep' | 'only' | 'like'
+const ANGLES: [Angle, string][] = [
+  ['like', 'neco jako|neco jak|neco ve stylu|podobne jako|podobny jako|podobne|ve stylu|like|similar to|sounds like|in the style of|artists like'],
+  ['newest', 'nejnovejsi|nejnovjsi|nove|novy|novou|novych|novinky|novinku|novinka|novejsi|nova|posledni|aktualni|cerstve|cerstvy|latest|newest|new|fresh|recent|newer|lately released'],
+  ['oldest', 'nejstarsi|stare|stary|starsi|starych|prvni|puvodni|old|oldest|older|earliest|first|early|classic'],
+  ['hits', 'nejvetsi hity|nejlepsi|nejznamejsi|nejhranejsi|nejpopularnejsi|hity|hit|top|best of|best|greatest hits|biggest hits|hits|popular|most popular|famous'],
+  ['deep', 'mene zname|nezname|neznamy|vzacne|deep cuts|deep cut|underrated|hidden gems|lesser known|b sides|album tracks|deep'],
+  ['only', 'jen|jenom|pouze|nic nez|only|just|nothing but']
+]
+const FILL = '(?:pisnicky|pisnicku|pisne|pisni|songy|songu|songs|song|tracky|tracks|track|veci|vec|hudbu|music|stuff|releases|vydani|alba|album|singly|singles|od nej|od ni)'
+
+function readAngle(request: string): { angle: Angle; name: string } | null {
+  const t = norm(request)
+    .replace(/^(?:pust|pustit|zahraj|zahrat|dej|hod|chci|play|put on|give me|i want|can you play)(?: mi| me| prosim| please)*\s+/, '')
+    .replace(/^(?:the|some|a|his|her|their|jeho|jeji|jejich)\s+/, '')
+    .replace(/\s+(?:prosim|please|pls)$/, '')
+  for (const [angle, words] of ANGLES) {
+    const w = `(?:${words})`
+    // "novinky od Shimmiho", "new songs by Riad", "best of Calin", "jen Shimmi"
+    let m = new RegExp(`^${w}(?:\\s+${FILL})?(?:\\s+(?:od|by|from|of|z))?\\s+(.+)$`).exec(t)
+    // "Shimmi novinky", "Riad new songs", "Shimmiho nejstarsi pisnicky"
+    m ??= new RegExp(`^(.+?)\\s+${w}(?:\\s+${FILL})?$`).exec(t)
+    // "pisnicky od Riada nejnovejsi"
+    m ??= new RegExp(`^${FILL}\\s+(?:od|by|from)\\s+(.+?)\\s+${w}$`).exec(t)
+    // "songs like Riad", "pisnicky podobne jako Shimmi"
+    m ??= new RegExp(`^${FILL}\\s+${w}\\s+(?:(?:od|by|from|of)\\s+)?(.+)$`).exec(t)
+    // "like" only at the start: "Riad like" means nothing
+    if (angle === 'like' && m && !new RegExp(`^(?:${FILL}\\s+)?${w}\\s`).test(t)) m = null
+    const name = m?.[1]?.replace(new RegExp(`^${FILL}\\s+(?:od|by|from|of)\\s+`), '').replace(/^(?:od|by|from|of)\s+/, '').trim()
+    if (name && name.length >= 2 && !/^(?:pisnicky|songy|songs|music|hudbu|veci)$/.test(name)) return { angle, name }
+  }
+  return null
+}
+
+/** The name as typed, then without Czech case endings ("Shimmiho" → "Shimmi", "Riadovy" → "Riad"). */
+function nameForms(name: string): string[] {
+  const out = [name]
+  const stripped = name.replace(/(?:ovych|ovymi|ovy|ova|ovo|ove|ovi|eho|emu|ho|ovi|em|ou|a|y|e|u)$/, '')
+  if (stripped.length >= 2 && stripped !== name) out.push(stripped)
+  return out
+}
+
+async function findAngleArtist(name: string): Promise<{ id: string; name: string } | null> {
+  const known = await knownArtists()
+  for (const n of nameForms(name)) {
+    // the listener's own artists first (exact, then a name that starts the same)
+    const own = [...known].find(([, x]) => norm(x) === n) ?? [...known].find(([, x]) => norm(x).startsWith(n) && n.length >= 4)
+    if (own) return { id: own[0], name: own[1] }
+  }
+  for (const n of nameForms(name)) {
+    const hit = (await resolveArtists([n], known).catch(() => null))?.[0]
+    if (hit) return hit
+  }
+  return null
+}
+
+/** Walking through one artist's releases, newest or oldest first, a few at a time. */
+let releaseWalk: { artist: { id: string; name: string }; albums: SAlbumRef[]; next: number; label: string } | null = null
+
+async function nextReleases(count = 3): Promise<STrack[]> {
+  const w = releaseWalk
+  if (!w) return []
+  const out: STrack[] = []
+  while (w.next < w.albums.length && out.length < 8) {
+    const batch = w.albums.slice(w.next, w.next + count)
+    w.next += batch.length
+    const lists = await Promise.all(batch.map((al) => sp.getAlbumTracks(al.id).then((l) => l.map((t) => ({ ...t, album: { ...al, images: al.images } }) as STrack)).catch(() => [] as STrack[])))
+    out.push(...lists.flat().filter((t) => t.artists.some((a) => a.id === w.artist.id) && !usedIds.has(t.id)))
+  }
+  return dedupe(out).slice(0, 12)
+}
+
+async function playAngle(angle: Angle, ar: { id: string; name: string }, line: string): Promise<boolean> {
+  releaseWalk = null
+  if (angle === 'newest' || angle === 'oldest') {
+    const albums = (await sp.getArtistAlbums(ar.id).catch(() => [] as SAlbumRef[])).filter((a) => a.artists.some((x) => x.id === ar.id))
+    // the same song as a single and on the album: keep each release once, by date
+    const sorted = albums
+      .filter((a, i, l) => l.findIndex((b) => norm(b.name) === norm(a.name)) === i)
+      .sort((a, b) => (a.release_date ?? '').localeCompare(b.release_date ?? ''))
+    if (angle === 'newest') sorted.reverse()
+    if (!sorted.length) return false
+    const label = angle === 'newest' ? `New from ${ar.name}` : `Early ${ar.name}`
+    releaseWalk = { artist: ar, albums: sorted, next: 0, label }
+    const first = await nextReleases(angle === 'newest' ? 2 : 3)
+    if (!first.length) return false
+    flavour = `${ar.name} and artists like them`
+    followArtists([ar], true)
+    const year = (first[0].album?.release_date ?? '').slice(0, 4)
+    const said =
+      angle === 'newest'
+        ? `The latest from ${ar.name}${year ? `, starting with ${year}` : ''}, newest first.`
+        : `Back to where ${ar.name} began${year ? `, ${year}` : ''}, oldest first.`
+    await playPicks(first.map((t) => toPick(t, label)), line || said)
+    return true
+  }
+  if (angle === 'like') {
+    // artists that sound like them (not them): a few songs each
+    const similar = (await similarTo([ar]).catch(() => [] as { id: string; name: string }[])).slice(0, 6)
+    if (!similar.length) return false
+    const lists = await Promise.all(similar.map((a) => songsOf(a, false).then((l) => shuffle(l.filter((t) => t.artists[0]?.id === a.id)).slice(0, 3)).catch(() => [] as STrack[])))
+    const list = dedupe(interleave(lists)).slice(0, 12)
+    if (!list.length) return false
+    flavour = `artists that sound like ${ar.name}`
+    followArtists(similar.slice(0, 4))
+    await playPicks(list.map((t) => toPick(t, `Like ${ar.name}`)), line || `If you like ${ar.name}, you’ll like these.`)
+    return true
+  }
+  const popular = await loadArtistPopular(ar.id, ar.name).catch(() => [] as STrack[])
+  if (angle === 'hits') {
+    const list = popular.filter((t) => t.artists.some((a) => a.id === ar.id)).slice(0, 10)
+    if (!list.length) return false
+    flavour = `${ar.name} and artists like them`
+    followArtists([ar])
+    await playPicks(list.map((t) => toPick(t, 'A big one')), line || `The biggest songs by ${ar.name}, back to back.`)
+    return true
+  }
+  if (angle === 'deep') {
+    const hits = new Set(popular.map((t) => t.id))
+    const albums = shuffle((await sp.getArtistAlbums(ar.id).catch(() => [] as SAlbumRef[])).filter((a) => a.album_type === 'album')).slice(0, 3)
+    const lists = await Promise.all(albums.map((al) => sp.getAlbumTracks(al.id).then((l) => l.map((t) => ({ ...t, album: { ...al, images: al.images } }) as STrack)).catch(() => [] as STrack[])))
+    const list = shuffle(lists.flat().filter((t) => !hits.has(t.id) && t.artists.some((a) => a.id === ar.id))).slice(0, 10)
+    if (!list.length) return false
+    flavour = `${ar.name} and artists like them`
+    followArtists([ar])
+    await playPicks(list.map((t) => toPick(t, 'Deep cut')), line || `${ar.name} past the hits: the songs fewer people know.`)
+    return true
+  }
+  // only them
+  const mine = (await candidates()).filter((t) => t.artists.some((a) => a.id === ar.id))
+  const list = dedupe([...popular.slice(0, 3), ...shuffle([...mine, ...popular.slice(3)])])
+    .filter((t) => t.artists.some((a) => a.id === ar.id))
+    .slice(0, 12)
+  if (!list.length) return false
+  flavour = ar.name
+  followArtists([ar], true)
+  await playPicks(list.map((t) => toPick(t, ar.name)), line || `Nothing but ${ar.name}.`)
+  return true
+}
+
 async function handleRequest(request: string): Promise<void> {
   stickyMood = null
   stickyArtists = null
+  onlyArtists = false
+  releaseWalk = null
+  // one artist from an angle: newest, oldest, the hits, the deep cuts, or only them
+  const angled = readAngle(request)
+  // "something new", "new rap", "old school": not an artist
+  if (
+    angled &&
+    !/^(?:something|anything|neco|cokoliv|music|hudba|hudbu|songs|stuff|school|me|mi|rap|pop|rock)$/.test(angled.name) &&
+    !isGenre(angled.name) &&
+    !findMood(angled.name) &&
+    !findScope(angled.name)
+  ) {
+    const ar = await findAngleArtist(angled.name).catch(() => null)
+    if (ar && (await playAngle(angled.angle, ar, '').catch((e) => (console.warn('[dj] angle', e), false)))) return
+  }
   let intent: Intent
   const grounded = await ground(request).catch((e) => {
     console.warn('[dj] could not read the request', e)
@@ -1385,6 +1561,8 @@ export function stopDj(keepError = false): void {
   setDjContinuation(null)
   stickyMood = null
   stickyArtists = null
+  onlyArtists = false
+  releaseWalk = null
   djContext = null
   set((s) => ({ active: false, status: keepError ? s.status : 'idle', line: '', error: keepError ? s.error : null }))
   // the next Start should be instant again (only while the DJ page is open)

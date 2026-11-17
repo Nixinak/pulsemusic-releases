@@ -1,7 +1,8 @@
 // Slow background motion (the drifting colour blobs, the turning artwork) at a low frame rate.
 // Glass panels refract whatever is behind them, so while the background moves they are redrawn
-// every frame. The drift is so slow (a few pixels a second) that 15 updates a second look the
-// same as 60, and the glass is redrawn a quarter as often.
+// every frame. The drift is so slow (a few pixels a second) that 15 updates a second look almost
+// the same as 60, and the glass is redrawn a quarter as often. Settings → Performance → Quality
+// runs it every frame instead (and keeps it moving while a page scrolls).
 import { useEffect, type RefObject } from 'react'
 
 export interface DriftSpec {
@@ -23,7 +24,9 @@ interface Item {
 
 const items = new Set<Item>()
 let timer = 0
+let raf = 0
 const FPS = 15
+const quality = (): boolean => document.documentElement.dataset.render === 'quality'
 
 const reduced = (): boolean =>
   document.documentElement.classList.contains('reduce-motion') || window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -53,9 +56,35 @@ function tick(): void {
   const now = performance.now()
   const dt = Math.min(250, now - lastTick)
   lastTick = now
-  if (document.hidden || reduced() || document.documentElement.classList.contains('is-scrolling')) return
+  if (document.hidden || reduced() || (!quality() && document.documentElement.classList.contains('is-scrolling'))) return
   clock += dt
   for (const it of items) place(it, clock)
+}
+
+/** Ticks at 15 a second, or every frame in Quality mode (checked as it goes, so switching works). */
+function startClock(): void {
+  stopClock()
+  lastTick = performance.now()
+  if (quality()) {
+    const loop = (): void => {
+      if (!quality()) return startClock()
+      tick()
+      raf = requestAnimationFrame(loop)
+    }
+    raf = requestAnimationFrame(loop)
+  } else {
+    timer = window.setInterval(() => {
+      if (quality()) return startClock()
+      tick()
+    }, 1000 / FPS)
+  }
+}
+
+function stopClock(): void {
+  if (timer) clearInterval(timer)
+  if (raf) cancelAnimationFrame(raf)
+  timer = 0
+  raf = 0
 }
 
 /** Moves `el` slowly until the returned function is called. */
@@ -64,16 +93,10 @@ export function drift(el: HTMLElement, spec: DriftSpec): () => void {
   const it: Item = { el, spec, start: clock - Math.random() * spec.seconds * 1000 }
   items.add(it)
   place(it, clock)
-  if (!timer) {
-    lastTick = performance.now()
-    timer = window.setInterval(tick, 1000 / FPS)
-  }
+  if (!timer && !raf) startClock()
   return () => {
     items.delete(it)
-    if (!items.size && timer) {
-      clearInterval(timer)
-      timer = 0
-    }
+    if (!items.size) stopClock()
   }
 }
 

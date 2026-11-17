@@ -1,5 +1,5 @@
 // The full-screen show while a mix is made: covers from your library circle into the middle
-// like water down a drain, then the new playlist opens: its cover, name and buttons, with the
+// like water down a drain (a whirlpool seen at an angle, each cover turning along its path), then the new playlist opens: its cover, name and buttons, with the
 // songs listed right below. Covers never pass over each other: they travel in rings that stay
 // apart. Esc or the cross closes the show; the mix keeps being made and shows up on the page.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -218,7 +218,9 @@ function Swirl({ images, done }: { images: string[]; done: boolean }): React.JSX
           const a = ring.angle + (i / PER_RING) * Math.PI * 2
           const x = cx + Math.cos(a) * r - MAX_COVER / 2
           const y = cy + Math.sin(a) * r - MAX_COVER / 2
-          el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) scale(${scale.toFixed(3)})`
+          // each cover turns along its path, like something caught in a whirlpool
+          const turn = (a * 180) / Math.PI + 90
+          el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) rotate(${turn.toFixed(1)}deg) scale(${scale.toFixed(3)})`
           el.style.opacity = fade.toFixed(3)
         })
       }
@@ -229,6 +231,8 @@ function Swirl({ images, done }: { images: string[]; done: boolean }): React.JSX
 
   return (
     <div className="mixshow__swirl" aria-hidden="true">
+      {/* the whirlpool is seen at an angle, so it has depth */}
+      <div className="mixshow__plane">
       {rings.current.flatMap((ring, ri) =>
         ring.cards.map((c, ci) => (
           <div
@@ -242,6 +246,7 @@ function Swirl({ images, done }: { images: string[]; done: boolean }): React.JSX
           </div>
         ))
       )}
+      </div>
     </div>
   )
 }

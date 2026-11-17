@@ -53,13 +53,26 @@ export interface Settings {
   npTheme: NpTheme
   /** Now Playing covers the whole screen (taskbar hidden); remembered for next time. */
   npFullscreen: boolean
-  /** The turntable and the CD deck make their sounds (crackle, needle, spin-up). */
+  /** Old: the device sounds are always on now. */
   npSounds: boolean
   /** The turntable's record can be grabbed and scratched. */
   npScratch: boolean
+  /** A song without lyrics shows the cover; the next song with lyrics brings them back. */
+  npAutoCover: boolean
+  /** Performance keeps background motion light; Quality runs every animation at full rate. */
+  renderMode: 'performance' | 'quality'
+  /** The GPU draws the app (glass, blur, animations). Off needs a restart; for driver trouble. */
+  hardwareAcceleration: boolean
+  /** How big the whole app is drawn (1 = 100 %). */
+  zoom: number
+  /** A Windows notification with the cover when the song changes and Pulse isn't in front. */
+  songNotifications: boolean
+  /** Which page Pulse opens on: Home, or the page you were on last time. */
+  startPage: 'home' | 'last'
 }
 
-export type NpTheme = 'classic' | 'cover' | 'vinyl' | 'cd' | 'lock'
+/** 'classic' is old: it shows as 'cover' now. */
+export type NpTheme = 'classic' | 'cover' | 'vinyl' | 'cd' | 'cassette' | 'poster' | 'pulse' | 'lock'
 
 export type DjVoiceId = 'af_heart' | 'af_bella' | 'bf_emma' | 'am_michael' | 'am_fenrir' | 'bm_george'
 
@@ -116,10 +129,16 @@ export const DEFAULT_SETTINGS: Settings = {
   djVoice: 'natural',
   djSpeaker: 'af_heart',
   djChattiness: 'sometimes',
-  npTheme: 'classic',
+  npTheme: 'cover',
   npFullscreen: false,
   npSounds: true,
-  npScratch: true
+  npScratch: true,
+  npAutoCover: true,
+  renderMode: 'performance',
+  hardwareAcceleration: true,
+  zoom: 1,
+  songNotifications: false,
+  startPage: 'home'
 }
 
 export type ProfileBlock =
@@ -564,6 +583,12 @@ export interface PulseApi {
   app: {
     /** Signs out, erases all local data and restarts like a fresh install. */
     reset(): Promise<void>
+    /** Whether the GPU draws the app now, and whether the setting wants it. */
+    gpu(): Promise<{ on: boolean; wanted: boolean }>
+    /** Restarts Pulse (for settings that apply at start). */
+    relaunch(): Promise<void>
+    /** Empties Chromium's download cache; answers how many bytes it held. */
+    clearCache(): Promise<number>
   }
   discord: {
     status(): Promise<{ state: 'off' | 'connecting' | 'connected' | 'not-running'; shown: boolean; error: string | null }>

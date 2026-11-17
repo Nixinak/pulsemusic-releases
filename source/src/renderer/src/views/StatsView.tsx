@@ -1,7 +1,7 @@
 // Your stats: how long you've listened this year on Spotify and Pulse together, Replay for every
 // month, your top artists and songs for the last week, this year (counted from your listening
 // history: Pulse plus your other Spotify apps) or all time (Spotify's own ranking), what those
-// lists say about you, and your last 50 plays.
+// lists say about you, and fun facts from your history (streaks, repeats, sessions…).
 import { Emo } from '@/components/Emoji'
 import { ReplayMonths } from './ReplayMonths'
 import { ListeningTime } from './ListeningTime'
@@ -9,12 +9,14 @@ import { useMemo, useState } from 'react'
 import { motion } from 'motion/react'
 import { useApp } from '@/lib/store'
 import { computeStats, isRealId, startOfYear, useHistory } from '@/lib/history'
-import { formatMinutes, hourLabel } from '@/lib/recap'
+import { funFacts } from '@/lib/funFacts'
+import { FocusImg } from '@/components/FocusImg'
+import { formatMinutes } from '@/lib/recap'
 import { useQuery } from '@/lib/useQuery'
 import * as sp from '@/lib/spotify'
 import { playContext, playUris } from '@/lib/player'
 import { Cover, Skeleton, usePagePalette } from '@/components/common'
-import { useArtistImage } from '@/lib/artistImage'
+import { useArtistPicture, useSongPicture } from '@/lib/imageFill'
 import { PlayIcon, SparkleIcon } from '@/components/Icons'
 import type { SArtist, STrack } from '@/lib/types'
 
@@ -60,10 +62,16 @@ const fromSpTrack = (t: STrack): TopTrack => ({
 const ENOUGH: Record<Exclude<Range, 'all'>, number> = { week: 8, year: 25 }
 const FALLBACK: Record<Exclude<Range, 'all'>, sp.TimeRange> = { week: 'short_term', year: 'medium_term' }
 
+/** A song's cover; imported plays without one get it looked up. */
+function TrackArt({ t }: { t: TopTrack }): React.JSX.Element {
+  const src = useSongPicture(t.name, t.artists[0]?.name, t.id, t.small)
+  return <Cover src={src} size={46} radius={8} />
+}
+
 function ArtistTile({ artist, rank }: { artist: TopArtist; rank: number }): React.JSX.Element {
   const navigate = useApp((s) => s.navigate)
   const real = isRealId(artist.id)
-  const image = useArtistImage(real ? artist.id : undefined, artist.image)
+  const image = useArtistPicture(artist.name, artist.id, artist.image)
   return (
     <li className={real ? '' : 'is-plain'} onClick={() => real && navigate({ name: 'artist', id: artist.id })}>
       <Cover src={image} round />
@@ -110,7 +118,6 @@ export function StatsView(): React.JSX.Element {
   const needSpotify = range === 'all' || (loaded && !own)
   const spArtists = useQuery(needSpotify ? `stats:artists50:${spRange}` : null, () => sp.getTopArtists(spRange, 50))
   const spTracks = useQuery(needSpotify ? `stats:tracks50:${spRange}` : null, () => sp.getTopTracks(spRange, 50))
-  const recent = useQuery('home:recent', sp.getRecentlyPlayed)
   const artistList: TopArtist[] = useMemo(
     () => own?.artists ?? (spArtists.data?.items ?? []).filter((a) => a?.id).map(fromSpArtist),
     [own, spArtists.data]
@@ -118,7 +125,7 @@ export function StatsView(): React.JSX.Element {
   const top: TopTrack[] = useMemo(() => own?.tracks ?? (spTracks.data?.items ?? []).filter((t) => t?.id).map(fromSpTrack), [own, spTracks.data])
   const loading = !loaded || (needSpotify && spArtists.loading && !spArtists.data)
   const hero = artistList[0]
-  const heroImage = useArtistImage(hero && isRealId(hero.id) ? hero.id : undefined, hero?.image ?? null)
+  const heroImage = useArtistPicture(hero?.name, hero?.id, hero?.image ?? null)
   usePagePalette(heroImage)
   const label = RANGES.find((r) => r.id === range)!
   /** Spotify's list stands in while the history is short. */
@@ -137,22 +144,8 @@ export function StatsView(): React.JSX.Element {
     return { artists: byArtist.size, lead, fresh, dated: dated.length, total: top.length }
   }, [top])
 
-  // The last 50 plays, with Spotify's exact times.
-  const lately = useMemo(() => {
-    const items = (recent.data?.items ?? []).filter((r) => r.track?.id)
-    if (!items.length) return null
-    const ms = items.reduce((n, r) => n + (r.track.duration_ms ?? 0), 0)
-    const times = items.map((r) => Date.parse(r.played_at)).filter(Number.isFinite)
-    const days = times.length ? Math.max(1, Math.ceil((Math.max(...times) - Math.min(...times)) / 86400_000)) : 1
-    const hours = new Array(24).fill(0) as number[]
-    for (const r of items) {
-      const t = Date.parse(r.played_at)
-      if (Number.isFinite(t)) hours[new Date(t).getHours()] += (r.track.duration_ms ?? 0) / 60_000
-    }
-    const peak = hours.indexOf(Math.max(...hours))
-    return { plays: items.length, minutes: Math.round(ms / 60_000), days, hours, peak }
-  }, [recent.data])
-  const maxHour = lately ? Math.max(1, ...lately.hours) : 1
+  // Little discoveries in the history for the chosen time (streaks, repeats, sessions…).
+  const fun = useMemo(() => funFacts(plays, range === 'week' ? Date.now() - 7 * 86_400_000 : range === 'year' ? startOfYear() : 0), [plays, range])
 
   return (
     <div className="stats">
@@ -174,7 +167,7 @@ export function StatsView(): React.JSX.Element {
         <>
           <section className="replay">
             <button className="replay__artist" disabled={!hero} onClick={() => hero && isRealId(hero.id) && navigate({ name: 'artist', id: hero.id })}>
-              {heroImage ? <img decoding="async" src={heroImage} alt="" /> : <span className="replay__blank" />}
+              {heroImage ? <FocusImg src={heroImage} /> : <span className="replay__blank" />}
               <span className="replay__shade" />
               <span className="replay__who">
                 <small>
@@ -259,7 +252,7 @@ export function StatsView(): React.JSX.Element {
                     <li key={`${t.id}-${i}`} className="is-link" onDoubleClick={() => t.uri && void playUris(playable(top), t.uri)}>
                       <span className="stats__n">{i + 1}</span>
                       <span className="stats__art">
-                        <Cover src={t.small} size={46} radius={8} />
+                        <TrackArt t={t} />
                         {t.uri && (
                           <button className="stats__play" aria-label={`Play ${t.name}`} onClick={() => void playUris(playable(top), t.uri)}>
                             <PlayIcon size={16} />
@@ -294,28 +287,29 @@ export function StatsView(): React.JSX.Element {
             )}
           </div>
 
-          {lately && (
-            <section className="stats__lately">
-              <div className="stats__lately-head">
-                <h2 className="stats__h">Your last {lately.plays} plays</h2>
-                <p className="muted">
-                  {formatMinutes(lately.minutes)} over {lately.days === 1 ? 'one day' : `${lately.days} days`}, most of it around {hourLabel(lately.peak)}.
-                </p>
-              </div>
-              <div className="hours" role="img" aria-label="Minutes listened by hour of day in your last plays">
-                {lately.hours.map((m, h) => (
-                  <span key={h} className={`hours__bar ${h === lately.peak ? 'is-peak' : ''}`} title={`${hourLabel(h)}: ${Math.round(m)} min`}>
-                    <motion.i initial={{ scaleY: 0 }} animate={{ scaleY: Math.max(0.03, m / maxHour) }} transition={{ delay: h * 0.02, type: 'spring', stiffness: 120, damping: 18 }} />
-                  </span>
+          {fun.length > 0 && (
+            <section className="facts">
+              <h2 className="stats__h">Fun facts</h2>
+              <ul className="facts__grid">
+                {fun.map((f, i) => (
+                  <motion.li
+                    key={f.id}
+                    className={`facts__card facts__card--${f.id}`}
+                    initial={{ opacity: 0, y: 14 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.04, type: 'spring', stiffness: 260, damping: 26 }}
+                  >
+                    {f.art && <img className="facts__art" src={f.art} alt="" decoding="async" />}
+                    <small>{f.label}</small>
+                    <b>{f.value}</b>
+                    {f.detail && (
+                      <span>
+                        <Emo>{f.detail}</Emo>
+                      </span>
+                    )}
+                  </motion.li>
                 ))}
-              </div>
-              <div className="hours__axis">
-                <span>{hourLabel(0)}</span>
-                <span>{hourLabel(6)}</span>
-                <span>{hourLabel(12)}</span>
-                <span>{hourLabel(18)}</span>
-                <span>{hourLabel(23)}</span>
-              </div>
+              </ul>
             </section>
           )}
         </>

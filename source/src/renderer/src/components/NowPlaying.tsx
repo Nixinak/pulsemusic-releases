@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useDrift } from '@/lib/drift'
 import { Emo } from '@/components/Emoji'
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
@@ -19,7 +19,9 @@ import type { NpPanel } from '@/lib/store'
 import type { NpTheme } from '@shared/types'
 import { LockClock, LockWall, NpEdgeMenu } from './NpThemes'
 import { CdDeck, Turntable } from './NpDevices'
+import { Cassette, Poster, PulseRing } from './NpExtras'
 import { useNpSounds } from '@/lib/npSounds'
+import { getLyrics } from '@/lib/lyrics'
 
 const TABS: { id: NpPanel; label: string; Icon: typeof LyricsIcon }[] = [
   { id: 'lyrics', label: 'Lyrics', Icon: LyricsIcon },
@@ -32,21 +34,47 @@ const spring = { type: 'spring' as const, stiffness: 300, damping: 34 }
 export function NowPlaying(): React.JSX.Element {
   const open = useApp((s) => s.nowPlaying)
   const setOpen = useApp((s) => s.setNowPlaying)
-  const panel = useApp((s) => s.npPanel)
+  const chosen = useApp((s) => s.npPanel)
   const setPanel = useApp((s) => s.setNpPanel)
   const navigate = useApp((s) => s.navigate)
   const track = usePlayer((s) => s.track)
+  // A song without lyrics shows the cover instead; the next song with lyrics brings them back
+  // (Lyrics stays the chosen tab, only what's shown changes). Asking for them on purpose (the
+  // Lyrics tab) shows the "no lyrics" note for that song.
+  const [noLyrics, setNoLyrics] = useState<string | null>(null)
+  const [askedFor, setAskedFor] = useState<string | null>(null)
+  useEffect(() => {
+    if (chosen !== 'lyrics' || !track) return
+    let alive = true
+    void getLyrics({
+      id: track.id,
+      name: track.name,
+      artists: track.artists.map((a) => a.name),
+      album: track.album.name,
+      durationMs: track.durationMs
+    }).then((d) => {
+      if (alive) setNoLyrics(d.kind === 'none' || d.kind === 'instrumental' ? track.id : null)
+    })
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chosen, track?.id])
+  const autoOn = useApp((s) => s.settings.npAutoCover !== false)
+  const autoCover = autoOn && chosen === 'lyrics' && !!track && noLyrics === track.id && askedFor !== track.id
+  const panel: NpPanel = autoCover ? 'none' : chosen
   const liked = usePlayer((s) => s.liked)
   const paused = usePlayer((s) => s.paused)
   // During a song transition the lyrics/queue step aside for the two covers.
   const transitioning = useTransition((s) => s.phase.kind !== 'idle')
   const showStage = transitioning && (panel === 'lyrics' || panel === 'queue')
-  const theme: NpTheme = useApp((s) => s.settings.npTheme) ?? 'classic'
+  // "Album cover" is the base look ("Classic" was folded into it)
+  const savedTheme = useApp((s) => s.settings.npTheme)
+  const theme: NpTheme = !savedTheme || savedTheme === 'classic' ? 'cover' : savedTheme
   const wantFull = useApp((s) => !!s.settings.npFullscreen)
   const updateSettings = useApp((s) => s.updateSettings)
-  const sounds = useApp((s) => s.settings.npSounds) ?? true
   const scratch = useApp((s) => s.settings.npScratch) ?? true
-  useNpSounds(theme, open && !!track, sounds)
+  useNpSounds(theme, open && !!track, true)
   const [isFull, setIsFull] = useState(false)
 
   // Full screen (over the taskbar) is remembered: Now Playing opens that way next time, and the
@@ -60,22 +88,46 @@ export function NowPlaying(): React.JSX.Element {
     }
   }, [shown, wantFull])
   // left some other way (Windows, a shortcut): remembered as off
+  const closing = useRef(false)
   useEffect(
     () =>
       window.pulse.window.onFullScreen((on) => {
         setIsFull(on)
-        if (!on && useApp.getState().nowPlaying && useApp.getState().settings.npFullscreen) void updateSettings({ npFullscreen: false })
+        if (!on && !closing.current && useApp.getState().nowPlaying && useApp.getState().settings.npFullscreen) void updateSettings({ npFullscreen: false })
       }),
     [updateSettings]
   )
 
+  // Closing from full screen: the window first goes back to its size while Now Playing still
+  // covers it, then Now Playing fades out over the app, already laid out at its normal size
+  // (closing first showed the app stretched over the whole screen and then jumping).
+  const isFullRef = useRef(isFull)
+  isFullRef.current = isFull
+  const close = useCallback((): void => {
+    if (closing.current) return
+    if (!isFullRef.current) return setOpen(false)
+    closing.current = true
+    void window.pulse.window
+      .setFullScreen(false)
+      .catch(() => {})
+      .then(() => {
+        // two frames, so the page has its new size before the fade starts
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            closing.current = false
+            setOpen(false)
+          })
+        )
+      })
+  }, [setOpen])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Escape') close()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [setOpen])
+  }, [close])
 
   // Now Playing always shows the song's colours, even over a themed artist/album page.
   useEffect(() => {
@@ -104,7 +156,7 @@ export function NowPlaying(): React.JSX.Element {
 
           <header className="np__top">
             <Glass radius={999} bezel={10} refraction={30} className="np__pill">
-              <button className="icon-btn" aria-label="Close Now Playing" onClick={() => setOpen(false)}>
+              <button className="icon-btn" aria-label="Close Now Playing" onClick={close}>
                 <ChevronDown size={22} />
               </button>
             </Glass>
@@ -115,7 +167,11 @@ export function NowPlaying(): React.JSX.Element {
                   className={`np__tab ${panel === id ? 'is-on' : ''}`}
                   aria-pressed={panel === id}
                   // Clicking the open tab again hides the panel and centres the cover.
-                  onClick={() => setPanel(panel === id && id !== 'none' ? 'none' : id)}
+                  onClick={() => {
+                    if (id === 'lyrics' && autoCover) return setAskedFor(track.id)
+                    setAskedFor(null)
+                    setPanel(panel === id && id !== 'none' ? 'none' : id)
+                  }}
                 >
                   {panel === id && <motion.span layoutId="np-tab" className="np__tab-bg" transition={{ type: 'spring', stiffness: 500, damping: 38 }} />}
                   <Icon size={17} />
@@ -143,6 +199,25 @@ export function NowPlaying(): React.JSX.Element {
                     durationMs={track.durationMs}
                   />
                 </motion.div>
+              ) : theme === 'cassette' ? (
+                <motion.div layoutId="np-art" className="np__deck np__deck--wide" transition={spring}>
+                  <Cassette art={track.artUrl} paused={paused} title={track.name} artist={track.artists.map((a) => a.name).join(', ')} />
+                </motion.div>
+              ) : theme === 'poster' ? (
+                <motion.div layoutId="np-art" className="np__deck np__deck--tall" transition={spring}>
+                  <Poster
+                    art={track.artUrl}
+                    paused={paused}
+                    title={track.name}
+                    artist={track.artists.map((a) => a.name).join(', ')}
+                    album={track.album.name}
+                    durationMs={track.durationMs}
+                  />
+                </motion.div>
+              ) : theme === 'pulse' ? (
+                <motion.div layoutId="np-art" className="np__deck" transition={spring}>
+                  <PulseRing art={track.artUrl} paused={paused} />
+                </motion.div>
               ) : (
                 <motion.div layoutId="np-art" className={`np__art ${paused ? 'is-paused' : ''}`} transition={spring}>
                   <SwapArt id={track.id} src={track.artUrl} radius={theme === 'cover' || theme === 'lock' ? 12 : 22} />
@@ -156,7 +231,7 @@ export function NowPlaying(): React.JSX.Element {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ ...spring, delay: 0.08 }}
               >
-                {(theme === 'vinyl' || theme === 'cd') && <small className="np__eyebrow">Now playing</small>}
+                {(theme === 'vinyl' || theme === 'cd' || theme === 'cassette' || theme === 'pulse') && <small className="np__eyebrow">Now playing</small>}
                 <div className="np__titles">
                   <AnimatePresence mode="wait">
                     <motion.div
@@ -216,8 +291,6 @@ export function NowPlaying(): React.JSX.Element {
           <NpEdgeMenu
             theme={theme}
             full={isFull}
-            sounds={sounds}
-            onSounds={(on) => void updateSettings({ npSounds: on })}
             scratch={scratch}
             onScratch={(on) => void updateSettings({ npScratch: on })}
             onTheme={(t) => void updateSettings({ npTheme: t })}

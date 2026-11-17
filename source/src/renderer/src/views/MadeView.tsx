@@ -2,6 +2,7 @@
 // cover, what's in it and when it's refreshed, play and shuffle, and Save as playlist to keep
 // this week's (or today's) version in Spotify.
 import { useState } from 'react'
+import { coverNewPlaylist } from '@/lib/playlistCover'
 import { useApp, errorText } from '@/lib/store'
 import * as sp from '@/lib/spotify'
 import { playUris } from '@/lib/player'
@@ -34,6 +35,7 @@ export function MadeView({ id }: { id: string }): React.JSX.Element {
       const date = made.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
       const p = await sp.createPlaylist(`${mix.title}, ${date}`, mix.description)
       await sp.addManyToPlaylist(p.id, uris)
+      await coverNewPlaylist(p.id, mix.tracks.map((t) => sp.pickImage(t.album?.images, 300)), mix.title)
       await refreshPlaylists()
       toast(`Saved ${mix.title}`)
       navigate({ name: 'playlist', id: p.id })

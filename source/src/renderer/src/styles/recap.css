@@ -181,15 +181,15 @@
   bottom: 0;
   z-index: 2;
   width: 50%;
-  cursor: pointer;
+  cursor: default;
 }
 .rc__tap--prev {
   left: 0;
-  cursor: w-resize;
+  cursor: default;
 }
 .rc__tap--next {
   right: 0;
-  cursor: e-resize;
+  cursor: default;
 }
 .rc__stage {
   position: absolute;

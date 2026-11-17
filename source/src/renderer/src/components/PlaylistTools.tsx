@@ -1,5 +1,6 @@
 // Playlist tools: remove duplicates, sort, merge another playlist in, and change the cover.
 import { useEffect, useMemo, useState } from 'react'
+import { coverNewPlaylist } from '@/lib/playlistCover'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import * as sp from '@/lib/spotify'
@@ -389,6 +390,7 @@ function MergeTab({ playlist, entries, onChanged }: TabProps): React.JSX.Element
               const app = useApp.getState()
               const merged = await sp.createPlaylist(`${playlist.name} + ${pick!.name}`, 'Merged in Pulse Music')
               await sp.addManyToPlaylist(merged.id, [...entries.map((e) => e.track.uri), ...fresh])
+              await coverNewPlaylist(merged.id, [sp.pickImage(playlist.images, 300), sp.pickImage(pick!.images, 300), ...entries.map((e) => sp.pickImage(e.track.album?.images, 300))], `${playlist.name} + ${pick!.name}`)
               await app.refreshPlaylists()
               app.navigate({ name: 'playlist', id: merged.id })
             })

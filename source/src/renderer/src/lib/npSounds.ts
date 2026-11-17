@@ -3,8 +3,7 @@
 //    it plays, and the click of the arm lifting off,
 //  - the CD deck: the lid click and the disc spinning up, the spin-down when it stops, and the
 //    quick seek chirp between songs.
-// They play quietly under the music and follow Pulse's volume. Off in Settings → the menu at the
-// right edge of Now Playing ("Device sounds").
+// They play quietly under the music and follow Pulse's volume.
 import { useEffect, useRef } from 'react'
 import type { NpTheme } from '@shared/types'
 import { usePlayer } from './player'
@@ -203,11 +202,52 @@ function seek(): void {
   for (let i = 0; i < 4; i++) burst(4800 + i * 300, 5, 0.025, 8, i * 0.045)
 }
 
+/* ---------- The cassette ---------- */
+
+/** The play key going down (or popping up): a plastic clunk and the motor catching. */
+function clunk(down: boolean): void {
+  thump(down ? 95 : 130, 0.22, 110)
+  burst(down ? 1400 : 2100, 1.2, 0.1, 45, 0.005)
+  burst(3800, 3, 0.04, 20, 0.05)
+}
+
 /* ---------- Scratching the record ----------
- * Holding the record and moving it plays a short sung phrase ("ahh" syllables with a breathy
- * start, made here) at the speed and in the direction your hand moves it, the way a DJ scratches
- * a record: still = silent, quick back-and-forth = the classic sound. Spotify's own audio can't
- * be scratched (it's protected), so this is a phrase of Pulse's own over the music. */
+ * Holding the record stops the music (it is turned down to nothing while your hand is on it) and
+ * moving it plays the song itself at the speed and in the direction your hand moves it, the way a
+ * DJ scratches a record: still = silent, quick back-and-forth = the classic sound. Spotify's own
+ * stream can't be read (it's protected), so the sound comes from the song's 30-second preview;
+ * when there is none, a short sung phrase made here stands in. */
+
+/** The current song's preview, ready to scratch (mono samples at the context's rate). */
+let songBuf: { key: string; data: Float32Array } | null = null
+let songLoading: string | null = null
+
+/** Gets the song's preview ready so grabbing the record sounds like the song. */
+export async function prepareScratch(key: string, title: string, artist: string): Promise<void> {
+  if (songBuf?.key === key || songLoading === key) return
+  songLoading = key
+  try {
+    const b64 = await window.pulse.recs.preview(title, artist)
+    if (!b64 || songLoading !== key) return
+    const bytes = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0))
+    const { ctx: c } = audio()
+    const decoded = await c.decodeAudioData(bytes.buffer)
+    const l = decoded.getChannelData(0)
+    const r = decoded.numberOfChannels > 1 ? decoded.getChannelData(1) : l
+    const data = new Float32Array(l.length)
+    let peak = 0
+    for (let i = 0; i < l.length; i++) {
+      data[i] = (l[i] + r[i]) * 0.5
+      peak = Math.max(peak, Math.abs(data[i]))
+    }
+    if (peak > 0) for (let i = 0; i < data.length; i++) data[i] = (data[i] / peak) * 0.95
+    if (songLoading === key) songBuf = { key, data }
+  } catch (e) {
+    console.warn('[np sounds] preview', e)
+  } finally {
+    if (songLoading === key) songLoading = null
+  }
+}
 
 let phrase: Float32Array | null = null
 
@@ -267,14 +307,20 @@ let scratchNode: ScriptProcessorNode | null = null
 let scratchGain: GainNode | null = null
 const scr = { target: 0, rate: 0, head: 0, lp: 0 }
 
-/** Your hand is on the record. */
-export function scratchStart(): void {
+/** Your hand is on the record. `key` is the song on it, `at` how far into the song it is (0–1). */
+export function scratchStart(key: string | null, at = 0): void {
   try {
     const { ctx: c, out } = audio()
-    phrase ??= makePhrase(c.sampleRate)
     if (scratchNode) return
+    let p: Float32Array
+    if (key && songBuf?.key === key) p = songBuf.data
+    else p = phrase ??= makePhrase(c.sampleRate)
+    scr.head = Math.floor(Math.max(0, Math.min(0.98, at)) * (p.length - 2))
+    scr.rate = 0
+    scr.target = 0
+    // the record stopping under your hand: a soft rub
+    burst(900, 0.7, 0.1, 70)
     const node = c.createScriptProcessor(1024, 0, 2)
-    const p = phrase
     node.onaudioprocess = (e) => {
       const l = e.outputBuffer.getChannelData(0)
       const r = e.outputBuffer.getChannelData(1)
@@ -296,7 +342,8 @@ export function scratchStart(): void {
       }
     }
     const g = c.createGain()
-    g.gain.value = 0.55
+    // the scratch takes the music's place, so it is about as loud as the music
+    g.gain.value = 1
     node.connect(g).connect(out)
     scratchNode = node
     scratchGain = g
@@ -339,7 +386,7 @@ export function useNpSounds(theme: NpTheme, open: boolean, enabled: boolean): vo
   const paused = usePlayer((s) => s.paused)
   const trackId = usePlayer((s) => s.track?.id ?? null)
   const prev = useRef<{ paused: boolean; trackId: string | null; on: boolean; theme: NpTheme }>({ paused: true, trackId: null, on: false, theme })
-  const device = theme === 'vinyl' || theme === 'cd'
+  const device = theme === 'vinyl' || theme === 'cd' || theme === 'cassette'
   const on = open && enabled && device
 
   useEffect(() => {
@@ -361,6 +408,9 @@ export function useNpSounds(theme: NpTheme, open: boolean, enabled: boolean): vo
           burst(2500, 1, 0.08, 40)
           startCrackle(0)
         }
+      } else if (theme === 'cassette') {
+        if (playing && was.on && was.paused) clunk(true)
+        else if (!playing && was.on && !was.paused) clunk(false)
       } else {
         if (playing && (!was.on || was.paused)) spinUp()
         else if (!playing && was.on && !was.paused) stopWhir()

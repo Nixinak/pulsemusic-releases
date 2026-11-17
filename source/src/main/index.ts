@@ -64,12 +64,21 @@ app.userAgentFallback = app.userAgentFallback
   .replace(/\sElectron\/\S+/, '')
   .replace(new RegExp(`\\s${app.getName()}/\\S+`, 'i'), '')
 
-// Smoother rendering: GPU rasterisation even on GPUs Chromium is unsure about.
-app.commandLine.appendSwitch('enable-gpu-rasterization')
-app.commandLine.appendSwitch('enable-zero-copy')
-app.commandLine.appendSwitch('ignore-gpu-blocklist')
+// Smoother rendering: GPU rasterisation even on GPUs Chromium is unsure about. Settings →
+// Performance can turn the GPU off for drivers that draw black or flickering windows (read here,
+// before the app starts, because it can only be decided then).
+if (loadSettings().hardwareAcceleration === false) {
+  app.disableHardwareAcceleration()
+} else {
+  app.commandLine.appendSwitch('enable-gpu-rasterization')
+  app.commandLine.appendSwitch('enable-zero-copy')
+  app.commandLine.appendSwitch('ignore-gpu-blocklist')
+}
 // Animated mouse-wheel scrolling, done by the compositor (smooth even while the page is busy).
 app.commandLine.appendSwitch('enable-smooth-scrolling')
+// The face detector (Shape Detection API, backed by Windows' own), so artist photos can be
+// cropped around the face (renderer lib/faceFocus).
+app.commandLine.appendSwitch('enable-blink-features', 'ShapeDetection')
 
 if (!app.requestSingleInstanceLock()) {
   app.quit()
@@ -148,6 +157,7 @@ function createMainWindow(): void {
     }
   })
 
+  mainWindow.webContents.on('did-finish-load', () => applyZoom(getSettings()))
   // Started with Windows: stay in the tray (the app still runs and counts plays); otherwise show.
   mainWindow.once('ready-to-show', () => {
     if (!startedHidden) mainWindow?.show()
@@ -295,6 +305,14 @@ function applySettings(s: Settings, prev?: Settings): void {
     if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: s.launchAtStartup, args: ['--hidden'] })
   }
   if (prev && prev.autoUpdate !== s.autoUpdate) setAutoUpdates(s.autoUpdate !== false)
+  applyZoom(s)
+}
+
+/** The size the whole app is drawn at (Settings → General → Size). */
+function applyZoom(s: Settings): void {
+  const z = Number(s.zoom) || 1
+  const f = Math.min(1.5, Math.max(0.75, z))
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents.getZoomFactor() !== f) mainWindow.webContents.setZoomFactor(f)
 }
 
 function registerIpc(): void {
@@ -388,6 +406,20 @@ function registerIpc(): void {
   ipcMain.handle('update:check', () => checkForUpdatesNow())
   ipcMain.handle('update:status', () => updateStatus())
   ipcMain.handle('app:version', () => app.getVersion())
+  ipcMain.handle('app:gpu', () => ({ on: app.isHardwareAccelerationEnabled?.() ?? true, wanted: getSettings().hardwareAcceleration !== false }))
+  ipcMain.handle('app:relaunch', () => {
+    quitting = true
+    app.relaunch()
+    app.exit(0)
+  })
+  // Settings → Storage: the downloaded pictures and pages Chromium keeps (Pulse's own data stays)
+  ipcMain.handle('app:clear-cache', async () => {
+    const ses = mainWindow?.webContents.session
+    if (!ses) return 0
+    const before = await ses.getCacheSize().catch(() => 0)
+    await ses.clearCache().catch(() => {})
+    return before
+  })
   // "Start over": signs out and erases everything Pulse keeps on this computer (settings,
   // history and stats, profile, caches, Last.fm link), then restarts like a fresh install.
   // Big downloads (the DJ's brain and voice, the party helper) are kept.
@@ -543,9 +575,22 @@ function registerIpc(): void {
   })
   ipcMain.on('window:close', () => mainWindow?.close())
   // Now Playing over the whole screen, taskbar included
-  ipcMain.handle('window:fullscreen', (_e, on: unknown) => {
-    if (!mainWindow || mainWindow.isDestroyed()) return false
-    if (mainWindow.isFullScreen() !== !!on) mainWindow.setFullScreen(!!on)
+  // (answers once the window has finished changing, so the page can wait for it)
+  ipcMain.handle('window:fullscreen', async (_e, on: unknown) => {
+    const win = mainWindow
+    if (!win || win.isDestroyed()) return false
+    if (win.isFullScreen() !== !!on) {
+      const done = new Promise<void>((resolve) => {
+        const ev = on ? 'enter-full-screen' : 'leave-full-screen'
+        const t = setTimeout(resolve, 700)
+        win.once(ev as 'enter-full-screen', () => {
+          clearTimeout(t)
+          resolve()
+        })
+      })
+      win.setFullScreen(!!on)
+      await done
+    }
     return !!on
   })
   // The renderer recolours the app icon to match the current song; show it on the taskbar.

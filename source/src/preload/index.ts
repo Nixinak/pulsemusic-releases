@@ -10,7 +10,10 @@ function listen<T>(channel: string, cb: (v: T) => void): () => void {
 const api: PulseApi = {
   platform: process.platform,
   app: {
-    reset: () => ipcRenderer.invoke('app:reset')
+    reset: () => ipcRenderer.invoke('app:reset'),
+    gpu: () => ipcRenderer.invoke('app:gpu'),
+    relaunch: () => ipcRenderer.invoke('app:relaunch'),
+    clearCache: () => ipcRenderer.invoke('app:clear-cache')
   },
   discord: {
     status: () => ipcRenderer.invoke('discord:status')

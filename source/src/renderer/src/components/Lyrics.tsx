@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AnimatePresence, animate, motion } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
 import { getLyrics, type Lyrics as LyricsData, type SyncedLine } from '@/lib/lyrics'
 import { livePosition, seekTo, usePlayer, type PlayerTrack } from '@/lib/player'
 import { useApp } from '@/lib/store'
@@ -190,57 +190,52 @@ function PlainLyrics({
   const share = useShare(track)
   const scroller = useRef<HTMLDivElement>(null)
   const selecting = share.selecting
-  // Lyrics without timings still move with the song: the page scrolls through them at the
-  // song's pace (a little after the intro, done a little before the end). Scrolling yourself
-  // takes over for a few seconds.
+  // Lyrics without timings still move with the song: they glide through at the song's pace (a
+  // little after the intro, done a little before the end). Scrolling yourself takes over for a
+  // few seconds.
+  const glide = useRef<HTMLDivElement>(null)
+  const plainState = useRef({ pos: 0, target: 0, userUntil: 0, wheel: false })
   useEffect(() => {
     const el = scroller.current
-    if (!el || selecting) return
-    let userUntil = 0
-    const mine = (): void => {
-      userUntil = Date.now() + 6000
-    }
-    el.addEventListener('wheel', mine, { passive: true })
-    el.addEventListener('pointerdown', mine)
-    el.addEventListener('touchstart', mine, { passive: true })
+    const tr = glide.current
+    if (!el || !tr) return
+    const f = plainState.current
     let raf = 0
     let last = performance.now()
-    // kept as a fraction: the page only takes whole pixels, small steps would get lost
-    let cur = el.scrollTop
     const tick = (): void => {
       raf = requestAnimationFrame(tick)
       const now = performance.now()
-      const dt = Math.min(100, now - last)
+      const dt = Math.min(0.1, (now - last) / 1000)
       last = now
-      if (Date.now() < userUntil) {
-        cur = el.scrollTop
-        return
-      }
+      const room = Math.max(0, tr.scrollHeight - el.clientHeight)
       const st = usePlayer.getState()
       const dur = st.track?.durationMs ?? track.durationMs
-      if (!dur || st.track?.id !== track.id) return
-      const pos = livePosition(st)
-      const intro = Math.min(15_000, dur * 0.08)
-      const outro = Math.min(20_000, dur * 0.1)
-      const p = Math.max(0, Math.min(1, (pos - intro) / Math.max(1, dur - intro - outro)))
-      const room = el.scrollHeight - el.clientHeight
-      if (room <= 0) return
-      const target = p * room
-      // glide towards it (quick after a seek, gentle while the song plays)
-      cur += (target - cur) * Math.min(1, dt / 600)
-      if (Math.abs(el.scrollTop - cur) >= 0.5) el.scrollTop = cur
+      if (Date.now() >= f.userUntil && !selecting && dur && st.track?.id === track.id) {
+        const pos = livePosition(st)
+        const intro = Math.min(15_000, dur * 0.08)
+        const outro = Math.min(20_000, dur * 0.1)
+        const p = Math.max(0, Math.min(1, (pos - intro) / Math.max(1, dur - intro - outro)))
+        f.target = p * room
+        f.wheel = false
+      }
+      f.target = Math.max(0, Math.min(room, f.target))
+      // on the GPU, a fraction of a pixel at a time: no stepping
+      f.pos += (f.target - f.pos) * (1 - Math.exp(-dt * (f.wheel ? 14 : 2.2)))
+      tr.style.transform = `translate3d(0, ${-f.pos}px, 0)`
     }
     raf = requestAnimationFrame(tick)
-    return () => {
-      cancelAnimationFrame(raf)
-      el.removeEventListener('wheel', mine)
-      el.removeEventListener('pointerdown', mine)
-      el.removeEventListener('touchstart', mine)
-    }
+    return () => cancelAnimationFrame(raf)
   }, [track.id, track.durationMs, selecting])
+  const onWheel = (e: React.WheelEvent): void => {
+    const f = plainState.current
+    f.target += e.deltaMode === 1 ? e.deltaY * 32 : e.deltaY
+    f.wheel = true
+    f.userUntil = Date.now() + 6000
+  }
   return (
     <div className={`lyrics lyrics--plain ${share.selecting ? 'is-selecting' : ''}`}>
-      <div className="lyrics__scroll" data-own-scroll ref={scroller}>
+      <div className="lyrics__scroll lyrics__scroll--glide" data-own-scroll ref={scroller} onWheel={onWheel}>
+        <div className="lyrics__track lyrics__track--plain" ref={glide}>
           {data.lines.map((l, i) =>
             /^\[.*\]$/.test(l) ? (
               <div key={i} className="lyrics__section">
@@ -266,6 +261,7 @@ function PlainLyrics({
               data.source
             )}
           </footer>
+        </div>
       </div>
       {share.bar(data.lines)}
     </div>
@@ -353,49 +349,64 @@ function SyncedLyrics({ track, lines, source }: { track: PlayerTrack; lines: Syn
   const lineRefs = useRef<(HTMLElement | null)[]>([])
   const [active, setActive] = useState(-1)
   const userScrollUntil = useRef(0)
-  const anim = useRef<ReturnType<typeof animate> | null>(null)
   const wordMode = useApp((s) => s.settings.wordLyrics)
   const share = useShare(track)
 
-  // Follow playback.
+  const glide = useRef<HTMLDivElement>(null)
+  const selecting = share.selecting
+  const following = useRef({ target: 0, pos: 0, wheel: false })
+
+  // Follow playback: the sung line lights up, and the lyrics glide (moved on the GPU, a fraction
+  // of a pixel at a time, so it never steps) to keep it in place. The glide starts a quarter of
+  // a second before the next line, so it's already moving when the line changes.
   useEffect(() => {
     let raf = 0
+    let last = performance.now()
+    const f = following.current
     const loop = (): void => {
-      const idx = activeIndex(lines, livePosition(usePlayer.getState()))
-      setActive((prev) => (prev === idx ? prev : idx))
       raf = requestAnimationFrame(loop)
+      const now = performance.now()
+      const dt = Math.min(0.1, (now - last) / 1000)
+      last = now
+      const pos = livePosition(usePlayer.getState())
+      const idx = activeIndex(lines, pos)
+      setActive((prev) => (prev === idx ? prev : idx))
+      const el = scroller.current
+      const tr = glide.current
+      if (!el || !tr) return
+      const max = Math.max(0, tr.scrollHeight - el.clientHeight)
+      if (Date.now() >= userScrollUntil.current && !selecting) {
+        const ahead = activeIndex(lines, pos + 250)
+        const line = lineRefs.current[Math.max(0, ahead)]
+        if (line) {
+          // where the sung line sits (a third down; near the top in the side panel)
+          const anchor = Number(getComputedStyle(el).getPropertyValue('--lyrics-anchor')) || 0.34
+          f.target = line.offsetTop - el.clientHeight * anchor
+        }
+        f.wheel = false
+      }
+      f.target = Math.max(0, Math.min(max, f.target))
+      // a smooth ease towards the target: quicker when you scroll yourself
+      const k = 1 - Math.exp(-dt * (f.wheel ? 14 : document.documentElement.dataset.render === 'quality' ? 4.4 : 5.5))
+      f.pos += (f.target - f.pos) * k
+      if (Math.abs(f.target - f.pos) < 0.05) f.pos = f.target
+      tr.style.transform = `translate3d(0, ${-f.pos}px, 0)`
     }
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
-  }, [lines])
+  }, [lines, selecting])
 
-  // Keep the active line about a third of the way down, with a soft spring.
-  useEffect(() => {
-    const el = scroller.current
-    const line = lineRefs.current[Math.max(0, active)]
-    if (!el || !line || Date.now() < userScrollUntil.current || share.selecting) return
-    // where the sung line sits (a third down; near the top in the side panel)
-    const anchor = Number(getComputedStyle(el).getPropertyValue('--lyrics-anchor')) || 0.34
-    const target = line.offsetTop - el.clientHeight * anchor
-    anim.current?.stop()
-    anim.current = animate(el.scrollTop, Math.max(0, target), {
-      type: 'spring',
-      stiffness: 90,
-      damping: 22,
-      onUpdate: (v) => {
-        el.scrollTop = v
-      }
-    })
-  }, [active, share.selecting])
-
-  const onUserScroll = (): void => {
-    anim.current?.stop()
+  const onUserScroll = (e: React.WheelEvent): void => {
+    const f = following.current
+    f.target += e.deltaMode === 1 ? e.deltaY * 32 : e.deltaY
+    f.wheel = true
     userScrollUntil.current = Date.now() + 3500
   }
 
   return (
     <div className={`lyrics ${wordMode ? 'lyrics--words' : ''} ${share.selecting ? 'is-selecting' : ''}`}>
-      <div className="lyrics__scroll" data-own-scroll ref={scroller} onWheel={onUserScroll} onTouchMove={onUserScroll}>
+      <div className="lyrics__scroll lyrics__scroll--glide" data-own-scroll ref={scroller} onWheel={onUserScroll}>
+        <div className="lyrics__track" ref={glide}>
         <div className="lyrics__pad" />
         {lines.map((l, i) => {
           const d = i - active
@@ -437,6 +448,7 @@ function SyncedLyrics({ track, lines, source }: { track: PlayerTrack; lines: Syn
         })}
         <div className="lyrics__pad lyrics__pad--end" />
         <footer className="lyrics__source">Synced lyrics from {source}</footer>
+        </div>
       </div>
       {share.bar(lines.map((l) => l.text))}
     </div>
