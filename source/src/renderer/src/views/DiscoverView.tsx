@@ -213,16 +213,21 @@ export function DiscoverView(): React.JSX.Element {
       void canvasUrl(it.track)
     }
     void canvasUrl(current.track).then((c) => alive && setCanvas(c))
+    let spotifyWait = 0
     // a short wait, so swiping fast doesn't start every song
     const wait = window.setTimeout(() => {
       void previewUrl(current.track).then((url) => {
         if (!alive) return
         if (!url) {
-          // no preview: the song itself, from about its chorus
+          // no preview: the song itself, from about its chorus. It waits until the card has
+          // stayed on top for a moment, so swiping through costs Spotify nothing.
           audio.current?.pause()
-          usedSpotify.current = true
-          const at = Math.min(60_000, Math.round((current.track.duration_ms || 180_000) * 0.3))
-          void playUris([current.track.uri], undefined, { positionMs: at })
+          spotifyWait = window.setTimeout(() => {
+            if (!alive) return
+            usedSpotify.current = true
+            const at = Math.min(60_000, Math.round((current.track.duration_ms || 180_000) * 0.3))
+            void playUris([current.track.uri], undefined, { positionMs: at })
+          }, 900)
           return
         }
         if (usedSpotify.current && !usePlayer.getState().paused) void togglePlay()
@@ -247,6 +252,7 @@ export function DiscoverView(): React.JSX.Element {
     return () => {
       alive = false
       window.clearTimeout(wait)
+      window.clearTimeout(spotifyWait)
       audio.current?.pause()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

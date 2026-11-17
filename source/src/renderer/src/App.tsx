@@ -46,6 +46,7 @@ import { startHistory } from '@/lib/history'
 import { startMadeForYou } from '@/lib/madeForYou'
 import { MadeView } from '@/views/MadeView'
 import { DiscoverView } from '@/views/DiscoverView'
+import { AchievementsView } from '@/views/AchievementsView'
 import { restoreStartPage, startAppExtras } from '@/lib/appExtras'
 
 function useTheme(): void {
@@ -92,6 +93,8 @@ function Page({ route, onSignOut }: { route: Route; onSignOut: () => void }): Re
       return <MixView />
     case 'discover':
       return <DiscoverView />
+    case 'achievements':
+      return <AchievementsView />
     case 'party':
       return <PartyView />
     case 'dj':

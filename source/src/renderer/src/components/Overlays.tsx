@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useApp, errorText, type MenuItem } from '@/lib/store'
 import * as sp from '@/lib/spotify'
+import { connectSpotifyFriends } from '@/lib/spotifyFriends'
 import { invalidate } from '@/lib/useQuery'
 import { cleanDescription } from '@/lib/format'
 import { Glass } from './Glass'
@@ -232,7 +233,9 @@ export function Modals(): React.JSX.Element {
               {modal.type === 'delete-playlist' && (
                 <div className="modal__form">
                   <h2>Delete {modal.playlist.name}?</h2>
-                  <p className="muted">It will be removed from your library. Spotify keeps playlists you made recoverable for 90 days in your account settings.</p>
+                  <p className="muted">
+                    It will be removed from your library. Spotify keeps playlists you made recoverable for 90 days in your account settings.
+                  </p>
                   <div className="modal__actions">
                     <button className="btn" onClick={() => setModal(null)}>
                       Cancel
@@ -303,11 +306,29 @@ export function UpdateNotice(): React.JSX.Element | null {
           <header className="upd__head">
             <span className="upd__badge" aria-hidden="true">
               {ready ? (
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  viewBox="0 0 24 24"
+                  width="20"
+                  height="20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <path d="M5 12.5l4.2 4.2L19 7" />
                 </svg>
               ) : (
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  viewBox="0 0 24 24"
+                  width="20"
+                  height="20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" />
                 </svg>
               )}
@@ -359,7 +380,7 @@ export function RateLimitNotice(): React.JSX.Element | null {
   const [until, setUntil] = useState(() => sp.rateLimitedUntil())
   const [, tick] = useState(0)
   useEffect(() => {
-    const on = (e: Event): void => setUntil((e as CustomEvent<number>).detail)
+    const on = (): void => setUntil(sp.rateLimitedUntil())
     window.addEventListener('pulse:rate-limit', on)
     const t = window.setInterval(() => tick((n) => n + 1), 1000)
     return () => {
@@ -376,6 +397,11 @@ export function RateLimitNotice(): React.JSX.Element | null {
   return (
     <div className="ratelimit" role="status">
       Spotify is limiting requests from Pulse Music. Things will load again in <b>{time}</b>.
+      {long && (
+        <button className="ratelimit__own" onClick={() => void connectSpotifyFriends().then(() => setUntil(sp.rateLimitedUntil()))}>
+          Keep going with your Spotify account
+        </button>
+      )}
       {long && (
         <button
           className="ratelimit__own"

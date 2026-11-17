@@ -45,111 +45,145 @@ function playActivity(a: Activity): void {
   else void playUris([a.track.uri])
 }
 
-/** A big card for someone listening right now. */
+/** A tall card for someone listening right now: the cover, their face on it, the song. */
 function NowCardBig({ a, i }: { a: Activity; i: number }): React.JSX.Element {
   const navigate = useApp((s) => s.navigate)
   const listening = useListenWith((s) => s.with?.id === a.id)
   return (
     <motion.article
-      className={`fz-live ${listening ? 'is-on' : ''}`}
-      initial={{ opacity: 0, y: 18, scale: 0.97 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{
-        delay: i * 0.05,
-        type: 'spring',
-        stiffness: 260,
-        damping: 26
-      }}
+      className={`fzl ${listening ? 'is-on' : ''}`}
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: i * 0.05, type: 'spring', stiffness: 260, damping: 26 }}
     >
-      <span className="fz-live__bg" aria-hidden="true">
+      <span className="fzl__bg" aria-hidden="true">
         {a.track.image && <img src={a.track.image} alt="" draggable={false} />}
       </span>
-      <button className="fz-live__art" aria-label={`Play ${a.track.name}`} onClick={() => playActivity(a)}>
-        <Cover src={a.track.image} radius={16} />
-        <span className="fz-live__play">
-          <PlayIcon size={22} />
-        </span>
-        <span className="fz-eq" aria-hidden="true">
-          <i />
-          <i />
-          <i />
-        </span>
-      </button>
-      <div className="fz-live__text">
-        <button className="fz-who" onClick={() => navigate({ name: 'user', id: a.id })} onMouseEnter={() => prefetchUser(a.id)}>
-          <span className="fz-who__pic">
-            <Cover src={a.image} round size={30} />
+      <div className="fzl__stage">
+        <button className="fzl__art" aria-label={`Play ${a.track.name}`} onClick={() => playActivity(a)}>
+          <Cover src={a.track.image} radius={18} />
+          <span className="fzl__play" aria-hidden="true">
+            <PlayIcon size={26} />
           </span>
-          <b>{a.name}</b>
-          {a.pulse && <PulseBadge small />}
         </button>
-        <button className="fz-live__song" onClick={() => a.track.albumId && navigate({ name: 'album', id: a.track.albumId })}>
+        <button className="fzl__pic" aria-label={a.name} onClick={() => navigate({ name: 'user', id: a.id })} onMouseEnter={() => prefetchUser(a.id)}>
+          <Cover src={a.image} round size={58} />
+        </button>
+      </div>
+      <div className="fzl__body">
+        <span className="fzl__name">
+          <button onClick={() => navigate({ name: 'user', id: a.id })}>{a.name}</button>
+          {a.pulse && <PulseBadge small />}
+          <span className="fz-eq" aria-label="Listening now">
+            <i />
+            <i />
+            <i />
+          </span>
+        </span>
+        <button className="fzl__song" onClick={() => a.track.albumId && navigate({ name: 'album', id: a.track.albumId })}>
           {a.track.name}
         </button>
-        <button className="fz-live__artist" onClick={() => a.track.artistId && navigate({ name: 'artist', id: a.track.artistId })}>
-          {a.track.artist}
-        </button>
-        {a.track.context?.name && <small className="fz-live__ctx">from {a.track.context.name}</small>}
-      </div>
-      <div className="fz-live__actions">
-        {a.pulse && (
-          <button className={`btn btn--sm ${listening ? 'btn--accent' : ''}`} onClick={() => (listening ? stopListeningWith() : listenWith(a.id, a.name))}>
-            <HeadphonesIcon size={16} />
-            {listening ? 'Stop' : 'Listen along'}
-          </button>
-        )}
-        {a.party && (
-          <button className="btn btn--sm" onClick={() => joinParty(a.party!)}>
-            Join party
-          </button>
+        <span className="fzl__by">
+          <button onClick={() => a.track.artistId && navigate({ name: 'artist', id: a.track.artistId })}>{a.track.artist}</button>
+          {a.track.context?.name && <small>from {a.track.context.name}</small>}
+        </span>
+        {(a.pulse || a.party) && (
+          <div className="fzl__actions">
+            {a.pulse && (
+              <button className={`btn btn--sm ${listening ? 'btn--accent' : ''}`} onClick={() => (listening ? stopListeningWith() : listenWith(a.id, a.name))}>
+                <HeadphonesIcon size={16} />
+                {listening ? 'Stop' : 'Listen along'}
+              </button>
+            )}
+            {a.party && (
+              <button className="btn btn--sm" onClick={() => joinParty(a.party!)}>
+                Join party
+              </button>
+            )}
+          </div>
         )}
       </div>
     </motion.article>
   )
 }
 
-/** A row for someone who played something a while ago. */
+const DAY_MS = 86_400_000
+const dayOf = (t: number): number => new Date(new Date(t).toDateString()).getTime()
+/** Today, Yesterday, This week, Earlier. */
+function dayLabel(at: number): string {
+  const d = (dayOf(Date.now()) - dayOf(at)) / DAY_MS
+  return d < 1 ? 'Today' : d < 2 ? 'Yesterday' : d < 7 ? 'This week' : 'Earlier'
+}
+/** The time on a row: "25 min ago" today, the clock time yesterday, the day before that. */
+function rowTime(at: number): string {
+  const label = dayLabel(at)
+  if (label === 'Today') return whenPlayed(at).text
+  if (label === 'Yesterday') return new Date(at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  if (label === 'This week') return new Date(at).toLocaleDateString('en-US', { weekday: 'long' })
+  return new Date(at).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })
+}
+
+/** A row in the timeline: who, what, when, and the cover to play it. */
 function ActivityRow({ a, i }: { a: Activity; i: number }): React.JSX.Element {
   const navigate = useApp((s) => s.navigate)
-  const when = a.now ? 'Now' : whenPlayed(a.at).text
   return (
     <motion.li
-      className="fz-row"
-      initial={{ opacity: 0, x: -10 }}
+      className="fzt__row"
+      initial={{ opacity: 0, x: -8 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{
-        delay: Math.min(i, 12) * 0.03,
-        type: 'spring',
-        stiffness: 300,
-        damping: 30
-      }}
+      transition={{ delay: Math.min(i, 12) * 0.03, type: 'spring', stiffness: 300, damping: 30 }}
       onDoubleClick={() => playActivity(a)}
     >
-      <button className="fz-row__pic" onClick={() => navigate({ name: 'user', id: a.id })} onMouseEnter={() => prefetchUser(a.id)} aria-label={a.name}>
-        <Cover src={a.image} round size={46} />
-        <span className="fz-row__cover">
-          <Cover src={a.track.image} radius={6} size={22} />
-        </span>
+      <button className="fzt__pic" onClick={() => navigate({ name: 'user', id: a.id })} onMouseEnter={() => prefetchUser(a.id)} aria-label={a.name}>
+        <Cover src={a.image} round size={44} />
       </button>
-      <div className="fz-row__text">
-        <span className="fz-row__name">
+      <div className="fzt__text">
+        <span className="fzt__name">
           <button onClick={() => navigate({ name: 'user', id: a.id })}>{a.name}</button>
           {a.pulse && <PulseBadge small />}
         </span>
-        <span className="fz-row__song">
+        <span className="fzt__song">
           <button onClick={() => a.track.albumId && navigate({ name: 'album', id: a.track.albumId })}>{a.track.name}</button>
-          <span className="fz-row__sep">·</span>
-          <button className="muted" onClick={() => a.track.artistId && navigate({ name: 'artist', id: a.track.artistId })}>
+          <button className="fzt__artist" onClick={() => a.track.artistId && navigate({ name: 'artist', id: a.track.artistId })}>
             {a.track.artist}
           </button>
         </span>
-        {a.track.context?.name && <small className="fz-row__ctx">{a.track.context.name}</small>}
+        {a.track.context?.name && <small className="fzt__ctx">from {a.track.context.name}</small>}
       </div>
-      <span className="fz-row__when">{when}</span>
-      <button className="fz-row__play" aria-label={`Play ${a.track.name}`} onClick={() => playActivity(a)}>
-        <PlayIcon size={16} />
+      <span className="fzt__when">{rowTime(a.at)}</span>
+      <button className="fzt__cover" aria-label={`Play ${a.track.name}`} onClick={() => playActivity(a)}>
+        <Cover src={a.track.image} radius={10} size={56} />
+        <span className="fzt__play" aria-hidden="true">
+          <PlayIcon size={18} />
+        </span>
       </button>
     </motion.li>
+  )
+}
+
+/** Earlier plays as a timeline, a group per day. */
+function Timeline({ list }: { list: Activity[] }): React.JSX.Element {
+  const groups: { label: string; items: Activity[] }[] = []
+  for (const a of list) {
+    const label = dayLabel(a.at)
+    const g = groups[groups.length - 1]
+    if (g?.label === label) g.items.push(a)
+    else groups.push({ label, items: [a] })
+  }
+  let n = 0
+  return (
+    <div className="fzt">
+      {groups.map((g) => (
+        <section key={g.label} className="fzt__day">
+          <h3>{g.label}</h3>
+          <ol>
+            {g.items.map((a) => (
+              <ActivityRow key={a.id} a={a} i={n++} />
+            ))}
+          </ol>
+        </section>
+      ))}
+    </div>
   )
 }
 
@@ -285,7 +319,14 @@ export function FriendsView(): React.JSX.Element {
       <header className="fz-top">
         <div>
           <h1 className="page-title">Friends</h1>
-          <p className="muted">
+          <p className="muted fz-top__line">
+            {live.length > 0 && (
+              <span className="fz-top__faces" aria-hidden="true">
+                {live.slice(0, 4).map((a) => (
+                  <Cover key={a.id} src={a.image} round size={26} />
+                ))}
+              </span>
+            )}
             {live.length
               ? `${live.length} ${live.length === 1 ? 'person is' : 'people are'} listening right now`
               : feed.length
@@ -323,11 +364,7 @@ export function FriendsView(): React.JSX.Element {
           {spotify === null && connected ? (
             <Skeleton rows={4} />
           ) : recent.length ? (
-            <ul className="fz-rows">
-              {recent.map((a, i) => (
-                <ActivityRow key={a.id} a={a} i={i} />
-              ))}
-            </ul>
+            <Timeline list={recent} />
           ) : !live.length ? (
             <div className="fz-empty">
               <HeadphonesIcon size={26} />

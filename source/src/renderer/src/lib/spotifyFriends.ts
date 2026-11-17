@@ -4,6 +4,7 @@
 import { useEffect } from 'react'
 import { create } from 'zustand'
 import type { SpotifyFriend } from '@shared/types'
+import { refreshWebRoute } from './spotify'
 
 interface State {
   /** null until known */
@@ -22,6 +23,7 @@ export async function refreshSpotifyFriends(withList = true): Promise<void> {
   const st = await api.status().catch(() => null)
   const connected = !!st?.connected
   set({ connected })
+  void refreshWebRoute()
   if (!connected) return set({ list: null })
   if (!withList) return
   const list = await api.friends().catch(() => null)
@@ -43,6 +45,7 @@ export async function connectSpotifyFriends(): Promise<boolean> {
 export async function disconnectSpotifyFriends(): Promise<void> {
   await window.pulse.spotifyAccount.disconnect()
   set({ connected: false, list: null })
+  void refreshWebRoute()
 }
 
 /** Keeps the list fresh while the calling page is open. */

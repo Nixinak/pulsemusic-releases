@@ -1,18 +1,5 @@
 // Thin Spotify Web API client. Endpoints follow the February 2026 Development Mode rules.
-import type {
-  CursorPaging,
-  Paging,
-  SAlbum,
-  SAlbumRef,
-  SArtist,
-  SDevice,
-  SPlaybackState,
-  SPlaylist,
-  SPlaylistItem,
-  SearchResults,
-  STrack,
-  SUser
-} from './types'
+import type { CursorPaging, Paging, SAlbum, SAlbumRef, SArtist, SDevice, SPlaybackState, SPlaylist, SPlaylistItem, SearchResults, STrack, SUser } from './types'
 
 const BASE = 'https://api.spotify.com/v1'
 
@@ -58,7 +45,7 @@ const setBlocked = (until: number): void => {
   } catch {
     /* storage unavailable */
   }
-  window.dispatchEvent(new CustomEvent('pulse:rate-limit', { detail: blockedUntil }))
+  window.dispatchEvent(new CustomEvent('pulse:rate-limit', { detail: rateLimitedUntil() }))
 }
 /** 429 answers in a row; each one doubles the pause. */
 let strikes = 0
@@ -77,9 +64,110 @@ const learnRealBlock = (): Promise<void> =>
   })().finally(() => {
     probing = null
   }))
-export const rateLimited = (): boolean => Date.now() < blockedUntil
+/** Pulse's own key is blocked (requests may still go through the web player's route). */
+const appBlocked = (): boolean => Date.now() < blockedUntil
+/** Nothing can reach Spotify right now: the key is blocked and the web player's route is closed. */
+export const rateLimited = (): boolean => appBlocked() && !webRouteOpen()
 /** When Spotify allows requests again (epoch ms), or 0. The UI shows a notice until then. */
 export const rateLimitedUntil = (): number => (rateLimited() ? blockedUntil : 0)
+
+/* ---------- The web player's route ----------
+ * Spotify gives developer apps a small DAILY quota: going over it blocks the app for most of a
+ * day (429 "QUOTA_EXCEEDED", Retry-After of 15-20 hours). When your Spotify account is
+ * connected (Settings → Lyrics), every call goes out with the web player's own token instead,
+ * which doesn't count against that quota at all; Pulse's key is only the fallback. The route
+ * keeps its own modest pace so it never looks like abuse either. */
+let webAccount: boolean | null = null
+const WEB_BLOCK_KEY = 'pulse-web-blocked-until'
+let webBlockedUntil = (() => {
+  try {
+    return Number(localStorage.getItem(WEB_BLOCK_KEY) ?? 0) || 0
+  } catch {
+    return 0
+  }
+})()
+/** Endpoints the web player's token may not use (a missing scope): they go with Pulse's key for a while. */
+const webRefused = new Map<string, number>()
+const shapeOf = (path: string): string => path.split('?')[0].replace(/[A-Za-z0-9]{22}/g, ':id')
+export const webRouteOpen = (): boolean => webAccount === true && Date.now() >= webBlockedUntil
+const announce = (): void => void window.dispatchEvent(new CustomEvent('pulse:rate-limit', { detail: rateLimitedUntil() }))
+export async function refreshWebRoute(): Promise<void> {
+  const st = await window.pulse.spotifyAccount?.status().catch(() => null)
+  const was = webAccount
+  webAccount = !!st?.connected
+  if (was !== webAccount) announce()
+}
+void refreshWebRoute()
+setInterval(() => void refreshWebRoute(), 5 * 60_000)
+const blockWeb = (secs: number): void => {
+  webBlockedUntil = Date.now() + Math.max(60, Math.min(secs || 0, 24 * 3600)) * 1000
+  try {
+    localStorage.setItem(WEB_BLOCK_KEY, String(webBlockedUntil))
+  } catch {
+    /* storage unavailable */
+  }
+  console.warn(`[api] web player route paused for ${Math.round((webBlockedUntil - Date.now()) / 60_000)} min`)
+  announce()
+}
+/** Its own 30 s window: plenty for any page, and background work gets a smaller share. */
+const WEB_BUDGET = 90
+const WEB_BG_BUDGET = 30
+const webSent: number[] = []
+async function webTurn(background: boolean, isTap: boolean, patient: boolean): Promise<void> {
+  const giveUpAt = Date.now() + (isTap ? 1500 : 60_000)
+  for (;;) {
+    const cutoff = Date.now() - WINDOW
+    while (webSent.length && webSent[0] < cutoff) webSent.shift()
+    if (webSent.length < (background ? WEB_BG_BUDGET : WEB_BUDGET)) break
+    if (background && !patient) throw new DeferredError()
+    const free = webSent[0] + WINDOW - Date.now() + 50
+    if (isTap && Date.now() + free > giveUpAt) throw new SlowDownError()
+    await sleep(free)
+  }
+  webSent.push(Date.now())
+}
+/** Sends a call along the web player's route. null = use Pulse's key instead. */
+async function viaWeb<T>(path: string, opts: Options, background: boolean, isTap: boolean): Promise<{ value: T } | null> {
+  if (!webRouteOpen() || path.startsWith('http')) return null
+  const shape = shapeOf(path)
+  if ((webRefused.get(shape) ?? 0) > Date.now()) return null
+  await webTurn(background, isTap, !!opts.patient)
+  const url = new URL(BASE + path)
+  for (const [k, v] of Object.entries(opts.query ?? {})) if (v !== undefined && v !== null) url.searchParams.set(k, String(v))
+  const method = opts.method ?? 'GET'
+  usage.set('web ' + shape, (usage.get('web ' + shape) ?? 0) + 1)
+  const r = await window.pulse.spotifyAccount.api(method, url.toString(), opts.body !== undefined ? JSON.stringify(opts.body) : undefined).catch(() => null)
+  if (!r) {
+    // signed out in the meantime, or offline: check again later
+    void refreshWebRoute()
+    return null
+  }
+  if (r.status === 429) {
+    blockWeb(r.retryAfter)
+    return null
+  }
+  if (r.status >= 500) return null
+  if (r.status === 401 || (r.status === 403 && (method === 'GET' || /scope|permission|token/i.test(r.body)))) {
+    webRefused.set(shape, Date.now() + 6 * 3600_000)
+    return null
+  }
+  if (r.status < 200 || r.status >= 300) {
+    let message = `Spotify returned ${r.status}`
+    try {
+      const j = JSON.parse(r.body) as { error?: { message?: string } }
+      if (j.error?.message) message = j.error.message
+    } catch {
+      /* not JSON */
+    }
+    throw new ApiError(r.status, message)
+  }
+  if (!r.body) return { value: undefined as T }
+  try {
+    return { value: JSON.parse(r.body) as T }
+  } catch {
+    return { value: r.body as T }
+  }
+}
 
 /* ---------- Request budget ----------
  * Spotify counts requests per app in a rolling 30 s window. Going over gets the whole app
@@ -223,9 +311,12 @@ function since(minutes: number): { all: number; bg: number } {
   return { all, bg }
 }
 /** Background caps: per 10 min, per hour, per day (the first one is lower while hidden). */
-const BG_CAPS = { tenMin: 70, tenMinHidden: 25, hour: 260, day: 1600 }
-/** Caps for everything together: far above what a person does, well below a long block. */
-const ALL_CAPS = { tenMin: 700, hour: 2400, day: 12_000 }
+const BG_CAPS = { tenMin: 40, tenMinHidden: 15, hour: 140, day: 500 }
+/** Caps for everything together on Pulse's own key. Spotify's daily quota for developer apps
+ *  is small and unpublished (people report blocks after 1,500-2,000 calls of one kind a day),
+ *  so the day cap stays well below that; with the web player's route connected the key is
+ *  hardly used at all. */
+const ALL_CAPS = { tenMin: 220, hour: 600, day: 1800 }
 let bgRestUntil = (() => {
   try {
     return Number(localStorage.getItem(BG_REST_KEY) ?? 0) || 0
@@ -313,10 +404,12 @@ export async function api<T = unknown>(path: string, opts: Options = {}): Promis
   const method = opts.method ?? 'GET'
   const background = opts.background ?? (method === 'GET' && isPlayerPoll(path))
   if (method !== 'GET') {
-    // During a block a tap must not sit waiting for hours and then fire.
-    if (rateLimited()) throw new ApiError(429, 'Spotify is pausing Pulse for a moment. Try again when the notice is gone.')
     // a change makes cached answers stale (searches, songs and artists stay)
     for (const k of [...recent.keys()]) if (!isStatic(k.slice(0, k.indexOf('?')))) recent.delete(k)
+    const web = await viaWeb<T>(path, opts, false, true)
+    if (web) return web.value
+    // During a block a tap must not sit waiting for hours and then fire.
+    if (appBlocked()) throw new ApiError(429, 'Spotify is pausing Pulse for a moment. Try again when the notice is gone.')
     await takeTurn(false, true)
     return rawApi<T>(path, opts)
   }
@@ -327,8 +420,13 @@ export async function api<T = unknown>(path: string, opts: Options = {}): Promis
   const running = inflight.get(key)
   if (running) return running.then((v) => structuredClone(v)) as Promise<T>
   const p = (async () => {
-    await takeTurn(background, false, !!opts.patient, isPlayerPoll(path))
-    const value = await rawApi<T>(path, opts)
+    const web = await viaWeb<T>(path, opts, background && !isPlayerPoll(path), false)
+    let value: T
+    if (web) value = web.value
+    else {
+      await takeTurn(background, false, !!opts.patient, isPlayerPoll(path))
+      value = await rawApi<T>(path, opts)
+    }
     recent.set(key, { at: Date.now(), value })
     if (recent.size > 500) recent.delete(recent.keys().next().value as string)
     return value
@@ -373,14 +471,21 @@ async function rawApi<T = unknown>(path: string, opts: Options = {}, attempt = 0
     strikes++
     // background work rests for two hours after any refusal, so it can't keep a block going
     restBackground(2 * 3600_000)
-    const after = header > 0 ? header : Math.min(120, 5 * 2 ** (strikes - 1))
+    // the daily quota (not the 30 s limit): it lasts until Spotify's day resets, so don't knock
+    const quota = /QUOTA_EXCEEDED/i.test(
+      await res
+        .clone()
+        .text()
+        .catch(() => '')
+    )
+    const after = header > 0 ? header : quota ? 6 * 3600 : Math.min(120, 5 * 2 ** (strikes - 1))
     setBlocked(Date.now() + after * 1000)
     scale = Math.max(MIN_SCALE, scale * 0.5)
     saveScale()
     console.warn(`[api] rate limited, pausing ${after} s (${url.pathname})`)
     // The pause above is a guess; from the second refusal on, ask for the real length
     // (a long block can be hours, and knocking every 2 minutes keeps it going).
-    if (!(header > 0) && strikes >= 2) void learnRealBlock()
+    if (!(header > 0) && (quota || strikes >= 2)) void learnRealBlock()
     throw new ApiError(429, 'Spotify is limiting requests for a moment. Try again shortly.')
   }
   if (res.ok) strikes = 0
@@ -394,8 +499,7 @@ async function rawApi<T = unknown>(path: string, opts: Options = {}, attempt = 0
     return rawApi<T>(path, opts, attempt + 1)
   }
   if (!res.ok) {
-    let message =
-      res.status >= 500 ? 'Spotify is not responding right now. Try again in a moment.' : `Spotify returned ${res.status}`
+    let message = res.status >= 500 ? 'Spotify is not responding right now. Try again in a moment.' : `Spotify returned ${res.status}`
     try {
       const j = (await res.json()) as { error?: { message?: string } }
       if (j.error?.message) message = j.error.message
@@ -444,14 +548,11 @@ async function all<T>(first: string, query: Query, max = 1000): Promise<T[]> {
 
 export const getMe = (): Promise<SUser> => api<SUser>('/me')
 
-export const getMyPlaylists = (): Promise<SPlaylist[]> =>
-  all<SPlaylist>('/me/playlists', { limit: 50 }, 500)
+export const getMyPlaylists = (): Promise<SPlaylist[]> => all<SPlaylist>('/me/playlists', { limit: 50 }, 500)
 
-export const getSavedTracks = (offset = 0): Promise<Paging<{ added_at: string; track: STrack }>> =>
-  api('/me/tracks', { query: { limit: 50, offset } })
+export const getSavedTracks = (offset = 0): Promise<Paging<{ added_at: string; track: STrack }>> => api('/me/tracks', { query: { limit: 50, offset } })
 
-export const getSavedAlbums = (): Promise<{ added_at: string; album: SAlbumRef }[]> =>
-  all('/me/albums', { limit: 50 }, 500)
+export const getSavedAlbums = (): Promise<{ added_at: string; album: SAlbumRef }[]> => all('/me/albums', { limit: 50 }, 500)
 
 export async function getFollowedArtists(): Promise<SArtist[]> {
   const out: SArtist[] = []
@@ -478,8 +579,7 @@ export const getTopArtists = (range: TimeRange = 'medium_term', limit = 20): Pro
   api('/me/top/artists', { query: { limit, time_range: range } })
 
 /** All liked songs (up to `max`), newest first. */
-export const getAllSavedTracks = (max = 2000): Promise<{ added_at: string; track: STrack }[]> =>
-  all('/me/tracks', { limit: 50 }, max)
+export const getAllSavedTracks = (max = 2000): Promise<{ added_at: string; track: STrack }[]> => all('/me/tracks', { limit: 50 }, max)
 
 /** Generic library endpoints (Feb 2026): URIs, max 40 per call. */
 /** Tells the player (and anything else) that these songs were liked or unliked, from anywhere. */
@@ -493,15 +593,13 @@ export const saveToLibrary = (uris: string[]): Promise<void> =>
 export const removeFromLibrary = (uris: string[]): Promise<void> =>
   api<void>('/me/library', { method: 'DELETE', query: { uris: uris.slice(0, 40).join(',') } }).then(() => libraryChanged(uris, false))
 
-export const libraryContains = (uris: string[]): Promise<boolean[]> =>
-  api('/me/library/contains', { query: { uris: uris.slice(0, 40).join(',') } })
+export const libraryContains = (uris: string[]): Promise<boolean[]> => api('/me/library/contains', { query: { uris: uris.slice(0, 40).join(',') } })
 
 /* ---------- Catalog ---------- */
 
 export const getAlbum = (id: string): Promise<SAlbum> => api(`/albums/${id}`)
 
-export const getAlbumTracks = (id: string): Promise<STrack[]> =>
-  all<STrack>(`/albums/${id}/tracks`, { limit: 50 })
+export const getAlbumTracks = (id: string): Promise<STrack[]> => all<STrack>(`/albums/${id}/tracks`, { limit: 50 })
 
 export const getTrack = (id: string): Promise<STrack> => api(`/tracks/${id}`)
 
@@ -580,7 +678,12 @@ export const search = (q: string, offset = 0): Promise<SearchResults> =>
 /** Playlist owners whose name matches `q`, from a few pages of playlist results (users have
  *  no search of their own in the Web API). */
 export async function searchPlaylistOwners(q: string): Promise<{ id: string; name: string }[]> {
-  const norm = (s: string): string => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+  const norm = (s: string): string =>
+    s
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
   const want = norm(q)
   const pages = await Promise.all(
     [0, 10, 20, 30].map((offset) => api<SearchResults>('/search', { query: { q, type: 'playlist', limit: 10, offset } }).catch(() => null))
@@ -598,8 +701,7 @@ export async function searchPlaylistOwners(q: string): Promise<{ id: string; nam
 export const searchArtists = (q: string): Promise<SArtist[]> =>
   api<SearchResults>('/search', { query: { q, type: 'artist', limit: 8 } }).then((r) => (r.artists?.items ?? []).filter((a): a is SArtist => !!a?.id))
 
-export const searchTracks = (q: string, offset: number): Promise<SearchResults> =>
-  api('/search', { query: { q, type: 'track', limit: 10, offset } })
+export const searchTracks = (q: string, offset: number): Promise<SearchResults> => api('/search', { query: { q, type: 'track', limit: 10, offset } })
 
 /* ---------- Playlists ---------- */
 
@@ -618,12 +720,7 @@ export async function addManyToPlaylist(id: string, uris: string[]): Promise<voi
 }
 
 /** Moves one song inside a playlist. `insertBefore` uses Spotify's meaning (index before the move). */
-export const movePlaylistItem = (
-  id: string,
-  rangeStart: number,
-  insertBefore: number,
-  snapshotId?: string
-): Promise<{ snapshot_id: string }> =>
+export const movePlaylistItem = (id: string, rangeStart: number, insertBefore: number, snapshotId?: string): Promise<{ snapshot_id: string }> =>
   api(`/playlists/${id}/items`, {
     method: 'PUT',
     body: { range_start: rangeStart, insert_before: insertBefore, range_length: 1, snapshot_id: snapshotId }
@@ -664,18 +761,15 @@ export async function removeManyFromPlaylist(id: string, uris: string[]): Promis
 }
 
 /** Spotify has no hard delete; removing a playlist from your library unfollows it. */
-export const deletePlaylist = (id: string): Promise<void> =>
-  removeFromLibrary([`spotify:playlist:${id}`])
+export const deletePlaylist = (id: string): Promise<void> => removeFromLibrary([`spotify:playlist:${id}`])
 
 /* ---------- Player ---------- */
 
-export const getPlaybackState = (): Promise<SPlaybackState | undefined> =>
-  api('/me/player', { query: { additional_types: 'track,episode' } })
+export const getPlaybackState = (): Promise<SPlaybackState | undefined> => api('/me/player', { query: { additional_types: 'track,episode' } })
 
 export const getDevices = (): Promise<{ devices: SDevice[] }> => api('/me/player/devices')
 
-export const transferPlayback = (deviceId: string, play: boolean): Promise<void> =>
-  api('/me/player', { method: 'PUT', body: { device_ids: [deviceId], play } })
+export const transferPlayback = (deviceId: string, play: boolean): Promise<void> => api('/me/player', { method: 'PUT', body: { device_ids: [deviceId], play } })
 
 export interface PlayRequest {
   contextUri?: string
@@ -692,26 +786,18 @@ export const play = (req: PlayRequest, deviceId?: string): Promise<void> =>
     body: {
       context_uri: req.contextUri,
       uris: req.uris,
-      offset: req.offsetUri
-        ? { uri: req.offsetUri }
-        : req.offsetPosition !== undefined
-          ? { position: req.offsetPosition }
-          : undefined,
+      offset: req.offsetUri ? { uri: req.offsetUri } : req.offsetPosition !== undefined ? { position: req.offsetPosition } : undefined,
       position_ms: req.positionMs
     }
   })
 
-export const resume = (deviceId?: string): Promise<void> =>
-  api('/me/player/play', { method: 'PUT', query: { device_id: deviceId } })
+export const resume = (deviceId?: string): Promise<void> => api('/me/player/play', { method: 'PUT', query: { device_id: deviceId } })
 
 // Each command names the device explicitly, so it reaches the phone/speaker that is
 // actually playing instead of whatever Spotify last considered active.
-export const pause = (deviceId?: string): Promise<void> =>
-  api('/me/player/pause', { method: 'PUT', query: { device_id: deviceId } })
-export const next = (deviceId?: string): Promise<void> =>
-  api('/me/player/next', { method: 'POST', query: { device_id: deviceId } })
-export const previous = (deviceId?: string): Promise<void> =>
-  api('/me/player/previous', { method: 'POST', query: { device_id: deviceId } })
+export const pause = (deviceId?: string): Promise<void> => api('/me/player/pause', { method: 'PUT', query: { device_id: deviceId } })
+export const next = (deviceId?: string): Promise<void> => api('/me/player/next', { method: 'POST', query: { device_id: deviceId } })
+export const previous = (deviceId?: string): Promise<void> => api('/me/player/previous', { method: 'POST', query: { device_id: deviceId } })
 export const seek = (ms: number, deviceId?: string): Promise<void> =>
   api('/me/player/seek', { method: 'PUT', query: { position_ms: Math.round(ms), device_id: deviceId } })
 export const setVolume = (pct: number, deviceId?: string): Promise<void> =>
@@ -731,8 +817,7 @@ export const getQueue = async (): Promise<{ currently_playing: STrack | null; qu
   return { ...r, queue }
 }
 
-export const addToQueue = (uri: string): Promise<void> =>
-  api('/me/player/queue', { method: 'POST', query: { uri } })
+export const addToQueue = (uri: string): Promise<void> => api('/me/player/queue', { method: 'POST', query: { uri } })
 
 /* ---------- Helpers ---------- */
 

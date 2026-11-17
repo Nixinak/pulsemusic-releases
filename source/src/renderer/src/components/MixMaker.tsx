@@ -1,12 +1,12 @@
-// The full-screen show while a mix is made: covers from your library are shuffled like a deck of
-// cards (split in two, riffled back together, squared up, again with new covers on top), then the
-// new playlist opens: its cover, name and buttons, with the songs listed right below. Esc or the
+// The full-screen show while a mix is made: covers from your library circle the middle in depth,
+// one is picked out every second (the background takes its colours), then the new playlist opens: its cover, name and buttons, with the songs listed right below. Esc or the
 // cross closes the show; the mix keeps being made and shows up on the page.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { CloseIcon, PlayIcon, PlusIcon } from './Icons'
 import { formatTime } from '@/lib/format'
+import { extractPalette } from '@/lib/colors'
 
 const STEPS = ['Reading your library', 'Listening through your songs', 'Picking the best ones', 'Spacing out the artists', 'Putting it in order']
 /** The shuffle runs at least this long, so a quick mix still gets its moment. */
@@ -84,9 +84,9 @@ export function MixMaker({
 
   if (!open) return null
   return createPortal(
-    <div className={`mixshow mixshow--deck ${done ? 'is-done' : ''}`} role="dialog" aria-label="Making your mix">
+    <div className={`mixshow mixshow--orbit ${done ? 'is-done' : ''}`} role="dialog" aria-label="Making your mix">
       <div className="mixshow__bg" aria-hidden="true" />
-      <Deck images={images} done={done} />
+      <Orbit images={images} done={done} />
       <button className="mixshow__close icon-btn" aria-label="Close (the mix keeps going)" title="Close (Esc)" onClick={onClose}>
         <CloseIcon size={22} />
       </button>
@@ -111,22 +111,57 @@ export function MixMaker({
   )
 }
 
-/** How many cards are in the deck. */
-const CARDS = 26
-/** One shuffle (split, riffle, square up), in seconds. */
-const ROUND = 2.6
+/** How many covers orbit. */
+const COVERS = 30
+/** A new song is picked out of the orbit this often (ms). */
+const PICK_EVERY = 1150
+/** A pick: flies to the middle, holds, flies back (ms). */
+const PICK_IN = 460
+const PICK_HOLD = 520
+const PICK_OUT = 420
 const ease = (x: number): number => (x <= 0 ? 0 : x >= 1 ? 1 : 1 - Math.pow(1 - x, 3))
 const easeInOut = (x: number): number => (x <= 0 ? 0 : x >= 1 ? 1 : x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2)
+const rand = (a: number, b: number): number => a + Math.random() * (b - a)
+const TILT_COS = Math.cos(-0.12)
+const TILT_SIN = Math.sin(-0.12)
+
+interface Body {
+  el: HTMLDivElement | null
+  src: string
+  /** Orbit radius (share of the base radius), height in the scene, speed and where it starts. */
+  r: number
+  y: number
+  speed: number
+  phase: number
+  /** When it was last picked (performance.now()), 0 = never. */
+  pickedAt: number
+  /** The cover was swapped on this lap already (covers change while behind the others). */
+  lap: number
+}
 
 /**
- * The deck: covers stacked in the middle, cut into two halves that slide apart, riffled back
- * together one by one in an arc, squared up with a little bounce, and after each round a few new
- * covers go on top. When the mix is ready the cards fly out in a ring and fade.
+ * Covers circle the middle on tilted orbits, in depth: the near ones big and bright, the far
+ * ones small and dim. Every second or so the cover nearest to you is picked: it flies to the
+ * middle, the whole background takes on its colours, and it flies back into its orbit. Covers
+ * passing behind the others change to new ones from your library. When the mix is ready,
+ * everything falls into the middle.
  */
-function Deck({ images, done }: { images: string[]; done: boolean }): React.JSX.Element {
+function Orbit({ images, done }: { images: string[]; done: boolean }): React.JSX.Element {
   const list = useMemo(() => images.filter(Boolean), [images])
   const ready = useRef<string[]>([])
-  const cards = useRef<{ el: HTMLDivElement | null; src: string }[]>(Array.from({ length: CARDS }, () => ({ el: null, src: '' })))
+  const root = useRef<HTMLDivElement>(null)
+  const bodies = useRef<Body[]>(
+    Array.from({ length: COVERS }, (_, i) => ({
+      el: null,
+      src: '',
+      r: rand(0.62, 1.08),
+      y: ((i % 5) - 2) * 0.1 + rand(-0.03, 0.03),
+      speed: rand(0.16, 0.3) * (i % 3 === 0 ? -1 : 1),
+      phase: (i / COVERS) * Math.PI * 2 * 3.3,
+      pickedAt: 0,
+      lap: -1
+    }))
+  )
   const doneRef = useRef(done)
   doneRef.current = done
 
@@ -144,12 +179,15 @@ function Deck({ images, done }: { images: string[]; done: boolean }): React.JSX.
       im.src = u
     }
   }, [list])
-  const give = (c: { el: HTMLDivElement | null; src: string }): void => {
+  const give = (b: Body): void => {
     const l = ready.current
     if (!l.length) return
-    const u = l[Math.floor(Math.random() * l.length)]
-    c.src = u
-    const img = c.el?.querySelector('img')
+    // a cover no other body shows right now, when there are enough
+    const used = new Set(bodies.current.map((x) => x.src))
+    const free = l.filter((u) => !used.has(u))
+    const u = (free.length ? free : l)[Math.floor(Math.random() * (free.length || l.length))]
+    b.src = u
+    const img = b.el?.querySelector('img')
     if (img && img.getAttribute('src') !== u) img.src = u
   }
 
@@ -157,85 +195,133 @@ function Deck({ images, done }: { images: string[]; done: boolean }): React.JSX.
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
     let raf = 0
     const t0 = performance.now()
-    let round = -1
+    let lastPick = t0 - PICK_EVERY + 700
     let doneAt = 0
-    // the order of the stack (bottom first); a riffle interleaves the two halves
-    let order = Array.from({ length: CARDS }, (_, i) => i)
+    const recent: Body[] = []
+    const tint = (src: string): void => {
+      void extractPalette(src).then((p) => {
+        const el = root.current
+        if (!el) return
+        el.style.setProperty('--mx-a', p.colors[0])
+        el.style.setProperty('--mx-b', p.colors[1])
+        el.style.setProperty('--mx-c', p.colors[2])
+        el.style.setProperty('--mx-glow', p.accentDark)
+      })
+    }
     const loop = (now: number): void => {
       raf = requestAnimationFrame(loop)
-      const all = cards.current
-      for (const c of all) if (!c.src) give(c)
-      const time = ((now - t0) / 1000) * (reduce ? 0.4 : 1)
-      const r = Math.floor(time / ROUND)
-      const t = (time % ROUND) / ROUND
-      if (r !== round) {
-        round = r
-        // a new round: the riffled order becomes the stack, a few new covers go on top
-        if (r > 0) {
-          const left = order.filter((_, k) => k % 2 === 0)
-          const right = order.filter((_, k) => k % 2 === 1)
-          const next: number[] = []
-          for (let k = 0; k < Math.max(left.length, right.length); k++) {
-            if (left[k] !== undefined) next.push(left[k])
-            if (right[k] !== undefined) next.push(right[k])
+      if (document.hidden) return
+      const all = bodies.current
+      const W = window.innerWidth
+      const H = window.innerHeight
+      const cx = W / 2
+      const cy = H * 0.45
+      const R = Math.min(W * 0.36, H * 0.6)
+      const cover = Math.max(80, Math.min(140, Math.min(W, H) * 0.14))
+      const t = ((now - t0) / 1000) * (reduce ? 0.3 : 1)
+      if (doneRef.current && !doneAt) doneAt = now
+      const end = doneAt ? ease((now - doneAt) / 650) : 0
+
+      // the nearest cover that wasn't picked lately is picked
+      if (!doneAt && now - lastPick > PICK_EVERY) {
+        let best: Body | null = null
+        let bestZ = Infinity
+        for (const b of all) {
+          if (!b.src || recent.includes(b)) continue
+          const a = b.phase + t * b.speed
+          const z = Math.sin(a) * b.r
+          if (z < bestZ) {
+            bestZ = z
+            best = b
           }
-          order = next
-          for (const idx of order.slice(-5)) give(all[idx])
+        }
+        if (best) {
+          lastPick = now
+          if (!reduce) best.pickedAt = now
+          recent.push(best)
+          if (recent.length > 8) recent.shift()
+          tint(best.src)
         }
       }
-      if (doneRef.current && !doneAt) doneAt = now
-      const out = doneAt ? ease((now - doneAt) / 700) : 0
-      const n = order.length
-      order.forEach((idx, pos) => {
-        const el = all[idx].el
-        if (!el || !all[idx].src) {
-          if (el) el.style.opacity = '0'
-          return
+
+      for (const b of all) {
+        const el = b.el
+        if (!el) continue
+        if (!b.src) give(b)
+        if (!b.src) {
+          el.style.opacity = '0'
+          continue
         }
-        const side = pos < n / 2 ? -1 : 1
-        const inHalf = side < 0 ? pos : pos - Math.floor(n / 2)
-        // 1. the cut: the halves slide apart and tilt
-        const cut = easeInOut(t / 0.3)
-        // 2. the riffle: cards drop back in from alternating halves, bottom first
-        const riffleOrder = side < 0 ? inHalf * 2 : inHalf * 2 + 1
-        const start = 0.34 + (riffleOrder / n) * 0.36
-        const back = easeInOut((t - start) / 0.14)
-        // 3. squared up, with a small bounce
-        const bounce = t > 0.82 ? Math.sin(((t - 0.82) / 0.18) * Math.PI) * 0.04 : 0
-        const sx = side * 210 * cut * (1 - back)
-        const lift = Math.sin(back * Math.PI) * 70
-        const stackY = -(back > 0 ? riffleOrder : pos) * 1.6
-        const y = stackY - inHalf * 1.2 * cut * (1 - back) - lift
-        const rot = side * 9 * cut * (1 - back) + side * 4 * Math.sin(back * Math.PI)
-        // the end: out in a ring
-        const a = (pos / n) * Math.PI * 2
-        const fx = Math.cos(a) * 900 * out
-        const fy = Math.sin(a) * 600 * out
-        el.style.transform = `translate3d(${(sx + fx).toFixed(1)}px, ${(y + fy).toFixed(1)}px, 0) rotate(${(rot + out * 90).toFixed(2)}deg) scale(${(1 + bounce).toFixed(3)})`
-        el.style.opacity = String(1 - out)
-        // cards that are back on the stack lie above the ones still in the halves
-        el.style.zIndex = String(back > 0 ? 100 + riffleOrder : 50 - Math.abs(inHalf - n / 4))
-      })
+        const a = b.phase + t * b.speed
+        // a new cover while it's behind the others, once per lap
+        const lap = Math.floor((a + Math.PI / 2) / (Math.PI * 2))
+        const z = Math.sin(a) * b.r
+        if (z > 0.75 * b.r && lap !== b.lap && !b.pickedAt) {
+          b.lap = lap
+          if (Math.random() < 0.6) give(b)
+        }
+        // the orbit in 3D, seen from a little above and tilted
+        const x3 = Math.cos(a) * b.r * R
+        const z3 = z * R
+        const y3 = b.y * R + z3 * 0.22
+        const persp = 1900 / (1900 + z3)
+        // the whole orbit leans a little
+        let x = (x3 * TILT_COS - y3 * TILT_SIN) * persp
+        let y = (x3 * TILT_SIN + y3 * TILT_COS) * persp
+        let size = cover * persp * (0.75 + b.r * 0.3)
+        let depth = 1 - (z / b.r + 1) / 2 // 1 = nearest
+        let zi = Math.round(1000 - z3)
+        let op = 0.25 + depth * 0.75
+        let rot = Math.cos(a) * -14
+        // picked: to the middle, hold, back
+        if (b.pickedAt) {
+          const e = now - b.pickedAt
+          const k = e < PICK_IN ? easeInOut(e / PICK_IN) : e < PICK_IN + PICK_HOLD ? 1 : 1 - easeInOut((e - PICK_IN - PICK_HOLD) / PICK_OUT)
+          if (e > PICK_IN + PICK_HOLD + PICK_OUT) b.pickedAt = 0
+          const big = Math.min(W, H) * 0.3
+          const hold = e > PICK_IN && e < PICK_IN + PICK_HOLD ? Math.sin(((e - PICK_IN) / PICK_HOLD) * Math.PI) * 6 : 0
+          x = x * (1 - k)
+          y = y * (1 - k) - hold
+          size = size + (big - size) * k
+          rot = rot * (1 - k)
+          op = op + (1 - op) * k
+          depth = depth + (1 - depth) * k
+          zi = k > 0.02 ? 5000 : zi
+          el.classList.toggle('is-picked', k > 0.5)
+        } else if (el.classList.contains('is-picked')) el.classList.remove('is-picked')
+        // the end: everything falls into the middle
+        if (end) {
+          x *= 1 - end
+          y *= 1 - end
+          size *= 1 - end * 0.7
+          op *= 1 - end
+        }
+        const s = size / 200
+        el.style.transform = `translate3d(${(cx + x - 100).toFixed(1)}px, ${(cy + y - 100).toFixed(1)}px, 0) rotate(${rot.toFixed(2)}deg) scale(${s.toFixed(3)})`
+        el.style.opacity = op.toFixed(3)
+        el.style.zIndex = String(zi)
+        el.style.setProperty('--dim', (0.62 * (1 - depth)).toFixed(3))
+      }
     }
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
   }, [])
 
   return (
-    <div className="mixdeck" aria-hidden="true">
-      <div className="mixdeck__table">
-        {cards.current.map((c, i) => (
-          <div
-            key={i}
-            className="mixdeck__card"
-            ref={(el) => {
-              c.el = el
-            }}
-          >
-            <img alt="" draggable={false} src={c.src || undefined} />
-          </div>
-        ))}
-      </div>
+    <div className="mixorbit" ref={root} aria-hidden="true">
+      <div className="mixorbit__wash" />
+      {bodies.current.map((b, i) => (
+        <div
+          key={i}
+          className="mixorbit__cover"
+          ref={(el) => {
+            b.el = el
+          }}
+        >
+          <img alt="" draggable={false} src={b.src || undefined} />
+          <i />
+        </div>
+      ))}
     </div>
   )
 }

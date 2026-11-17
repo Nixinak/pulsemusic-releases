@@ -1,8 +1,7 @@
-## Pulse Music 1.6.9
+## Pulse Music 1.7.0
 
-- **Discover, swipe style**: songs come as a stack of cards. Drag a card right with the mouse to like it, left to pass (or use the buttons and arrow keys). Songs with a Spotify Canvas play the artist's own looping clip on the card, and the music always starts by itself: the preview, or the song on Spotify when there is no preview. What you were listening to comes back when you leave.
-- **Visualizer, NCS style**: glowing spectrum rings around the cover, sparks flying out on every beat and a kick that shakes the deck. When Windows doesn't hand Pulse the sound, it follows Spotify's own beat and loudness data for the song, so it always moves with the music (connect your Spotify account in Settings → Lyrics).
-- **Friends**: reads Spotify Friend Activity from the new feed that the Spotify app itself uses now, so your friends show up again. The big banner at the top is gone.
-- **Mix animation**: a deck of covers that splits, riffles and squares up while the mix is made, then fans out.
-- **Achievements**: a button at the top of Your stats shows how many you've earned and jumps to them.
-- **Fixes**: the Now Playing look menu no longer flickers.
+- **No more day-long Spotify blocks**: Spotify now gives apps like Pulse a small daily allowance and blocks them for most of a day when it runs out. With your Spotify account connected (Settings → Lyrics), Pulse sends its requests the way the Spotify web player does, which doesn't use that allowance at all. Without it, Pulse stays well under the daily limit. If a block is already running, the notice has a button to connect your account and carry on.
+- **1,000 achievements**: a page of its own (from the button on Your stats). Goals come as ladders that get harder step by step, up to levels almost nobody reaches. They cover listening time, variety, devotion, habits, your library, your top artists and special moments. Each one says how rare it is among all Spotify listeners, from Common to Mythic (estimated from Spotify's published listening figures). Filter by category, find a goal, sort by closest or rarest.
+- **Mix animation**: covers circle the middle in depth. Every second one is picked out and flies to the front, and the whole background takes on its colours.
+- **Friends**: a new design. People listening right now get tall cards with their picture on the cover. Everything earlier is a timeline grouped by day.
+- **Discover**: when a song has no preview, it starts on Spotify only once you stay on the card, so swiping through quickly sends nothing.

@@ -50,7 +50,7 @@ A free Spotify app for Windows with an AI DJ that talks, word-by-word lyrics, pa
 | 📱 **Discover** | Swipe through new songs like on Tinder: drag right to like, left to pass. The artist's Canvas clip plays on the card and the music starts by itself. |
 | 💞 **Taste match** | On a friend's profile: how close your music is (a percentage), the artists you share and a blend of your favourites to play. |
 | 🧪 **Smart playlists** | Playlists by rules: *liked songs, 120–140 BPM, from 2020 on, played twice at most.* Pulse measures the tempo itself. |
-| 🏆 **Achievements** | Badges for streaks, marathons, superfans and night owls, in bronze, silver and gold, next to fun facts about your listening. |
+| 🏆 **Achievements** | 1,000 goals in ladders that get harder step by step: streaks, marathons, superfans, night owls, your top artists. Each says how rare it is among Spotify listeners, from Common to Mythic. |
 | 👍 **Party votes** | Guests vote songs up or down from their phones: the best go first, a flop gets voted off. |
 | ⌨️ **Shortcuts from any app** | Play, skip, volume and like from games or the browser, with your own keys. |
 | 📸 **Lyrics for your story** | A 9:16 picture with the cover and the lines you picked, made for Instagram. |

@@ -109,6 +109,41 @@ async function webGet<T>(url: string, extra: Record<string, string> = {}, body?:
   return null
 }
 
+/* ---------- The Web API through the web player's token ----------
+ * Spotify gives every developer app a small daily quota; going over blocks the app for most of
+ * a day. Requests sent with the web player's token are the web player's own, so they don't
+ * count against Pulse's quota at all. The page sends its Web API calls here first and uses
+ * Pulse's own key only when this says no (not signed in, refused, or blocked). */
+export interface WebApiAnswer {
+  status: number
+  body: string
+  /** Seconds, from Spotify's Retry-After header (0 when missing). */
+  retryAfter: number
+}
+export async function spotifyWebApi(method: string, url: string, body?: string): Promise<WebApiAnswer | null> {
+  if (!/^https:\/\/api\.spotify\.com\/v1\//.test(url) || !/^(GET|POST|PUT|DELETE)$/.test(method)) return null
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const t = await webToken(attempt > 0)
+    if (!t) return null
+    const res = await fetch(url, {
+      method,
+      body: body === undefined ? undefined : body,
+      headers: {
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        Authorization: `Bearer ${t}`,
+        'User-Agent': UA,
+        Accept: 'application/json',
+        'app-platform': 'WebPlayer'
+      },
+      signal: AbortSignal.timeout(12_000)
+    }).catch(() => null)
+    if (!res) return null
+    if (res.status === 401 && attempt === 0) continue
+    return { status: res.status, body: await res.text().catch(() => ''), retryAfter: Number(res.headers.get('retry-after') ?? 0) || 0 }
+  }
+  return null
+}
+
 /* ---------- Signing in ---------- */
 
 let loginWin: BrowserWindow | null = null

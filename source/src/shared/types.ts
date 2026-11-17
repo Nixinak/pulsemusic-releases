@@ -767,6 +767,9 @@ export interface PulseApi {
     analysis(trackId: string): Promise<SongAnalysis | null>
     /** The short looping video (Canvas) the artist put on a song, if any (an mp4 address). */
     canvas(trackId: string): Promise<string | null>
+    /** A Web API call sent with the web player's token (it doesn't count against Pulse's own
+     *  quota); null when not signed in or the request couldn't be made. */
+    api(method: string, url: string, body?: string): Promise<{ status: number; body: string; retryAfter: number } | null>
   }
   lyrics: {
     lrclib(q: LrclibQuery): Promise<LrclibResult | null>

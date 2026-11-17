@@ -20,6 +20,8 @@ export type Route =
   /** New songs one at a time, like a short-video feed. */
   | { name: 'discover' }
   | { name: 'stats' }
+  /** 1,000 goals in ladders, with how rare each is among Spotify listeners. */
+  | { name: 'achievements' }
   | { name: 'dj' }
   | { name: 'party' }
   | { name: 'user'; id: string }

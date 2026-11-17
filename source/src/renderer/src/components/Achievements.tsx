@@ -1,81 +1,32 @@
-// Achievements on Your stats: a badge per goal (bronze, silver, gold), with how close you are to
-// the next one. Worked out from the listening history (lib/achievements).
-import { useMemo, useState } from 'react'
-import { motion } from 'motion/react'
-import { achievements } from '@/lib/achievements'
-import { useHistory } from '@/lib/history'
+// Achievements on Your stats: a button with how many are earned, and a short showcase (your
+// rarest one and the spread across rarities) that opens the Achievements page.
+import { useApp } from '@/lib/store'
+import { Showcase, useBoard } from '@/views/AchievementsView'
+import { Emo } from './Emoji'
 
-/** A button at the top of Your stats: how many are earned; it scrolls down to them. */
+/** A button at the top of Your stats: how many are earned; it opens the Achievements page. */
 export function AchievementsChip(): React.JSX.Element | null {
-  const plays = useHistory((s) => s.plays)
-  const loaded = useHistory((s) => s.loaded)
-  const list = useMemo(() => (loaded ? achievements(plays) : []), [plays, loaded])
-  if (!list.length) return null
-  const earned = list.filter((a) => a.done)
-  const best = earned.find((a) => a.tier === 'gold') ?? earned.find((a) => a.tier === 'silver') ?? earned[0]
+  const board = useBoard()
+  const navigate = useApp((s) => s.navigate)
+  if (!board) return null
   return (
-    <button className="ach-chip" onClick={() => document.getElementById('achievements')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
-      <span aria-hidden="true">{best?.icon ?? '🏆'}</span>
-      <b>{earned.length}</b>
-      <small>of {list.length} achievements</small>
+    <button className="ach-chip" onClick={() => navigate({ name: 'achievements' })}>
+      <span aria-hidden="true">
+        <Emo>{board.rarest?.ladder.icon ?? '🏆'}</Emo>
+      </span>
+      <b>{board.earned.toLocaleString('en-US')}</b>
+      <small>of {board.total.toLocaleString('en-US')} achievements</small>
     </button>
   )
 }
 
 export function Achievements(): React.JSX.Element | null {
-  const plays = useHistory((s) => s.plays)
-  const loaded = useHistory((s) => s.loaded)
-  const list = useMemo(() => (loaded ? achievements(plays) : []), [plays, loaded])
-  const [all, setAll] = useState(false)
-  if (!list.length) return null
-  const earned = list.filter((a) => a.done).length
-  // earned ones first (gold before bronze), then the closest to earning
-  const order = { gold: 3, silver: 2, bronze: 1 } as const
-  const sorted = [...list].sort((a, b) => Number(b.done) - Number(a.done) || (b.done ? order[b.tier] - order[a.tier] : b.progress - a.progress))
-  const shown = all ? sorted : sorted.slice(0, 8)
+  const board = useBoard()
+  if (!board) return null
   return (
     <section className="ach" id="achievements">
-      <header className="ach__head">
-        <h2 className="stats__h">Achievements</h2>
-        <span className="ach__count">
-          {earned} of {list.length} earned
-        </span>
-        {list.length > 8 && (
-          <button className="shelf__more" onClick={() => setAll((v) => !v)}>
-            {all ? 'Show less' : 'Show all'}
-          </button>
-        )}
-      </header>
-      <ul className="ach__grid">
-        {shown.map((a, i) => (
-          <motion.li
-            key={a.id}
-            className={`ach-card ${a.done ? `is-done is-${a.tier}` : 'is-locked'}`}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              delay: i * 0.03,
-              type: 'spring',
-              stiffness: 280,
-              damping: 26
-            }}
-            title={a.text}
-          >
-            <span className="ach-card__badge" aria-hidden="true">
-              <span>{a.icon}</span>
-            </span>
-            <span className="ach-card__text">
-              <b>{a.title}</b>
-              <small>{a.done && a.progress >= 1 ? `${a.text}. Done!` : a.text}</small>
-              <span className="ach-card__bar">
-                <i style={{ width: `${Math.round(a.progress * 100)}%` }} />
-              </span>
-              <small className="ach-card__count">{a.count}</small>
-            </span>
-            {a.done && <span className="ach-card__tier">{a.tier}</span>}
-          </motion.li>
-        ))}
-      </ul>
+      <h2 className="stats__h">Achievements</h2>
+      <Showcase board={board} compact />
     </section>
   )
 }

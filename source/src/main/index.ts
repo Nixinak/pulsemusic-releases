@@ -57,6 +57,7 @@ import {
   spotifyAccountStatus,
   spotifyAnalysis,
   spotifyCanvas,
+  spotifyWebApi,
   spotifyFriends,
   spotifyLyrics
 } from './spotifyAccount'
@@ -626,6 +627,9 @@ function registerIpc(): void {
   ipcMain.handle('spotify-account:connect', () => connectSpotifyAccount(mainWindow))
   ipcMain.handle('spotify-account:disconnect', () => disconnectSpotifyAccount())
   ipcMain.handle('spotify-account:friends', () => spotifyFriends().catch(() => null))
+  ipcMain.handle('spotify-account:api', (_e, method: unknown, url: unknown, body: unknown) =>
+    typeof method === 'string' && typeof url === 'string' ? spotifyWebApi(method, url, typeof body === 'string' ? body : undefined).catch(() => null) : null
+  )
   ipcMain.handle('spotify-account:canvas', (_e, id: unknown) => (typeof id === 'string' ? spotifyCanvas(id).catch(() => null) : null))
   ipcMain.handle('spotify-account:analysis', (_e, id: unknown) => (typeof id === 'string' ? spotifyAnalysis(id).catch(() => null) : null))
   ipcMain.handle('spotify-account:lyrics', (_e, id: unknown) => (typeof id === 'string' ? spotifyLyrics(id).catch(() => null) : null))
