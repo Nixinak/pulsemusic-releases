@@ -1,17 +1,20 @@
 // Small app-wide settings that don't belong to one page:
 //  - Start page: Pulse can open on the page you were on last time (Settings → General),
 //  - Song notifications: a Windows notification with the cover when the song changes while
-//    Pulse isn't the window in front.
+//    Pulse isn't the window in front,
+//  - Achievements: a toast when a new one is earned.
 import type { Settings } from '@shared/types'
 import { useApp, type Route } from './store'
 import { usePlayer } from './player'
+import { useHistory } from './history'
+import { checkNewAchievements } from './achievements'
 
 const LAST_ROUTE = 'pulse-last-route'
 let restored = false
 let started = false
 
 /** Pages it makes no sense to open on (they need something that isn't there at start). */
-const SKIP = new Set<Route['name']>(['settings', 'party', 'dj'])
+const SKIP = new Set<Route['name']>(['settings', 'party', 'dj', 'discover'])
 
 /** Called once the settings have loaded: opens the last page when that is wanted. */
 export function restoreStartPage(s: Settings): void {
@@ -63,9 +66,17 @@ export function startAppExtras(): () => void {
       /* notifications not available */
     }
   })
+  // new achievements: once the history is there, then every 10 minutes
+  const offHist = useHistory.subscribe((h, p) => {
+    if (h.loaded && !p.loaded) window.setTimeout(checkNewAchievements, 8000)
+  })
+  if (useHistory.getState().loaded) window.setTimeout(checkNewAchievements, 8000)
+  const achTimer = window.setInterval(checkNewAchievements, 10 * 60_000)
   return () => {
     offRoute()
     offSong()
+    offHist()
+    window.clearInterval(achTimer)
     started = false
   }
 }

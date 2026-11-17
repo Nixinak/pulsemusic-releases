@@ -86,12 +86,20 @@ export function periodLabel(p: Period): string {
   if (d) return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
   const y = yearOf(p)
   if (y !== null) return String(y)
-  if (p === 'month') return now.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+  if (p === 'month')
+    return now.toLocaleDateString(undefined, {
+      month: 'long',
+      year: 'numeric'
+    })
   if (p === 'year') return String(now.getFullYear())
   return 'All time'
 }
 
-const RANGE: Record<'month' | 'year' | 'all', sp.TimeRange> = { month: 'short_term', year: 'medium_term', all: 'long_term' }
+const RANGE: Record<'month' | 'year' | 'all', sp.TimeRange> = {
+  month: 'short_term',
+  year: 'medium_term',
+  all: 'long_term'
+}
 
 const artistImages = new Map<string, Promise<SArtist | null>>()
 function artistById(id: string): Promise<SArtist | null> {
@@ -120,7 +128,16 @@ const fromSpotifyTrack = (t: STrack): RecapTrack => ({
 /** Enough local plays to trust our own ranking. */
 const ENOUGH = 25
 
-export async function buildRecap(period: Period): Promise<Recap> {
+/** A promise that gives up after `ms` (with `fallback`), so a slow or limited Spotify never holds Recap. */
+const within = <T>(p: Promise<T>, ms: number, fallback: T): Promise<T> =>
+  Promise.race([p.catch(() => fallback), new Promise<T>((r) => setTimeout(() => r(fallback), ms))])
+
+/**
+ * The Recap for a period. It comes back at once from the listening history (it never waits for
+ * Spotify longer than a moment); pictures that still have to be looked up arrive afterwards
+ * through `onPictures` with the same Recap, filled in.
+ */
+export async function buildRecap(period: Period, onPictures?: (r: Recap) => void): Promise<Recap> {
   const plays = useHistory.getState().plays
   const from = periodStart(period)
   const to = periodEnd(period)
@@ -130,49 +147,42 @@ export async function buildRecap(period: Period): Promise<Recap> {
   const before = new Set(plays.filter((p) => p.at < from).flatMap((p) => p.artists.map(artistKey)))
   const newArtists = from > 0 ? stats.artists.filter((a) => !before.has(artistKey(a.item))).length : stats.artists.length
 
-  let topArtists: RecapArtist[]
-  let topTracks: RecapTrack[]
+  let topArtists: RecapArtist[] = []
+  let topTracks: RecapTrack[] = []
   let source: Recap['source'] = 'history'
-
-  if (stats.plays >= ENOUGH || (pastMonth && stats.plays > 0)) {
-    const ids = stats.artists.slice(0, 5)
-    const full = await Promise.all(ids.map((a) => (isRealId(a.item.id) ? artistById(a.item.id) : Promise.resolve(null))))
-    // imported plays have names only: their pictures are looked up by name
-    const pics = await Promise.all(
-      ids.map((a, i) => (sp.pickImage(full[i]?.images, 640) ? Promise.resolve(sp.pickImage(full[i]?.images, 640)) : artistPicture(a.item.name, a.item.id, true).catch(() => null)))
-    )
-    const covers = await Promise.all(
-      stats.songs.slice(0, 5).map((s) => (s.item.art ? Promise.resolve(s.item.art) : songPicture(s.item.name, s.item.artists[0]?.name ?? '', s.item.id, true).catch(() => null)))
-    )
-    topArtists = ids.map((a, i) => ({
+  const fromHistory = (): void => {
+    topArtists = stats.artists.slice(0, 5).map((a) => ({
       id: a.item.id,
       name: a.item.name,
-      image: pics[i] ?? null,
+      image: null,
       uri: isRealId(a.item.id) ? `spotify:artist:${a.item.id}` : '',
       plays: a.plays,
       minutes: Math.round(a.ms / 60_000)
     }))
-    topTracks = stats.songs.slice(0, 5).map((s, i) => ({
-      id: s.item.id,
-      uri: isRealId(s.item.id) ? `spotify:track:${s.item.id}` : '',
-      name: s.item.name,
-      artist: s.item.artists.map((a) => a.name).join(', '),
-      image: covers[i] ?? null,
-      plays: s.plays,
-      minutes: Math.round(s.ms / 60_000)
+    topTracks = stats.songs.slice(0, 5).map((x) => ({
+      id: x.item.id,
+      uri: isRealId(x.item.id) ? `spotify:track:${x.item.id}` : '',
+      name: x.item.name,
+      artist: x.item.artists.map((a) => a.name).join(', '),
+      image: x.item.art ?? null,
+      plays: x.plays,
+      minutes: Math.round(x.ms / 60_000)
     }))
-  } else {
-    source = 'spotify'
-    const [a, t] = await Promise.all([
-      sp.getTopArtists(RANGE[period.startsWith('m:') ? 'month' : period.startsWith('y:') ? 'year' : (period as 'month' | 'year' | 'all')], 10).catch(() => null),
-      sp.getTopTracks(RANGE[period.startsWith('m:') ? 'month' : period.startsWith('y:') ? 'year' : (period as 'month' | 'year' | 'all')], 10).catch(() => null)
-    ])
-    topArtists = (a?.items ?? []).slice(0, 5).map(fromSpotifyArtist)
-    topTracks = (t?.items ?? []).slice(0, 5).map(fromSpotifyTrack)
+  }
+
+  if (stats.plays >= ENOUGH || (pastMonth && stats.plays > 0)) fromHistory()
+  else {
+    const range = RANGE[period.startsWith('m:') ? 'month' : period.startsWith('y:') ? 'year' : (period as 'month' | 'year' | 'all')]
+    const [a, t] = await Promise.all([within(sp.getTopArtists(range, 10), 3500, null), within(sp.getTopTracks(range, 10), 3500, null)])
+    if (a?.items?.length || t?.items?.length) {
+      source = 'spotify'
+      topArtists = (a?.items ?? []).slice(0, 5).map(fromSpotifyArtist)
+      topTracks = (t?.items ?? []).slice(0, 5).map(fromSpotifyTrack)
+    } else fromHistory()
   }
 
   const album = stats.albums[0]
-  return {
+  const recap: Recap = {
     period,
     label: periodLabel(period),
     source,
@@ -184,29 +194,101 @@ export async function buildRecap(period: Period): Promise<Recap> {
     streak: stats.streak,
     topArtists,
     topTracks,
-    topAlbum: album ? { name: album.item.name, artist: album.item.artist, image: album.item.art ?? topTracks.find((t) => t.image)?.image ?? null } : null,
+    topAlbum: album
+      ? {
+          name: album.item.name,
+          artist: album.item.artist,
+          image: album.item.art ?? topTracks.find((t) => t.image)?.image ?? null
+        }
+      : null,
     hours: stats.hours,
     weekdays: stats.weekdays,
     newArtists,
     stats
   }
+
+  // pictures: whatever is found within a moment goes in now, the rest follows
+  const missingArtists = topArtists.map((a, i) => (a.image ? null : { a, i })).filter((x): x is { a: RecapArtist; i: number } => !!x)
+  const missingTracks = topTracks.map((t, i) => (t.image ? null : { t, i })).filter((x): x is { t: RecapTrack; i: number } => !!x)
+  if (!missingArtists.length && !missingTracks.length) return recap
+  const lookups = Promise.all([
+    Promise.all(
+      missingArtists.map(({ a }) =>
+        (isRealId(a.id) ? artistById(a.id).then((f) => sp.pickImage(f?.images, 640) ?? null) : Promise.resolve(null))
+          .then((u) => u ?? artistPicture(a.name, a.id, true))
+          .catch(() => null)
+      )
+    ),
+    Promise.all(missingTracks.map(({ t }) => songPicture(t.name, t.artist.split(', ')[0] ?? '', t.id, true).catch(() => null)))
+  ])
+  const fill = ([ap, tp]: [(string | null)[], (string | null)[]]): Recap => {
+    const next = {
+      ...recap,
+      topArtists: recap.topArtists.slice(),
+      topTracks: recap.topTracks.slice()
+    }
+    missingArtists.forEach(({ a, i }, k) => (next.topArtists[i] = { ...a, image: ap[k] ?? null }))
+    missingTracks.forEach(({ t, i }, k) => (next.topTracks[i] = { ...t, image: tp[k] ?? null }))
+    if (next.topAlbum && !next.topAlbum.image)
+      next.topAlbum = {
+        ...next.topAlbum,
+        image: next.topTracks.find((t) => t.image)?.image ?? null
+      }
+    return next
+  }
+  const quick = await within(lookups, 1200, null)
+  if (quick) return fill(quick)
+  void lookups.then((r) => onPictures?.(fill(r)))
+  return recap
 }
 
 /** A friendly name for when someone listens most. */
-export function listenerType(hours: number[]): { title: string; text: string; peak: number } {
+export function listenerType(hours: number[]): {
+  title: string
+  text: string
+  peak: number
+} {
   const total = hours.reduce((a, b) => a + b, 0)
   const peak = hours.indexOf(Math.max(...hours))
-  if (total === 0) return { title: 'Just getting started', text: 'Keep listening and your rhythm shows up here.', peak: 12 }
+  if (total === 0)
+    return {
+      title: 'Just getting started',
+      text: 'Keep listening and your rhythm shows up here.',
+      peak: 12
+    }
   const share = (a: number, b: number): number => hours.slice(a, b).reduce((x, y) => x + y, 0) / total
-  if (share(22, 24) + share(0, 5) > 0.35) return { title: 'Night owl', text: 'Your music comes alive after dark.', peak }
-  if (share(5, 10) > 0.35) return { title: 'Early bird', text: 'You start the day with the volume up.', peak }
-  if (share(17, 22) > 0.4) return { title: 'Evening listener', text: 'Evenings are when you press play.', peak }
-  if (share(10, 17) > 0.5) return { title: 'Daytime soundtracker', text: 'Music keeps your days moving.', peak }
-  return { title: 'All-day listener', text: 'Morning, noon or night, something is playing.', peak }
+  if (share(22, 24) + share(0, 5) > 0.35)
+    return {
+      title: 'Night owl',
+      text: 'Your music comes alive after dark.',
+      peak
+    }
+  if (share(5, 10) > 0.35)
+    return {
+      title: 'Early bird',
+      text: 'You start the day with the volume up.',
+      peak
+    }
+  if (share(17, 22) > 0.4)
+    return {
+      title: 'Evening listener',
+      text: 'Evenings are when you press play.',
+      peak
+    }
+  if (share(10, 17) > 0.5)
+    return {
+      title: 'Daytime soundtracker',
+      text: 'Music keeps your days moving.',
+      peak
+    }
+  return {
+    title: 'All-day listener',
+    text: 'Morning, noon or night, something is playing.',
+    peak
+  }
 }
 
-export const hourLabel = (h: number): string =>
-  new Date(2000, 0, 1, h).toLocaleTimeString(undefined, { hour: 'numeric' })
+export const hourLabel = (h: number): string => new Date(2000, 0, 1, h).toLocaleTimeString(undefined, { hour: 'numeric' })
 
 export function formatMinutes(min: number): string {
   if (min < 60) return `${min} min`

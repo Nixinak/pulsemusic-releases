@@ -43,6 +43,19 @@ A free Spotify app for Windows with an AI DJ that talks, word-by-word lyrics, pa
 
 ## ✨ Features
 
+### 🆕 New in 1.6.8
+
+| | |
+|:--|:--|
+| 📱 **Discover** | New music one song at a time, like a video feed. Each song plays its preview on its own; like it, queue it, play it in full or skip it. |
+| 💞 **Taste match** | On a friend's profile: how close your music is (a percentage), the artists you share and a blend of your favourites to play. |
+| 🧪 **Smart playlists** | Playlists by rules: *liked songs, 120–140 BPM, from 2020 on, played twice at most.* Pulse measures the tempo itself. |
+| 🏆 **Achievements** | Badges for streaks, marathons, superfans and night owls, in bronze, silver and gold, next to fun facts about your listening. |
+| 👍 **Party votes** | Guests vote songs up or down from their phones: the best go first, a flop gets voted off. |
+| ⌨️ **Shortcuts from any app** | Play, skip, volume and like from games or the browser, with your own keys. |
+| 📸 **Lyrics for your story** | A 9:16 picture with the cover and the lines you picked, made for Instagram. |
+| 🎧 **Listen along from Discord** | A button on your Discord status opens Pulse on your friend's computer and plays what you play. |
+
 ### 🎙️ An AI DJ that talks between songs
 
 Tell it what you're in the mood for, like *"play phonk, but not too hard"*, *"something by Porsche Boy"* or *"classic czech songs"*. It builds a set, keeps to your vibe, switches genre every few songs and introduces the next one in a natural voice. Its orb moves with the beat of the song. Everything runs on your own PC, for free.
@@ -55,7 +68,7 @@ Six **Daily Mixes**, **On Repeat** and **Repeat Rewind**, new every day. **Disco
 
 ### 👥 Listen along with friends
 
-Connect your Spotify account once and see what the people you follow on Spotify are playing, like Friend Activity in the Spotify app. Follow anyone from their profile; when you follow each other on Pulse, you're friends. If a friend uses Pulse too, you see what they're playing right now, and **Listen along** puts you in the same song at the same second. Search finds people by name, and Pulse users get a Pulse badge and their own profile page.
+Connect your Spotify account once and everyone you follow, on Spotify and on Pulse, shows up in one feed of what they're playing, like Friend Activity in the Spotify app. Follow anyone from their profile; when you follow each other on Pulse, you're friends. If a friend uses Pulse too, you see what they're playing right now, and **Listen along** puts you in the same song at the same second. Search finds people by name, and Pulse users get a Pulse badge and their own profile page.
 
 ### 🎤 Lyrics that follow every word
 
@@ -134,16 +147,17 @@ Your friends see the song with its cover in full size, a live progress bar and a
 | 🎨 **Colours that follow the music** | The whole app takes its colours from the album cover that's playing. |
 | 🔁 **Autoplay** | When a song, album or playlist ends, similar music keeps playing. |
 | 📋 **A real queue** | Drag anything coming up into a new order, double-click to play it, remove or clear songs. Spotify's own API allows none of that. |
-| 💿 **Looks for Now Playing** | A big album cover, a detailed turntable you can scratch (needle drop and vinyl crackle), a CD deck that spins up, a cassette with turning reels, a gig poster, a beat visualizer, or a lock screen with the cover as wallpaper, and real full screen over the taskbar. |
+| 💿 **Looks for Now Playing** | A big album cover, a turntable you can grab and scratch (needle drop and vinyl crackle), a cartoon poster, a visualizer that moves with the beat, or a lock screen with the cover as wallpaper, and real full screen over the taskbar. |
 | 🖼️ **Picture walls** | A mosaic of your own pictures on your profile, next to your songs and links. |
 | 🔔 **Starts with Windows** | Quietly, in the tray, so every play counts. Both can be switched off in Settings. |
 | 🌊 **Song transitions** | Optional fades between songs with both covers on screen (Settings → Playback). |
-| 💬 **Discord status** | The song with a sharp cover, a live progress bar, links and a badge for paused, liked, DJ and party. |
+| 💬 **Discord status** | The song with a sharp cover, a live progress bar, a **Listen along** button and a badge for paused, liked, DJ and party. |
 | 📻 **Last.fm** | Scrobbling in one click. |
 | 😴 **Sleep timer** | Stop after a set time or at the end of the song. |
 | 🪟 **Mini player** | A small always-handy window for the current song. |
 | 📱 **Spotify Connect** | Pulse shows up as a device, and it can control your phone or speaker too. |
 | ⬆️ **Updates itself** | New versions download in the background, then Pulse asks whether to restart now or later. |
+| ⚙️ **Settings that make sense** | Sorted into sections with search: start page, app size, song notifications, Performance or Quality animations, hardware acceleration. |
 
 </details>
 

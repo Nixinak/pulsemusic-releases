@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
 import { useApp, errorText } from '@/lib/store'
-import { startParty, stopParty, useParty } from '@/lib/party'
+import { hostVote, startParty, stopParty, useParty } from '@/lib/party'
 import { playFromQueue, removeFromQueue, usePlayer } from '@/lib/player'
 import { useQuery } from '@/lib/useQuery'
 import QRCode from 'qrcode'
@@ -82,7 +82,10 @@ function GuestParty(): React.JSX.Element {
                 aria-valuenow={pos}
                 onClick={(e) => {
                   const r = e.currentTarget.getBoundingClientRect()
-                  void partyControl({ action: 'seek', positionMs: Math.round(((e.clientX - r.left) / r.width) * dur) })
+                  void partyControl({
+                    action: 'seek',
+                    positionMs: Math.round(((e.clientX - r.left) / r.width) * dur)
+                  })
                 }}
               >
                 <span style={{ width: `${dur ? (pos / dur) * 100 : 0}%` }} />
@@ -100,7 +103,9 @@ function GuestParty(): React.JSX.Element {
               </div>
             </>
           )}
-          <span className={`party__status party__status--${sync ? (status === 'Playing along' ? 'online' : 'starting') : 'offline'}`}>{status || 'Connecting…'}</span>
+          <span className={`party__status party__status--${sync ? (status === 'Playing along' ? 'online' : 'starting') : 'offline'}`}>
+            {status || 'Connecting…'}
+          </span>
         </div>
         <button className="btn guest__leave" onClick={leaveParty}>
           Leave
@@ -170,7 +175,11 @@ function LinkQr({ url }: { url: string }): React.JSX.Element {
   const [src, setSrc] = useState<string | null>(null)
   useEffect(() => {
     let alive = true
-    QRCode.toDataURL(url, { margin: 1, width: 360, color: { dark: '#0d0e13', light: '#ffffff' } })
+    QRCode.toDataURL(url, {
+      margin: 1,
+      width: 360,
+      color: { dark: '#0d0e13', light: '#ffffff' }
+    })
       .then((d) => alive && setSrc(d))
       .catch(() => alive && setSrc(null))
     return () => {
@@ -178,6 +187,23 @@ function LinkQr({ url }: { url: string }): React.JSX.Element {
     }
   }, [url])
   return <div className="pqr">{src ? <img decoding="async" src={src} alt="QR code of the party link" /> : <span className="cmd__spin" />}</div>
+}
+
+/** Thumbs up and down on a queued song (guests vote from their phones too); the score between. */
+function Votes({ uri }: { uri: string }): React.JSX.Element {
+  const score = useParty((s) => s.scores[uri] ?? 0)
+  const mine = useParty((s) => s.mine[uri] ?? 0)
+  return (
+    <span className="votes" onDoubleClick={(e) => e.stopPropagation()}>
+      <button className={`votes__btn ${mine > 0 ? 'is-up' : ''}`} aria-label="Thumbs up" onClick={() => hostVote(uri, 1)}>
+        👍
+      </button>
+      <b className={score > 0 ? 'is-up' : score < 0 ? 'is-down' : ''}>{score > 0 ? `+${score}` : score}</b>
+      <button className={`votes__btn ${mine < 0 ? 'is-down' : ''}`} aria-label="Thumbs down" onClick={() => hostVote(uri, -1)}>
+        👎
+      </button>
+    </span>
+  )
 }
 
 export function PartyView(): React.JSX.Element {
@@ -229,7 +255,12 @@ export function PartyView(): React.JSX.Element {
           </p>
           {!joined && !url && (
             <div className="party__cta">
-              <button className="btn btn--accent party__go" disabled={busy || !hasDevice} title={hasDevice ? undefined : 'Play any song first'} onClick={() => void start()}>
+              <button
+                className="btn btn--accent party__go"
+                disabled={busy || !hasDevice}
+                title={hasDevice ? undefined : 'Play any song first'}
+                onClick={() => void start()}
+              >
                 <PartyIcon size={20} />
                 {busy ? 'Starting…' : 'Start the party'}
               </button>
@@ -305,6 +336,7 @@ export function PartyView(): React.JSX.Element {
                     <span className="qrow__artist">{q.artists}</span>
                   </span>
                   {q.addedBy && <span className="party__by">{q.addedBy}</span>}
+                  <Votes uri={q.uri} />
                   <button className="qrow__x" aria-label={`Remove ${q.name} from the queue`} onClick={() => removeFromQueue(q.uid)}>
                     <CloseIcon size={14} />
                   </button>

@@ -32,6 +32,39 @@ const searchCache = new Map<string, { at: number; tracks: PartyTrack[] }>()
 const lastSearch = new Map<string, number>()
 const lastControl = new Map<string, number>()
 const partySearches: number[] = []
+/** Party votes: song → voter → +1 or -1. A voter is a phone (its address) plus the name used. */
+const votes = new Map<string, Map<string, number>>()
+const lastVote = new Map<string, number>()
+
+const scoreOf = (uri: string): number => {
+  let n = 0
+  for (const v of votes.get(uri)?.values() ?? []) n += v
+  return n
+}
+/** The queue as guests see it: with scores, the best voted first (the app does the same). */
+const scored = (q: PartyQueueItem[]): PartyQueueItem[] =>
+  q
+    .map((x, i) => ({ x: { ...x, score: scoreOf(x.uri) }, i }))
+    .sort((a, b) => b.x.score - a.x.score || a.i - b.i)
+    .map((y) => y.x)
+
+/** A thumb up (1), down (-1) or taken back (0); tells the app the new scores. */
+export function partyVote(voter: string, uri: string, v: number): void {
+  if (!uri || !queue.some((q) => q.uri === uri)) return
+  const m = votes.get(uri) ?? new Map<string, number>()
+  if (v > 0) m.set(voter, 1)
+  else if (v < 0) m.set(voter, -1)
+  else m.delete(voter)
+  votes.set(uri, m)
+  queue = scored(queue)
+  const scores: Record<string, number> = {}
+  for (const q of queue) scores[q.uri] = q.score ?? 0
+  if (host && !host.isDestroyed())
+    host.send('party:control', {
+      control: { action: 'votes', scores },
+      guest: ''
+    })
+}
 /** Spotify refused a search: no more searches until then (knocking keeps a block going). */
 let partyBlockedUntil = 0
 
@@ -39,7 +72,8 @@ function lanAddress(): string {
   const all = Object.values(networkInterfaces()).flat()
   const ok = all.filter((i) => i && i.family === 'IPv4' && !i.internal)
   // Prefer home-network ranges (192.168.x, 10.x, 172.16–31.x) over VPNs and virtual adapters.
-  const priv = ok.find((i) => /^192\.168\./.test(i!.address)) ?? ok.find((i) => /^10\./.test(i!.address)) ?? ok.find((i) => /^172\.(1[6-9]|2\d|3[01])\./.test(i!.address))
+  const priv =
+    ok.find((i) => /^192\.168\./.test(i!.address)) ?? ok.find((i) => /^10\./.test(i!.address)) ?? ok.find((i) => /^172\.(1[6-9]|2\d|3[01])\./.test(i!.address))
   return (priv ?? ok[0])?.address ?? '127.0.0.1'
 }
 
@@ -81,7 +115,10 @@ async function search(q: string): Promise<PartyTrack[]> {
   u.searchParams.set('q', q)
   u.searchParams.set('type', 'track')
   u.searchParams.set('limit', '10')
-  const res = await fetch(u, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(8000) })
+  const res = await fetch(u, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(8000)
+  })
   if (res.status === 429) {
     const after = Number(res.headers.get('retry-after') ?? '') || 60
     partyBlockedUntil = Date.now() + after * 1000
@@ -89,7 +126,17 @@ async function search(q: string): Promise<PartyTrack[]> {
   }
   if (!res.ok) throw new Error(`search ${res.status}`)
   const j = (await res.json()) as {
-    tracks?: { items?: ({ id: string; uri: string; name: string; duration_ms: number; explicit: boolean; artists: { name: string }[]; album?: { images?: { url: string; width: number | null }[] } } | null)[] }
+    tracks?: {
+      items?: ({
+        id: string
+        uri: string
+        name: string
+        duration_ms: number
+        explicit: boolean
+        artists: { name: string }[]
+        album?: { images?: { url: string; width: number | null }[] }
+      } | null)[]
+    }
   }
   const tracks: PartyTrack[] = (j.tracks?.items ?? [])
     .filter((t): t is NonNullable<typeof t> => !!t?.id)
@@ -110,8 +157,7 @@ async function search(q: string): Promise<PartyTrack[]> {
   return tracks
 }
 
-const livePos = (s: PlaybackSnapshot): number =>
-  Math.min(s.durationMs, s.positionMs + (s.paused ? 0 : Date.now() - s.sampledAt))
+const livePos = (s: PlaybackSnapshot): number => Math.min(s.durationMs, s.positionMs + (s.paused ? 0 : Date.now() - s.sampledAt))
 
 /** Accepts only well-formed controls (anything from the internet is untrusted). */
 function toControl(b: Record<string, unknown>): PartyControl | null {
@@ -123,7 +169,10 @@ function toControl(b: Record<string, unknown>): PartyControl | null {
     case 'seek': {
       const ms = Number(b.positionMs)
       if (!Number.isFinite(ms) || !nowPlaying?.hasTrack) return null
-      return { action: 'seek', positionMs: Math.round(Math.min(Math.max(0, ms), nowPlaying.durationMs)) }
+      return {
+        action: 'seek',
+        positionMs: Math.round(Math.min(Math.max(0, ms), nowPlaying.durationMs))
+      }
     }
     case 'remove':
       return typeof b.uri === 'string' && /^spotify:track:[A-Za-z0-9]{10,40}$/.test(b.uri) ? { action: 'remove', uri: b.uri } : null
@@ -157,7 +206,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
             positionMs: livePos(nowPlaying)
           }
         : null,
-      queue
+      queue: scored(queue)
     }
     return send(res, 200, state)
   }
@@ -172,7 +221,9 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     try {
       return send(res, 200, { tracks: await search(q) })
     } catch (e) {
-      return send(res, 503, { error: e instanceof Error && e.message === 'busy' ? 'Spotify is busy, try again in a moment.' : 'Search failed.' })
+      return send(res, 503, {
+        error: e instanceof Error && e.message === 'busy' ? 'Spotify is busy, try again in a moment.' : 'Search failed.'
+      })
     }
   }
   if (route === 'api/add' && req.method === 'POST') {
@@ -186,13 +237,41 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     if (!track) return send(res, 400, { error: 'Search for the song first.' })
     const guest = cleanName(body.guest)
     if (queue.filter((q) => q.addedBy === guest).length >= PER_GUEST)
-      return send(res, 429, { error: `You already have ${PER_GUEST} songs waiting. Wait until one plays.` })
+      return send(res, 429, {
+        error: `You already have ${PER_GUEST} songs waiting. Wait until one plays.`
+      })
     if (queue.some((q) => q.uri === track.uri)) return send(res, 409, { error: 'That song is already in the queue.' })
     if (!host || host.isDestroyed()) return send(res, 503, { error: 'The party host is offline.' })
     host.send('party:add', { track, guest })
     // Show it right away; the app sends the real queue a moment later.
-    queue = [...queue, { uri: track.uri, name: track.name, artists: track.artists, image: track.image, addedBy: guest }]
+    queue = [
+      ...queue,
+      {
+        uri: track.uri,
+        name: track.name,
+        artists: track.artists,
+        image: track.image,
+        addedBy: guest
+      }
+    ]
     return send(res, 200, { ok: true })
+  }
+  if (route === 'api/vote' && req.method === 'POST') {
+    let body: { uri?: string; v?: number; guest?: string } = {}
+    try {
+      body = JSON.parse(await readBody(req))
+    } catch {
+      return send(res, 400, { error: 'Bad request' })
+    }
+    const who = String(req.headers['cf-connecting-ip'] ?? req.socket.remoteAddress ?? '')
+    if (Date.now() - (lastVote.get(who) ?? 0) < 250) return send(res, 429, { error: 'Slow down a little.' })
+    lastVote.set(who, Date.now())
+    if (!body.uri || !queue.some((q) => q.uri === body.uri))
+      return send(res, 404, {
+        error: 'That song isn’t in the queue any more.'
+      })
+    partyVote(`${who}|${cleanName(body.guest)}`, body.uri, Number(body.v) || 0)
+    return send(res, 200, { ok: true, score: scoreOf(body.uri) })
   }
   if (route === 'api/control' && req.method === 'POST') {
     let body: Record<string, unknown> = {}
@@ -211,8 +290,18 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     host.send('party:control', { control, guest: cleanName(body.guest) })
     // Show the change right away; the app sends the real state a moment later.
     if (nowPlaying?.hasTrack && control.action === 'toggle')
-      nowPlaying = { ...nowPlaying, positionMs: livePos(nowPlaying), sampledAt: Date.now(), paused: !nowPlaying.paused }
-    if (nowPlaying?.hasTrack && control.action === 'seek') nowPlaying = { ...nowPlaying, positionMs: control.positionMs, sampledAt: Date.now() }
+      nowPlaying = {
+        ...nowPlaying,
+        positionMs: livePos(nowPlaying),
+        sampledAt: Date.now(),
+        paused: !nowPlaying.paused
+      }
+    if (nowPlaying?.hasTrack && control.action === 'seek')
+      nowPlaying = {
+        ...nowPlaying,
+        positionMs: control.positionMs,
+        sampledAt: Date.now()
+      }
     if (control.action === 'remove') queue = queue.filter((q) => q.uri !== control.uri)
     return send(res, 200, { ok: true })
   }
@@ -220,7 +309,16 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
 }
 
 export const partyInfo = (): PartyInfo | null =>
-  server ? { url: publicUrl ?? url, lanUrl: url, publicUrl, code, status: linkStatus, message: linkMessage } : null
+  server
+    ? {
+        url: publicUrl ?? url,
+        lanUrl: url,
+        publicUrl,
+        code,
+        status: linkStatus,
+        message: linkMessage
+      }
+    : null
 
 function announce(): void {
   const info = partyInfo()
@@ -282,10 +380,11 @@ export function stopParty(): void {
   known.clear()
   lastSearch.clear()
   lastControl.clear()
+  votes.clear()
+  lastVote.clear()
   code = ''
   url = ''
 }
-
 
 export function setPartyNowPlaying(s: PlaybackSnapshot): void {
   nowPlaying = s
@@ -293,10 +392,15 @@ export function setPartyNowPlaying(s: PlaybackSnapshot): void {
 
 export function setPartyQueue(q: PartyQueueItem[]): void {
   queue = q.slice(0, 50)
+  // votes for songs that have played (or left) are forgotten
+  for (const uri of [...votes.keys()]) if (!queue.some((x) => x.uri === uri)) votes.delete(uri)
 }
 
 /** For the Discord status: is a party on, and how many friends have added songs. */
 export function partySummary(): { on: boolean; guests: number } {
   // songs autoplay lined up aren't from a guest
-  return { on: !!server, guests: new Set(queue.map((q) => q.addedBy).filter((g) => g && g !== 'Autoplay')).size }
+  return {
+    on: !!server,
+    guests: new Set(queue.map((q) => q.addedBy).filter((g) => g && g !== 'Autoplay')).size
+  }
 }

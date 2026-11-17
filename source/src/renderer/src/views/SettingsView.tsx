@@ -7,7 +7,16 @@ import { importSpotifyExport, useHistory } from '@/lib/history'
 import { useApp } from '@/lib/store'
 import { usePlayer } from '@/lib/player'
 import { pickImage } from '@/lib/spotify'
-import type { FontChoice, GlassQuality, LastfmStatus, ThemeMode, UpdateStatus, VoiceStatus } from '@shared/types'
+import {
+  GLOBAL_KEYS,
+  type FontChoice,
+  type GlassQuality,
+  type GlobalAction,
+  type LastfmStatus,
+  type ThemeMode,
+  type UpdateStatus,
+  type VoiceStatus
+} from '@shared/types'
 import { FONTS } from '@/components/CommandPalette'
 import { Glass } from '@/components/Glass'
 import { Cover } from '@/components/common'
@@ -30,7 +39,9 @@ function Segmented<T extends string>({
     <Glass radius={999} bezel={10} refraction={28} className="segmented">
       {options.map((o) => (
         <button key={o.value} className={`segmented__btn ${value === o.value ? 'is-on' : ''}`} onClick={() => onChange(o.value)}>
-          {value === o.value && <motion.span layoutId={`seg-${id}`} className="segmented__thumb" transition={{ type: 'spring', stiffness: 500, damping: 36 }} />}
+          {value === o.value && (
+            <motion.span layoutId={`seg-${id}`} className="segmented__thumb" transition={{ type: 'spring', stiffness: 500, damping: 36 }} />
+          )}
           <span>{o.label}</span>
         </button>
       ))}
@@ -91,7 +102,12 @@ function HistoryImportRow(): React.JSX.Element {
   const count = useHistory((s) => s.plays.length)
   const toast = useApp((s) => s.toast)
   const [busy, setBusy] = useState(false)
-  const day = (t: number): string => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  const day = (t: number): string =>
+    new Date(t).toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    })
   const pick = (): void => {
     const input = document.createElement('input')
     input.type = 'file'
@@ -184,7 +200,8 @@ type Cat = 'general' | 'appearance' | 'playback' | 'nowplaying' | 'lyrics' | 'dj
 
 /** Small line icons for the categories (24×24, stroked). */
 const CAT_ICONS: Record<Cat, string> = {
-  general: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4L10.7 6a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1c.5.4 1.1.8 1.7 1l.3 2.5h4l.3-2.5c.6-.2 1.2-.6 1.7-1l2.4 1 2-3.4Z',
+  general:
+    'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4L10.7 6a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1c.5.4 1.1.8 1.7 1l.3 2.5h4l.3-2.5c.6-.2 1.2-.6 1.7-1l2.4 1 2-3.4Z',
   appearance: 'M12 3a9 9 0 1 0 0 18c1.2 0 1.6-1 1.2-1.9-.5-1 .2-2.1 1.3-2.1H17a4 4 0 0 0 4-4c0-5-4-10-9-10ZM7.5 12.5h.01M9.5 8h.01M14.5 8h.01',
   playback: 'M8 5.5v13l10.5-6.5L8 5.5Z',
   nowplaying: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z',
@@ -226,12 +243,100 @@ const SIZES = [
   { value: '1.25', label: '125 %' }
 ]
 
+const GLOBAL_LABELS: Record<GlobalAction, string> = {
+  toggle: 'Play or pause',
+  next: 'Next song',
+  previous: 'Previous song',
+  volumeUp: 'Volume up',
+  volumeDown: 'Volume down',
+  like: 'Like the song',
+  show: 'Show Pulse'
+}
+
+/** Turns a key press into an Electron shortcut ("Ctrl+Alt+Space"), or null while only modifiers are held. */
+function accelOf(e: React.KeyboardEvent): string | null {
+  const k = e.key
+  if (['Control', 'Alt', 'Shift', 'Meta'].includes(k)) return null
+  const named: Record<string, string> = {
+    ' ': 'Space',
+    ArrowUp: 'Up',
+    ArrowDown: 'Down',
+    ArrowLeft: 'Left',
+    ArrowRight: 'Right',
+    Escape: 'Esc',
+    '+': 'Plus'
+  }
+  const key = named[k] ?? (k.length === 1 ? k.toUpperCase() : k)
+  const mods = [e.ctrlKey && 'Ctrl', e.altKey && 'Alt', e.shiftKey && 'Shift', e.metaKey && 'Super'].filter(Boolean)
+  // a shortcut that works everywhere needs at least one modifier (or a media/F key)
+  if (!mods.length && !/^(F\d{1,2}|Media\w+)$/.test(key)) return null
+  return [...mods, key].join('+')
+}
+
+/** One global shortcut: click, then press the keys. */
+function KeyRecorder({ action }: { action: GlobalAction }): React.JSX.Element {
+  const saved = useApp((s) => s.settings.globalKeys)
+  const keys = { ...GLOBAL_KEYS, ...(saved ?? {}) }
+  const update = useApp((s) => s.updateSettings)
+  const [rec, setRec] = useState(false)
+  const value = keys[action]
+  const save = (accel: string): void => void update({ globalKeys: { ...keys, [action]: accel } })
+  return (
+    <div className="keyrec">
+      <span className="keyrec__label">{GLOBAL_LABELS[action]}</span>
+      <button
+        className={`keyrec__keys ${rec ? 'is-rec' : ''}`}
+        onClick={() => setRec(true)}
+        onBlur={() => setRec(false)}
+        onKeyDown={(e) => {
+          if (!rec) return
+          e.preventDefault()
+          if (e.key === 'Escape') return setRec(false)
+          if (e.key === 'Backspace' || e.key === 'Delete') {
+            save('')
+            return setRec(false)
+          }
+          const a = accelOf(e)
+          if (!a) return
+          save(a)
+          setRec(false)
+        }}
+      >
+        {rec ? (
+          <span className="muted">Press the keys…</span>
+        ) : value ? (
+          value.split('+').map((p, i) => (
+            <span key={i}>
+              {i > 0 && <small>+</small>}
+              <kbd>{p}</kbd>
+            </span>
+          ))
+        ) : (
+          <span className="muted">Not set</span>
+        )}
+      </button>
+      {value !== GLOBAL_KEYS[action] && (
+        <button className="keyrec__reset" title="Back to the default" onClick={() => save(GLOBAL_KEYS[action])}>
+          Reset
+        </button>
+      )}
+    </div>
+  )
+}
+
 /** Hardware acceleration: the switch, and a restart when it differs from how Pulse runs now. */
 function GpuRow(): React.JSX.Element {
   const settings = useApp((s) => s.settings)
   const update = useApp((s) => s.updateSettings)
   const [gpu, setGpu] = useState<{ on: boolean; wanted: boolean } | null>(null)
-  useEffect(() => void window.pulse.app.gpu().then(setGpu).catch(() => setGpu(null)), [])
+  useEffect(
+    () =>
+      void window.pulse.app
+        .gpu()
+        .then(setGpu)
+        .catch(() => setGpu(null)),
+    []
+  )
   const wanted = settings.hardwareAcceleration !== false
   const differs = gpu !== null && gpu.on !== wanted
   return (
@@ -258,7 +363,10 @@ function CacheRow(): React.JSX.Element {
   const toast = useApp((s) => s.toast)
   const [busy, setBusy] = useState(false)
   return (
-    <Row title="Clear cache" hint="Empties the covers, artist pictures and pages Pulse has downloaded. They load again when needed. Your settings, history and stats stay.">
+    <Row
+      title="Clear cache"
+      hint="Empties the covers, artist pictures and pages Pulse has downloaded. They load again when needed. Your settings, history and stats stay."
+    >
       <button
         className="btn"
         disabled={busy}
@@ -308,7 +416,8 @@ export function SettingsView({ onSignOut }: { onSignOut: () => void }): React.JS
     } catch {
       /* storage unavailable */
     }
-    document.querySelector('.main__scroll')?.scrollTo({ top: 0 })
+    const sc = document.querySelector('.main__scroll')
+    if (sc && sc.scrollTop > 0) sc.scrollTo({ top: 0 })
   }
   const [query, setQuery] = useState('')
   const body = useRef<HTMLDivElement>(null)
@@ -321,9 +430,13 @@ export function SettingsView({ onSignOut }: { onSignOut: () => void }): React.JS
     const rows = root.querySelectorAll<HTMLElement>('.srow, .account, .shortcuts')
     rows.forEach((r) => (r.hidden = !!q && !(r.textContent ?? '').toLowerCase().includes(q)))
     root.querySelectorAll<HTMLElement>('.sgroup').forEach((g) => {
-      const any = !q || [...g.querySelectorAll<HTMLElement>('.srow, .account, .shortcuts')].some((r) => !r.hidden) || (g.querySelector('h2')?.textContent ?? '').toLowerCase().includes(q)
+      const any =
+        !q ||
+        [...g.querySelectorAll<HTMLElement>('.srow, .account, .shortcuts')].some((r) => !r.hidden) ||
+        (g.querySelector('h2')?.textContent ?? '').toLowerCase().includes(q)
       g.hidden = !any
-      if (q && any && (g.querySelector('h2')?.textContent ?? '').toLowerCase().includes(q)) g.querySelectorAll<HTMLElement>('.srow, .account, .shortcuts').forEach((r) => (r.hidden = false))
+      if (q && any && (g.querySelector('h2')?.textContent ?? '').toLowerCase().includes(q))
+        g.querySelectorAll<HTMLElement>('.srow, .account, .shortcuts').forEach((r) => (r.hidden = false))
     })
     const cats = [...root.querySelectorAll<HTMLElement>('.scat')]
     cats.forEach((c) => (c.hidden = !!q && ![...c.querySelectorAll<HTMLElement>('.sgroup')].some((g) => !g.hidden)))
@@ -336,10 +449,16 @@ export function SettingsView({ onSignOut }: { onSignOut: () => void }): React.JS
       <>
         <section className="sgroup">
           <h2>Startup</h2>
-          <Row title="Open at startup" hint="Starts quietly in the tray when you sign in to Windows, so your plays are counted from the start. Works in the installed app.">
+          <Row
+            title="Open at startup"
+            hint="Starts quietly in the tray when you sign in to Windows, so your plays are counted from the start. Works in the installed app."
+          >
             <Toggle label="Open at startup" on={settings.launchAtStartup} onChange={(launchAtStartup) => void update({ launchAtStartup })} />
           </Row>
-          <Row title="Keep running in the tray" hint="Closing the window leaves Pulse in the tray, still counting what you play on your phone and other devices. Quit from the tray icon.">
+          <Row
+            title="Keep running in the tray"
+            hint="Closing the window leaves Pulse in the tray, still counting what you play on your phone and other devices. Quit from the tray icon."
+          >
             <Toggle label="Keep running in the tray" on={settings.closeToTray !== false} onChange={(closeToTray) => void update({ closeToTray })} />
           </Row>
           <Row title="Start page" hint="The page Pulse opens on.">
@@ -364,9 +483,28 @@ export function SettingsView({ onSignOut }: { onSignOut: () => void }): React.JS
               options={SIZES}
             />
           </Row>
-          <Row title="Song notifications" hint="Shows the cover, the song and the artist in a Windows notification when the song changes while Pulse isn’t the window in front.">
+          <Row
+            title="Song notifications"
+            hint="Shows the cover, the song and the artist in a Windows notification when the song changes while Pulse isn’t the window in front."
+          >
             <Toggle label="Song notifications" on={!!settings.songNotifications} onChange={(songNotifications) => void update({ songNotifications })} />
           </Row>
+        </section>
+        <section className="sgroup">
+          <h2>Shortcuts from any app</h2>
+          <Row
+            title="Work while Pulse is in the background"
+            hint="Control the music from games, the browser or anything else. Click a shortcut and press new keys to change it; Backspace clears it. Keys another app already uses don’t work here."
+          >
+            <Toggle label="Shortcuts from any app" on={settings.globalShortcuts !== false} onChange={(globalShortcuts) => void update({ globalShortcuts })} />
+          </Row>
+          {settings.globalShortcuts !== false && (
+            <div className="keyrecs">
+              {(Object.keys(GLOBAL_KEYS) as GlobalAction[]).map((a) => (
+                <KeyRecorder key={a} action={a} />
+              ))}
+            </div>
+          )}
         </section>
         <section className="sgroup">
           <h2>Keyboard shortcuts</h2>
@@ -469,7 +607,10 @@ export function SettingsView({ onSignOut }: { onSignOut: () => void }): React.JS
         <Row title="Song transitions" hint="Fades one song into the next and shows both covers while it happens. Off by default.">
           <Toggle label="Song transitions" on={settings.crossfade} onChange={(crossfade) => void update({ crossfade })} />
         </Row>
-        <Row title="Transition length" hint="Spotify plays one song at a time, so the end of a song fades out as the next fades in. The sound fades only when Pulse Music itself is playing.">
+        <Row
+          title="Transition length"
+          hint="Spotify plays one song at a time, so the end of a song fades out as the next fades in. The sound fades only when Pulse Music itself is playing."
+        >
           <Segmented<string>
             id="fade"
             value={[0, 3, 6, 9, 12].includes(settings.fadeSeconds) ? String(settings.fadeSeconds) : '0'}
@@ -498,7 +639,12 @@ export function SettingsView({ onSignOut }: { onSignOut: () => void }): React.JS
           </div>
           <div className="fontpick">
             {NP_THEMES.map((t) => (
-              <button key={t.id} className={`fontpick__opt ${(settings.npTheme === 'classic' ? 'cover' : settings.npTheme) === t.id ? 'is-on' : ''}`} title={t.hint} onClick={() => void update({ npTheme: t.id })}>
+              <button
+                key={t.id}
+                className={`fontpick__opt ${(settings.npTheme === 'classic' ? 'cover' : settings.npTheme) === t.id ? 'is-on' : ''}`}
+                title={t.hint}
+                onClick={() => void update({ npTheme: t.id })}
+              >
                 <span>{t.label}</span>
               </button>
             ))}
@@ -507,7 +653,10 @@ export function SettingsView({ onSignOut }: { onSignOut: () => void }): React.JS
         <Row title="Open in full screen" hint="Now Playing covers the whole screen, taskbar included. Esc goes back.">
           <Toggle label="Open in full screen" on={!!settings.npFullscreen} onChange={(npFullscreen) => void update({ npFullscreen })} />
         </Row>
-        <Row title="Cover when there are no lyrics" hint="A song without lyrics shows the big cover instead, and the next song with lyrics switches back on its own.">
+        <Row
+          title="Cover when there are no lyrics"
+          hint="A song without lyrics shows the big cover instead, and the next song with lyrics switches back on its own."
+        >
           <Toggle label="Cover when there are no lyrics" on={settings.npAutoCover !== false} onChange={(npAutoCover) => void update({ npAutoCover })} />
         </Row>
         <Row title="Scratch the record" hint="On the turntable: grab the record to stop the music and scratch the song like a DJ.">
@@ -522,7 +671,10 @@ export function SettingsView({ onSignOut }: { onSignOut: () => void }): React.JS
         <Row title="Word by word" hint="Lights up each word as it is sung. Uses exact word timings when LRCLIB has them, otherwise follows the line.">
           <Toggle label="Word by word lyrics" on={settings.wordLyrics} onChange={(wordLyrics) => void update({ wordLyrics })} />
         </Row>
-        <Row title="Genius token (optional)" hint="Genius lyrics and artist info work without it. Only add your own token if Genius starts refusing Pulse. Stored only on this computer.">
+        <Row
+          title="Genius token (optional)"
+          hint="Genius lyrics and artist info work without it. Only add your own token if Genius starts refusing Pulse. Stored only on this computer."
+        >
           <div className="token">
             <input
               className="field"
@@ -549,8 +701,15 @@ export function SettingsView({ onSignOut }: { onSignOut: () => void }): React.JS
             <Toggle label="Discord status" on={settings.discordRpc} onChange={(discordRpc) => void update({ discordRpc })} />
           </Row>
           {settings.discordRpc && (
-            <Row title="Get Pulse Music button" hint="Adds a button to your Discord status that opens the Pulse Music download page. Friends see it on your profile; Discord hides your own buttons from you.">
-              <Toggle label="Get Pulse Music button" on={settings.discordGetButton ?? true} onChange={(discordGetButton) => void update({ discordGetButton })} />
+            <Row
+              title="Get Pulse Music button"
+              hint="Adds a button to your Discord status that opens the Pulse Music download page. Friends see it on your profile; Discord hides your own buttons from you."
+            >
+              <Toggle
+                label="Get Pulse Music button"
+                on={settings.discordGetButton ?? true}
+                onChange={(discordGetButton) => void update({ discordGetButton })}
+              />
             </Row>
           )}
         </section>
@@ -661,11 +820,35 @@ export function SettingsView({ onSignOut }: { onSignOut: () => void }): React.JS
       <h1 className="page-title">Settings</h1>
       <div className="settings__layout">
         <nav className="settings__rail" aria-label="Settings categories">
-          <input className="field settings__search" type="search" placeholder="Search settings" value={query} onChange={(e) => setQuery(e.target.value)} spellCheck={false} />
+          <input
+            className="field settings__search"
+            type="search"
+            placeholder="Search settings"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            spellCheck={false}
+          />
           {CATS.map((c) => (
-            <button key={c.id} className={`settings__cat ${!q && cat === c.id ? 'is-on' : ''}`} aria-current={!q && cat === c.id ? 'page' : undefined} onClick={() => setCat(c.id)}>
-              {!q && cat === c.id && <motion.span layoutId="settings-cat" className="settings__cat-bg" transition={{ type: 'spring', stiffness: 500, damping: 38 }} />}
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <button
+              key={c.id}
+              className={`settings__cat ${!q && cat === c.id ? 'is-on' : ''}`}
+              aria-current={!q && cat === c.id ? 'page' : undefined}
+              onClick={() => setCat(c.id)}
+            >
+              {!q && cat === c.id && (
+                <motion.span layoutId="settings-cat" className="settings__cat-bg" transition={{ type: 'spring', stiffness: 500, damping: 38 }} />
+              )}
+              <svg
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.9"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
                 <path d={CAT_ICONS[c.id]} />
               </svg>
               <span>{c.label}</span>
@@ -681,7 +864,8 @@ export function SettingsView({ onSignOut }: { onSignOut: () => void }): React.JS
               </div>
             ))
           ) : (
-            <motion.div key={cat} className="scat" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 320, damping: 32 }}>
+            // only a fade: anything that moves or resizes here made the page twitch
+            <motion.div key={cat} className="scat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.22, ease: 'easeOut' }}>
               {sections[cat]}
             </motion.div>
           )}
@@ -723,7 +907,10 @@ function LastfmSettings(): React.JSX.Element | null {
           <span className="muted">Not available</span>
         </Row>
       ) : !st.connected ? (
-        <Row title="Connect Last.fm" hint="Sends the songs you listen to (after half of a song or 4 minutes) to your Last.fm profile. A browser opens to allow it.">
+        <Row
+          title="Connect Last.fm"
+          hint="Sends the songs you listen to (after half of a song or 4 minutes) to your Last.fm profile. A browser opens to allow it."
+        >
           <div className="token">
             <button className="btn btn--accent" disabled={busy} onClick={() => void connect()}>
               {busy ? 'Waiting for Last.fm…' : 'Connect'}
@@ -733,7 +920,10 @@ function LastfmSettings(): React.JSX.Element | null {
         </Row>
       ) : (
         <>
-          <Row title={`Connected as ${st.user}`} hint={st.pending ? `${st.pending} scrobbles waiting to be sent.` : 'Your listening goes to your Last.fm profile.'}>
+          <Row
+            title={`Connected as ${st.user}`}
+            hint={st.pending ? `${st.pending} scrobbles waiting to be sent.` : 'Your listening goes to your Last.fm profile.'}
+          >
             <div className="token">
               <button className="btn" onClick={() => void window.pulse.openExternal(`https://www.last.fm/user/${encodeURIComponent(st.user ?? '')}`)}>
                 Open profile
@@ -760,10 +950,18 @@ function DjSettings(): React.JSX.Element {
   const [claudeModel, setClaudeModel] = useState(settings.djClaudeModel)
   const [showKey, setShowKey] = useState(false)
   const [voice, setVoice] = useState<VoiceStatus | null>(null)
-  const [progress, setProgress] = useState<{ stage: string; done: number; total: number } | null>(null)
+  const [progress, setProgress] = useState<{
+    stage: string
+    done: number
+    total: number
+  } | null>(null)
   const [previewing, setPreviewing] = useState<string | null>(null)
   const [voiceError, setVoiceError] = useState<string | null>(null)
-  const [test, setTest] = useState<{ busy: boolean; text: string | null; error: boolean }>({ busy: false, text: null, error: false })
+  const [test, setTest] = useState<{
+    busy: boolean
+    text: string | null
+    error: boolean
+  }>({ busy: false, text: null, error: false })
 
   useEffect(() => {
     if (settings.djProvider === 'local') void window.pulse.dj.localReady().then(setReady)
@@ -832,9 +1030,17 @@ function DjSettings(): React.JSX.Element {
           onClick={async () => {
             setTest({ busy: true, text: null, error: false })
             try {
-              setTest({ busy: false, text: `“${await testDj()}”`, error: false })
+              setTest({
+                busy: false,
+                text: `“${await testDj()}”`,
+                error: false
+              })
             } catch (e) {
-              setTest({ busy: false, text: e instanceof Error ? e.message : String(e), error: true })
+              setTest({
+                busy: false,
+                text: e instanceof Error ? e.message : String(e),
+                error: true
+              })
             }
           }}
         >
@@ -950,7 +1156,8 @@ function DiscordHint({ on }: { on: boolean }): React.JSX.Element {
   if (st.error) return <>Discord refused the status: {st.error}</>
   return (
     <>
-      {st.shown ? 'On your profile now.' : 'Connected to Discord.'} Seeing “Spotify” instead? In Discord: Settings → Connections → Spotify → turn off “Display Spotify as your status”.
+      {st.shown ? 'On your profile now.' : 'Connected to Discord.'} Seeing “Spotify” instead? In Discord: Settings → Connections → Spotify → turn off “Display
+      Spotify as your status”.
     </>
   )
 }

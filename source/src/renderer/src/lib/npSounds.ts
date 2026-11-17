@@ -1,8 +1,6 @@
 // The sounds of the Now Playing devices, made on the spot with the Web Audio API (no files):
 //  - the turntable: the needle dropping onto the record, the soft crackle and hiss of vinyl while
-//    it plays, and the click of the arm lifting off,
-//  - the CD deck: the lid click and the disc spinning up, the spin-down when it stops, and the
-//    quick seek chirp between songs.
+//    it plays, and the click of the arm lifting off.
 // They play quietly under the music and follow Pulse's volume.
 import { useEffect, useRef } from 'react'
 import type { NpTheme } from '@shared/types'
@@ -150,67 +148,6 @@ function needleUp(): void {
   thump(140, 0.08, 60, 0.01)
 }
 
-/* ---------- The CD deck ---------- */
-
-let whir: { osc: OscillatorNode; gain: GainNode } | null = null
-
-/** The disc spins up: a rising whine with a faint servo buzz. */
-function spinUp(): void {
-  const { ctx: c, out } = audio()
-  burst(2400, 3, 0.08, 18) // the lid / tray click
-  thump(120, 0.1, 50)
-  const o = c.createOscillator()
-  o.type = 'sawtooth'
-  const t = c.currentTime + 0.08
-  o.frequency.setValueAtTime(90, t)
-  o.frequency.exponentialRampToValueAtTime(780, t + 1.1)
-  const lp = c.createBiquadFilter()
-  lp.type = 'lowpass'
-  lp.frequency.value = 1400
-  const g = c.createGain()
-  g.gain.setValueAtTime(0, t)
-  g.gain.linearRampToValueAtTime(0.03, t + 0.3)
-  g.gain.linearRampToValueAtTime(0.012, t + 1.1)
-  // then it goes quiet, like a real player (the spin-down is heard again when it stops)
-  g.gain.linearRampToValueAtTime(0.0001, t + 2.4)
-  o.connect(lp).connect(g).connect(out)
-  o.start(t)
-  // kept, so stopping can wind it down
-  stopWhir()
-  whir = { osc: o, gain: g }
-  // the laser finding the track: a few tiny ticks
-  for (let i = 0; i < 3; i++) burst(5200, 4, 0.03, 10, 1.2 + i * 0.07)
-}
-
-function stopWhir(): void {
-  if (!whir || !ctx) return
-  const { osc, gain } = whir
-  whir = null
-  const t = ctx.currentTime
-  gain.gain.cancelScheduledValues(t)
-  gain.gain.setValueAtTime(gain.gain.value, t)
-  osc.frequency.cancelScheduledValues(t)
-  osc.frequency.setValueAtTime(osc.frequency.value, t)
-  osc.frequency.exponentialRampToValueAtTime(80, t + 1.1)
-  gain.gain.linearRampToValueAtTime(0.02, t + 0.1)
-  gain.gain.linearRampToValueAtTime(0, t + 1.2)
-  osc.stop(t + 1.3)
-}
-
-/** Next song on the CD: the laser jumps (quick ticks). */
-function seek(): void {
-  for (let i = 0; i < 4; i++) burst(4800 + i * 300, 5, 0.025, 8, i * 0.045)
-}
-
-/* ---------- The cassette ---------- */
-
-/** The play key going down (or popping up): a plastic clunk and the motor catching. */
-function clunk(down: boolean): void {
-  thump(down ? 95 : 130, 0.22, 110)
-  burst(down ? 1400 : 2100, 1.2, 0.1, 45, 0.005)
-  burst(3800, 3, 0.04, 20, 0.05)
-}
-
 /* ---------- Scratching the record ----------
  * Holding the record stops the music (it is turned down to nothing while your hand is on it) and
  * moving it plays the song itself at the speed and in the direction your hand moves it, the way a
@@ -262,7 +199,13 @@ function makePhrase(rate: number): Float32Array {
     { f: 2700, bw: 160, g: 0.22 }
   ].map((x) => {
     const r = Math.exp((-Math.PI * x.bw) / rate)
-    return { a1: 2 * r * Math.cos((2 * Math.PI * x.f) / rate), a2: -r * r, g: x.g * (1 - r), y1: 0, y2: 0 }
+    return {
+      a1: 2 * r * Math.cos((2 * Math.PI * x.f) / rate),
+      a2: -r * r,
+      g: x.g * (1 - r),
+      y1: 0,
+      y2: 0
+    }
   })
   let phase = 0
   let breath = 0
@@ -378,15 +321,19 @@ export function scratchStop(): void {
 
 function stopAll(): void {
   stopCrackle()
-  stopWhir()
 }
 
 /** Plays the device sounds for the look on screen while Now Playing is open. */
 export function useNpSounds(theme: NpTheme, open: boolean, enabled: boolean): void {
   const paused = usePlayer((s) => s.paused)
   const trackId = usePlayer((s) => s.track?.id ?? null)
-  const prev = useRef<{ paused: boolean; trackId: string | null; on: boolean; theme: NpTheme }>({ paused: true, trackId: null, on: false, theme })
-  const device = theme === 'vinyl' || theme === 'cd' || theme === 'cassette'
+  const prev = useRef<{
+    paused: boolean
+    trackId: string | null
+    on: boolean
+    theme: NpTheme
+  }>({ paused: true, trackId: null, on: false, theme })
+  const device = theme === 'vinyl'
   const on = open && enabled && device
 
   useEffect(() => {
@@ -408,13 +355,6 @@ export function useNpSounds(theme: NpTheme, open: boolean, enabled: boolean): vo
           burst(2500, 1, 0.08, 40)
           startCrackle(0)
         }
-      } else if (theme === 'cassette') {
-        if (playing && was.on && was.paused) clunk(true)
-        else if (!playing && was.on && !was.paused) clunk(false)
-      } else {
-        if (playing && (!was.on || was.paused)) spinUp()
-        else if (!playing && was.on && !was.paused) stopWhir()
-        else if (playing && was.trackId && trackId !== was.trackId) seek()
       }
     } catch (e) {
       console.warn('[np sounds]', e)

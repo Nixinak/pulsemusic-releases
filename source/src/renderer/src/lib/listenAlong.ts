@@ -4,6 +4,7 @@
 //
 // Requests: the party state is read from the friend's computer every 3 s (free); Spotify is
 // only asked when something has to change here (new song, a jump, pause or resume).
+import { listenWith } from './friends'
 import { create } from 'zustand'
 import type { PartyControl, PartyState, PartyTrack } from '@shared/types'
 import * as sp from './spotify'
@@ -48,7 +49,14 @@ let tried: { uri: string; at: number; fails: number } | null = null
 /** Join a party (from a pulsemusic:// link or a pasted link). */
 export function joinParty(url: string): void {
   window.clearInterval(timer)
-  set({ url, state: null, error: null, sync: true, deviceId: get().deviceId ?? usePlayer.getState().localDeviceId, status: 'Connecting…' })
+  set({
+    url,
+    state: null,
+    error: null,
+    sync: true,
+    deviceId: get().deviceId ?? usePlayer.getState().localDeviceId,
+    status: 'Connecting…'
+  })
   stopDj()
   // while playing along, your own play, skip and seek buttons steer the party for everyone
   setPartySteer((c) => {
@@ -115,7 +123,11 @@ async function tick(): Promise<void> {
       }
       set({ status: 'Catching up…' })
       lastAction = Date.now()
-      tried = { uri: np.uri, at: Date.now(), fails: tried?.uri === np.uri ? tried.fails : 0 }
+      tried = {
+        uri: np.uri,
+        at: Date.now(),
+        fails: tried?.uri === np.uri ? tried.fails : 0
+      }
       await sp.play({ uris: [np.uri], positionMs: target + 600 }, device)
       if (np.paused) await sp.pause(device)
       return
@@ -138,7 +150,10 @@ async function tick(): Promise<void> {
     const msg = errorText(e)
     // no Premium / nothing to play on: retrying can't help, stop playing along
     if (status === 403 || /premium|NO_ACTIVE_DEVICE|no active device/i.test(msg)) {
-      set({ sync: false, status: /premium/i.test(msg) || status === 403 ? 'Playing along needs Spotify Premium' : 'Pick a device to play on' })
+      set({
+        sync: false,
+        status: /premium/i.test(msg) || status === 403 ? 'Playing along needs Spotify Premium' : 'Pick a device to play on'
+      })
       return
     }
     set({ status: msg })
@@ -188,6 +203,14 @@ export function listenForJoins(): () => void {
   const take = (): void => {
     void window.pulse.party.pendingJoin().then((url) => {
       if (!url) return
+      // a friend's Listen along button (Discord): follow what they play
+      const m = /^listen:([^:]+):(.*)$/.exec(url)
+      if (m) {
+        const name = decodeURIComponent(m[2]) || 'your friend'
+        useApp.getState().navigate({ name: 'friends' })
+        listenWith(m[1], name)
+        return
+      }
       useApp.getState().navigate({ name: 'party' })
       joinParty(url)
     })

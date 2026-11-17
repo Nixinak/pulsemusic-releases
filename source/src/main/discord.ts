@@ -37,7 +37,10 @@ const LISTENING = 2 // ActivityType.Listening
 
 async function connect(): Promise<void> {
   if (!enabled || client) return
-  const c = new Client({ clientId: DISCORD_CLIENT_ID, transport: { type: 'ipc' } })
+  const c = new Client({
+    clientId: DISCORD_CLIENT_ID,
+    transport: { type: 'ipc' }
+  })
   client = c
   c.on('ready', () => {
     ready = true
@@ -133,10 +136,14 @@ function push(): void {
   const trackUrl = s.trackId ? `https://open.spotify.com/track/${s.trackId}` : undefined
   const artistUrl = s.artistId ? `https://open.spotify.com/artist/${s.artistId}` : undefined
   // Discord shows at most two buttons. Others see them; your own profile doesn't.
+  // Listen along: opens a small page that starts Pulse on your friend's computer and follows
+  // what you play (or offers Pulse to download when they don't have it yet)
+  const listenUrl = s.userId ? `${PULSE_URL}listen.html?u=${encodeURIComponent(s.userId)}&n=${encodeURIComponent(s.userName ?? '')}` : null
   const buttons = [
+    ...(listenUrl ? [{ label: 'Listen along', url: listenUrl }] : []),
     ...(trackUrl ? [{ label: 'Listen on Spotify', url: trackUrl }] : []),
-    ...(showGetButton ? [{ label: 'Get Pulse Music', url: PULSE_URL }] : [])
-  ]
+    ...(showGetButton && !listenUrl ? [{ label: 'Get Pulse Music', url: PULSE_URL }] : [])
+  ].slice(0, 2)
   const prefix = s.paused ? 'Paused · ' : s.mode === 'dj' ? 'DJ · ' : ''
   const b = badge(s)
   const cover = hdCover(s.artUrl)

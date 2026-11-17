@@ -39,7 +39,12 @@ interface PlayerState {
   /** Current fade multiplier (1 = full volume) applied on top of the user's volume. */
   fadeGain: number
   /** The song after this one, known shortly before a transition. */
-  nextUp: { id: string; name: string; artists: string; artUrl: string | null } | null
+  nextUp: {
+    id: string
+    name: string
+    artists: string
+    artUrl: string | null
+  } | null
   /** Sleep timer: pause at this time (epoch ms), or at the end of the current song. */
   sleep: { mode: 'time'; at: number } | { mode: 'track'; trackId: string } | null
   /** Songs the listener queued ("Next in queue"). Pulse plays them itself, so they can be
@@ -133,7 +138,14 @@ function maybeFetchNext(): void {
   nextFetchedFor = s.track.id
   const queued = s.upNext[0]
   if (queued && !queueMode) {
-    set({ nextUp: { id: queued.id, name: queued.name, artists: queued.artists, artUrl: queued.image } })
+    set({
+      nextUp: {
+        id: queued.id,
+        name: queued.name,
+        artists: queued.artists,
+        artUrl: queued.image
+      }
+    })
     return
   }
   sp.getQueue()
@@ -326,8 +338,16 @@ function trackFromSdk(t: Spotify.Track): PlayerTrack {
     id: t.id ?? sp.idFromUri(t.uri),
     uri: t.uri,
     name: t.name,
-    artists: t.artists.map((a) => ({ id: sp.idFromUri(a.uri), name: a.name, uri: a.uri })),
-    album: { id: sp.idFromUri(t.album.uri), name: t.album.name, uri: t.album.uri },
+    artists: t.artists.map((a) => ({
+      id: sp.idFromUri(a.uri),
+      name: a.name,
+      uri: a.uri
+    })),
+    album: {
+      id: sp.idFromUri(t.album.uri),
+      name: t.album.name,
+      uri: t.album.uri
+    },
     artUrl: imgs[0]?.url ?? null,
     artUrlSmall: imgs[imgs.length - 1]?.url ?? null,
     durationMs: t.duration_ms
@@ -342,7 +362,11 @@ function trackFromApi(s: SPlaybackState): PlayerTrack | null {
     uri: t.uri,
     name: t.name,
     artists: t.artists.map((a) => ({ id: a.id, name: a.name, uri: a.uri })),
-    album: { id: t.album?.id ?? '', name: t.album?.name ?? '', uri: t.album?.uri ?? '' },
+    album: {
+      id: t.album?.id ?? '',
+      name: t.album?.name ?? '',
+      uri: t.album?.uri ?? ''
+    },
     artUrl: sp.pickImage(t.album?.images, 600),
     artUrlSmall: sp.pickImage(t.album?.images, 64),
     durationMs: t.duration_ms
@@ -432,7 +456,11 @@ async function pollRemote(): Promise<void> {
     const track = trackFromApi(s)
     const keepToggles = togglesLocked()
     set({
-      activeDevice: { id: s.device.id, name: s.device.name, type: s.device.type },
+      activeDevice: {
+        id: s.device.id,
+        name: s.device.name,
+        type: s.device.type
+      },
       isLocal: false,
       track: track ?? get().track,
       contextUri: s.context?.uri ?? null,
@@ -517,13 +545,14 @@ export async function initPlayer(initialVolume: number): Promise<void> {
   sdk.addListener('initialization_error', ({ message }) => {
     console.error('[sdk] init', message)
     set({
-      sdkError:
-        'This build cannot play protected audio. Run Pulse Music with the castLabs Electron build (npm install).'
+      sdkError: 'This build cannot play protected audio. Run Pulse Music with the castLabs Electron build (npm install).'
     })
   })
   sdk.addListener('authentication_error', ({ message }) => {
     console.error('[sdk] auth', message)
-    set({ sdkError: 'Spotify rejected the sign-in. Sign out and sign in again.' })
+    set({
+      sdkError: 'Spotify rejected the sign-in. Sign out and sign in again.'
+    })
   })
   sdk.addListener('account_error', () => {
     set({ sdkError: 'Playback in Pulse Music needs Spotify Premium.' })
@@ -538,7 +567,9 @@ export async function initPlayer(initialVolume: number): Promise<void> {
     if (playbackErrors.length >= 2) void runSafely(() => sdk?.pause())
     // Repeated failures right away usually mean the DRM licence was refused (unsigned app).
     toast('Spotify refused to play this. If it keeps happening, sign the app with castLabs EVS.', 'error')
-    set({ sdkError: `Playback failed: ${message}. Run "npm run evs:sign-dev" and restart.` })
+    set({
+      sdkError: `Playback failed: ${message}. Run "npm run evs:sign-dev" and restart.`
+    })
   })
 
   sdk.addListener('player_state_changed', (state) => {
@@ -556,7 +587,11 @@ export async function initPlayer(initialVolume: number): Promise<void> {
     }
     set({
       isLocal: true,
-      activeDevice: { id: get().localDeviceId, name: 'Pulse Music', type: 'Computer' },
+      activeDevice: {
+        id: get().localDeviceId,
+        name: 'Pulse Music',
+        type: 'Computer'
+      },
       track,
       contextUri: state.context?.uri ?? null,
       positionMs: state.position,
@@ -667,7 +702,12 @@ async function fireSleep(): Promise<void> {
     const s = get()
     if (s.isLocal && sdk) await runSafely(() => sdk!.pause())
     else if (s.activeDevice) await sp.pause(activeId()).catch(() => {})
-    set({ sleep: null, paused: true, positionMs: livePosition(s), sampledAt: Date.now() })
+    set({
+      sleep: null,
+      paused: true,
+      positionMs: livePosition(s),
+      sampledAt: Date.now()
+    })
     // Put the volume back for next time, after the pause has landed.
     window.setTimeout(restoreSleepVolume, 800)
     toast('Sleep timer: music paused. Good night.')
@@ -718,10 +758,7 @@ const softRefresh = (): void => {
  *  without the SDK telling us). Answers within 400 ms. */
 async function localIsActive(): Promise<boolean> {
   if (!sdk || !get().isLocal) return false
-  const state = await Promise.race([
-    sdk.getCurrentState().catch(() => null),
-    new Promise<'slow'>((r) => setTimeout(() => r('slow'), 400))
-  ])
+  const state = await Promise.race([sdk.getCurrentState().catch(() => null), new Promise<'slow'>((r) => setTimeout(() => r('slow'), 400))])
   if (state === 'slow') return true
   if (state) return true
   // Lost the session: find out which device is playing now before sending the command.
@@ -747,13 +784,21 @@ export async function togglePlay(): Promise<void> {
     return guard(() =>
       sp.play(
         s.contextUri
-          ? { contextUri: s.contextUri, offsetUri: s.track!.uri, positionMs: s.positionMs }
+          ? {
+              contextUri: s.contextUri,
+              offsetUri: s.track!.uri,
+              positionMs: s.positionMs
+            }
           : { uris: [s.track!.uri], positionMs: s.positionMs },
         s.localDeviceId ?? undefined
       )
     )
   }
-  set({ paused: !s.paused, positionMs: livePosition(s), sampledAt: Date.now() })
+  set({
+    paused: !s.paused,
+    positionMs: livePosition(s),
+    sampledAt: Date.now()
+  })
   await guard(() => (s.paused ? sp.resume(activeId()) : sp.pause(activeId())))
   softRefresh()
 }
@@ -854,7 +899,11 @@ export async function toggleShuffle(): Promise<void> {
   const prev = get().shuffle
   const next = !prev
   set({ shuffle: next })
-  await sendToggle('shuffle', (d) => sp.setShuffle(next, d), () => set({ shuffle: prev }))
+  await sendToggle(
+    'shuffle',
+    (d) => sp.setShuffle(next, d),
+    () => set({ shuffle: prev })
+  )
   set((s) => ({ queueVersion: s.queueVersion + 1 }))
 }
 
@@ -863,7 +912,11 @@ export async function cycleRepeat(): Promise<void> {
   const prev = get().repeat
   const next = order[(order.indexOf(prev) + 1) % 3]
   set({ repeat: next })
-  await sendToggle('repeat', (d) => sp.setRepeat(next, d), () => set({ repeat: prev }))
+  await sendToggle(
+    'repeat',
+    (d) => sp.setRepeat(next, d),
+    () => set({ repeat: prev })
+  )
 }
 
 export interface PlayOptions {
@@ -1040,15 +1093,16 @@ async function autoplayPicks(cur: PlayerTrack): Promise<STrack[]> {
   // a few similar artists, in random order, plus the artist playing now and anyone featured on this song
   const pick = similar.sort(() => Math.random() - 0.5).slice(0, 5)
   const featured = cur.artists.slice(1).map((a) => a.name)
-  const artists = [pick[0], main.name, pick[1], featured[0], pick[2], main.name, pick[3], featured[1], pick[4]].filter(
-    (x): x is string => !!x
-  )
+  const artists = [pick[0], main.name, pick[1], featured[0], pick[2], main.name, pick[3], featured[1], pick[4]].filter((x): x is string => !!x)
   const uniq = [...new Set(artists)]
   const results = await Promise.all(
     uniq.map((name) =>
       sp
         .searchTracks(`artist:"${name}"`, 0)
-        .then((r) => ({ name, items: (r.tracks?.items ?? []).filter((t) => t?.id && t.artists?.[0]?.name.toLowerCase() === name.toLowerCase()) }))
+        .then((r) => ({
+          name,
+          items: (r.tracks?.items ?? []).filter((t) => t?.id && t.artists?.[0]?.name.toLowerCase() === name.toLowerCase())
+        }))
         .catch(() => ({ name, items: [] as STrack[] }))
     )
   )
@@ -1059,7 +1113,10 @@ async function autoplayPicks(cur: PlayerTrack): Promise<STrack[]> {
   for (const name of artists) {
     const items = pool.get(name) ?? []
     // popular songs first, but not always the top one
-    const t = items.slice(0, 8).filter((x) => !used.has(x.id) && !names.has(x.name.toLowerCase())).sort(() => Math.random() - 0.5)[0]
+    const t = items
+      .slice(0, 8)
+      .filter((x) => !used.has(x.id) && !names.has(x.name.toLowerCase()))
+      .sort(() => Math.random() - 0.5)[0]
     if (!t) continue
     used.add(t.id)
     names.add(t.name.toLowerCase())
@@ -1135,7 +1192,13 @@ export function setDjContinuation(afterId: string | null, uris: string[] = []): 
 }
 
 const toItem = (
-  t: { id: string; uri: string; name: string; artists: { name: string }[]; album?: { images?: { url: string; width: number | null }[] } },
+  t: {
+    id: string
+    uri: string
+    name: string
+    artists: { name: string }[]
+    album?: { images?: { url: string; width: number | null }[] }
+  },
   addedBy?: string
 ): QueueItem => ({
   addedBy,
@@ -1162,7 +1225,11 @@ async function readUpcoming(cur: PlayerTrack): Promise<Resume | null> {
   try {
     const q = await sp.getQueue()
     const list = q.queue.filter((t) => t && t.uri)
-    const r: Resume = { contextUri: s.contextUri, uri: list[0]?.uri ?? null, rest: list.map((t) => t.uri) }
+    const r: Resume = {
+      contextUri: s.contextUri,
+      uri: list[0]?.uri ?? null,
+      rest: list.map((t) => t.uri)
+    }
     upcoming = { forId: cur.id, resume: r, tracks: list }
     return r
   } catch {
@@ -1237,7 +1304,15 @@ function queueTick(): void {
   if (s.repeat === 'track' || !needsHandoff(t)) return
   // Read what the playlist plays next while there is still time.
   // (once per song: a failed read must not be retried every tick)
-  if (!queueMode && left < 20_000 && upcoming?.forId !== t.id && upcomingTriedFor !== t.id && !handing && !(djNext?.afterId === t.id) && !(ordered?.afterId === t.id)) {
+  if (
+    !queueMode &&
+    left < 20_000 &&
+    upcoming?.forId !== t.id &&
+    upcomingTriedFor !== t.id &&
+    !handing &&
+    !(djNext?.afterId === t.id) &&
+    !(ordered?.afterId === t.id)
+  ) {
     upcomingTriedFor = t.id
     void readUpcoming(t)
   }
@@ -1273,7 +1348,11 @@ function queueOnTrack(prevId: string | null, t: PlayerTrack | null): void {
   // The song ended before Pulse could start the queue: start it now, then come back here.
   if (s.upNext.length && prevId && prevId === lastLeft.id && lastLeft.left < 2500 && handedFor !== prevId) {
     handedFor = t.id
-    upcoming = { forId: t.id, resume: { contextUri: s.contextUri, uri: t.uri, rest: [] }, tracks: [] }
+    upcoming = {
+      forId: t.id,
+      resume: { contextUri: s.contextUri, uri: t.uri, rest: [] },
+      tracks: []
+    }
     void (async () => {
       const queued = get().upNext
       queueMode = true
@@ -1292,7 +1371,10 @@ export function addToQueue(t: QueueTrack | QueueTrack[], label?: string, opts: {
   }
   const list = (Array.isArray(t) ? t : [t]).filter((x) => x?.uri && !x.uri.startsWith('spotify:local'))
   if (!list.length) return
-  set((s) => ({ upNext: [...s.upNext, ...list.map((x) => toItem(x, opts.addedBy))], nextUp: null }))
+  set((s) => ({
+    upNext: [...s.upNext, ...list.map((x) => toItem(x, opts.addedBy))],
+    nextUp: null
+  }))
   if (queueMode) dirty = true
   nextFetchedFor = null
   if (opts.quiet) return
@@ -1443,7 +1525,13 @@ async function flushSpotifyQueue(): Promise<number> {
   if (n === 0) return 0
   n = Math.min(n, 30)
   toast('Clearing the queue…')
-  const back = { uri: s.track.uri, ctx: s.contextUri, pos: Math.round(livePosition(s)), vol: s.volume, local: s.isLocal && !!sdk }
+  const back = {
+    uri: s.track.uri,
+    ctx: s.contextUri,
+    pos: Math.round(livePosition(s)),
+    vol: s.volume,
+    local: s.isLocal && !!sdk
+  }
   flushing = true
   try {
     if (back.local) await sdk!.setVolume(0).catch(() => {})
@@ -1463,7 +1551,6 @@ async function flushSpotifyQueue(): Promise<number> {
   }
   return n
 }
-
 
 export async function toggleLike(): Promise<void> {
   const t = get().track
@@ -1499,6 +1586,9 @@ export function handleCommand(c: PlayerCommand): void {
     case 'like':
       void toggleLike()
       break
+    case 'volume':
+      setVolume(Math.min(1, Math.max(0, Math.round((get().volume + c.delta) * 20) / 20)))
+      break
   }
 }
 
@@ -1530,6 +1620,8 @@ function snapshot(): PlaybackSnapshot {
     sampledAt: s.sampledAt,
     paused: s.paused,
     liked: s.liked,
+    userId: useApp.getState().me?.id ?? null,
+    userName: useApp.getState().me?.display_name ?? null,
     accent: getComputedStyle(document.documentElement).getPropertyValue('--accent-dark').trim() || null
   }
 }

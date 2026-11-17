@@ -154,17 +154,49 @@ function Swirl({ images, done }: { images: string[]; done: boolean }): React.JSX
     }))
   }
 
+  // Covers are loaded before a card shows them (a card swapping to a picture that is still
+  // loading flashed empty for a moment).
+  const ready = useRef<string[]>([])
+  useEffect(() => {
+    for (const u of list) {
+      if (ready.current.includes(u)) continue
+      const im = new Image()
+      im.decoding = 'async'
+      im.onload = () => {
+        void im
+          .decode?.()
+          .catch(() => undefined)
+          .finally(() => {
+            if (!ready.current.includes(u)) ready.current.push(u)
+          })
+      }
+      im.src = u
+    }
+  }, [list])
+  const pick = (): string | null => {
+    const l = ready.current
+    return l.length ? l[Math.floor(Math.random() * l.length)] : null
+  }
+
   // new covers (the pool is read while the show runs) go to cards that have none yet
   useLayoutEffect(() => {
-    const l = listRef.current
-    if (!l.length) return
-    for (const r of rings.current)
-      for (const c of r.cards) {
-        if (c.src) continue
-        c.src = l[Math.floor(Math.random() * l.length)]
-        const img = c.el?.querySelector('img')
-        if (img) img.src = c.src
-      }
+    const t = window.setInterval(() => {
+      let empty = false
+      for (const r of rings.current)
+        for (const c of r.cards) {
+          if (c.src) continue
+          const u = pick()
+          if (!u) {
+            empty = true
+            continue
+          }
+          c.src = u
+          const img = c.el?.querySelector('img')
+          if (img) img.src = u
+        }
+      if (!empty) window.clearInterval(t)
+    }, 120)
+    return () => window.clearInterval(t)
   }, [list])
 
   useEffect(() => {
@@ -193,25 +225,28 @@ function Swirl({ images, done }: { images: string[]; done: boolean }): React.JSX
           ring.level -= span
           r = outer * Math.pow(RATIO, ring.level)
           ring.angle = rand(0, Math.PI * 2)
-          const l = listRef.current
           for (const c of ring.cards) {
-            if (!l.length) break
-            c.src = l[Math.floor(Math.random() * l.length)]
+            const u = pick()
+            if (!u) break
+            c.src = u
             const img = c.el?.querySelector('img')
-            if (img && img.getAttribute('src') !== c.src) img.src = c.src
+            if (img && img.getAttribute('src') !== u) img.src = u
           }
         }
         // closer to the middle = faster round
         ring.angle += 0.22 * dt * slow * (1 + 140 / Math.max(40, r))
         const size = Math.min(MAX_COVER, SIZE * r)
         const scale = size / MAX_COVER
-        const fade = Math.max(0, Math.min(1, (r - INNER) / 80))
+        // fades in at the outer edge (where a ring is reborn) and out at the drain
+        const fade = Math.max(0, Math.min(1, (r - INNER) / 80, (outer - r) / (outer * 0.18)))
+        // bigger (nearer) covers above smaller ones: the plane is flat, so overlaps never flicker
+        const z = String(Math.round(size))
         // a ring that is all outside the window isn't drawn
         const off = r - size > Math.hypot(w, h) / 2
         ring.cards.forEach((c, i) => {
           const el = c.el
           if (!el) return
-          if (off || fade <= 0) {
+          if (off || fade <= 0 || !c.src) {
             if (el.style.opacity !== '0') el.style.opacity = '0'
             return
           }
@@ -222,6 +257,7 @@ function Swirl({ images, done }: { images: string[]; done: boolean }): React.JSX
           const turn = (a * 180) / Math.PI + 90
           el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) rotate(${turn.toFixed(1)}deg) scale(${scale.toFixed(3)})`
           el.style.opacity = fade.toFixed(3)
+          if (el.style.zIndex !== z) el.style.zIndex = z
         })
       }
     }
@@ -233,24 +269,23 @@ function Swirl({ images, done }: { images: string[]; done: boolean }): React.JSX
     <div className="mixshow__swirl" aria-hidden="true">
       {/* the whirlpool is seen at an angle, so it has depth */}
       <div className="mixshow__plane">
-      {rings.current.flatMap((ring, ri) =>
-        ring.cards.map((c, ci) => (
-          <div
-            key={`${ri}-${ci}`}
-            className="mixshow__card"
-            ref={(el) => {
-              c.el = el
-            }}
-          >
-            <img alt="" decoding="async" draggable={false} src={c.src || undefined} />
-          </div>
-        ))
-      )}
+        {rings.current.flatMap((ring, ri) =>
+          ring.cards.map((c, ci) => (
+            <div
+              key={`${ri}-${ci}`}
+              className="mixshow__card"
+              ref={(el) => {
+                c.el = el
+              }}
+            >
+              <img alt="" draggable={false} src={c.src || undefined} />
+            </div>
+          ))
+        )}
       </div>
     </div>
   )
 }
-
 
 function Reveal({
   result,
@@ -292,7 +327,12 @@ function Reveal({
             className="mixshow__text"
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15, type: 'spring', stiffness: 180, damping: 22 }}
+            transition={{
+              delay: 0.15,
+              type: 'spring',
+              stiffness: 180,
+              damping: 22
+            }}
           >
             <small>Your new mix</small>
             <h2>{result.name}</h2>
@@ -321,7 +361,10 @@ function Reveal({
               key={`${t.uri}-${i}`}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.25 + Math.min(i, 14) * 0.03, duration: 0.3 }}
+              transition={{
+                delay: 0.25 + Math.min(i, 14) * 0.03,
+                duration: 0.3
+              }}
             >
               <button
                 onClick={() => {

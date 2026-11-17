@@ -1,5 +1,5 @@
-// Now Playing looks: the big cover (the usual one), a turntable, a CD deck, a cassette, a poster,
-// a visualizer and a lock screen, plus the menu at the
+// Now Playing looks: the big cover (the usual one), a turntable, a poster, a visualizer and a
+// lock screen, plus the menu at the
 // right edge of the screen that switches between them (three lines) and turns real full screen
 // on and off. The menu shows when the pointer comes near the right edge.
 import { useEffect, useRef, useState } from 'react'
@@ -8,13 +8,23 @@ import type { NpTheme } from '@shared/types'
 import { Glass } from './Glass'
 
 export const NP_THEMES: { id: NpTheme; label: string; hint: string }[] = [
-  { id: 'cover', label: 'Album cover', hint: 'The cover, big and centre stage' },
+  {
+    id: 'cover',
+    label: 'Album cover',
+    hint: 'The cover, big and centre stage'
+  },
   { id: 'vinyl', label: 'Vinyl', hint: 'A turntable spinning the record' },
-  { id: 'cd', label: 'CD deck', hint: 'A disc in a player, with a display' },
-  { id: 'cassette', label: 'Cassette', hint: 'A tape with its reels turning' },
   { id: 'poster', label: 'Poster', hint: 'The song as a printed gig poster' },
-  { id: 'pulse', label: 'Visualizer', hint: 'A ring of bars that moves with the beat' },
-  { id: 'lock', label: 'Lock screen', hint: 'The cover as wallpaper, with the time' }
+  {
+    id: 'pulse',
+    label: 'Visualizer',
+    hint: 'A ring of bars that moves with the beat'
+  },
+  {
+    id: 'lock',
+    label: 'Lock screen',
+    hint: 'The cover as wallpaper, with the time'
+  }
 ]
 
 /* ---------- The lock screen ---------- */
@@ -59,8 +69,15 @@ export function LockClock(): React.JSX.Element {
     next()
     return () => window.clearTimeout(t)
   }, [])
-  const date = now.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
-  const time = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  const date = now.toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short'
+  })
+  const time = now.toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit'
+  })
   return (
     <div className="lockclock">
       <span className="lockclock__date">{date}</span>
@@ -86,13 +103,6 @@ const FullIcon = ({ on }: { on: boolean }): React.JSX.Element => (
 function ThemePreview({ id }: { id: NpTheme }): React.JSX.Element {
   return (
     <span className={`npm__pv npm__pv--${id}`} aria-hidden="true">
-      {id === 'cassette' && (
-        <>
-          <i className="npm__pv-tape" />
-          <i className="npm__pv-reel npm__pv-reel--l" />
-          <i className="npm__pv-reel npm__pv-reel--r" />
-        </>
-      )}
       {id === 'poster' && (
         <>
           <i className="npm__pv-art" />
@@ -116,12 +126,6 @@ function ThemePreview({ id }: { id: NpTheme }): React.JSX.Element {
         <>
           <i className="npm__pv-clock" />
           <i className="npm__pv-art" />
-        </>
-      )}
-      {id === 'cd' && (
-        <>
-          <i className="npm__pv-cd" />
-          <i className="npm__pv-lcd" />
         </>
       )}
     </span>
@@ -217,7 +221,12 @@ export function NpEdgeMenu({
             className="npm__panel"
             initial={{ opacity: 0, x: 16, scale: 0.96 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 12, scale: 0.97, transition: { duration: 0.16 } }}
+            exit={{
+              opacity: 0,
+              x: 12,
+              scale: 0.97,
+              transition: { duration: 0.16 }
+            }}
             transition={{ type: 'spring', stiffness: 420, damping: 34 }}
           >
             <Glass radius={24} bezel={14} refraction={36} className="npm__glass">
@@ -256,7 +265,12 @@ export function NpEdgeMenu({
         <button className={`npm__btn ${menu ? 'is-on' : ''}`} aria-label="Change the look" aria-expanded={menu} title="Look" onClick={() => setMenu((v) => !v)}>
           <MenuIcon />
         </button>
-        <button className={`npm__btn ${full ? 'is-on' : ''}`} aria-label={full ? 'Leave full screen' : 'Full screen'} title={full ? 'Leave full screen' : 'Full screen (hides the taskbar)'} onClick={onFull}>
+        <button
+          className={`npm__btn ${full ? 'is-on' : ''}`}
+          aria-label={full ? 'Leave full screen' : 'Full screen'}
+          title={full ? 'Leave full screen' : 'Full screen (hides the taskbar)'}
+          onClick={onFull}
+        >
           <FullIcon on={full} />
         </button>
       </Glass>

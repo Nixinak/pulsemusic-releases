@@ -35,7 +35,16 @@ function useRecord(spin: React.RefObject<HTMLDivElement | null>, paused: boolean
     let vel = 0
     let raf = 0
     let last = performance.now()
-    let hold: { id: number; pointer: number; at: number; vel: number } | null = null
+    /** Your hand on the record: where it is, and the last few moves (for the speed of a flick). */
+    let hold: {
+      id: number
+      pointer: number
+      at: number
+      vel: number
+      moves: { t: number; d: number }[]
+    } | null = null
+    /** Let go with a flick: the record runs free (and is heard) until the motor has it again. */
+    let free = false
     const center = (): { x: number; y: number } => {
       const r = el.getBoundingClientRect()
       return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
@@ -44,17 +53,30 @@ function useRecord(spin: React.RefObject<HTMLDivElement | null>, paused: boolean
       const c = center()
       return (Math.atan2(e.clientY - c.y, e.clientX - c.x) * 180) / Math.PI
     }
+    const release = (): void => {
+      free = false
+      scratchStop()
+      if (usePlayer.getState().isLocal) void duck(1, 260)
+    }
     const tick = (): void => {
       raf = requestAnimationFrame(tick)
       const now = performance.now()
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
+      const want = live.current.paused || reduce ? 0 : SPEED
       if (hold) {
         // your hand slows down: the sound follows it towards silence
         hold.vel *= Math.pow(0.02, dt)
         if (now - hold.at > 40) scratchMove(hold.vel / SPEED)
+      } else if (free) {
+        // spinning on its own after a flick: only a little friction, so it carries on for a while,
+        // then the motor takes over again (and the music comes back)
+        const friction = 1 - Math.pow(0.35, dt)
+        vel += (want - vel) * friction
+        angle += vel * dt
+        scratchMove(vel / SPEED)
+        if (Math.abs(vel - want) < SPEED * 0.12) release()
       } else {
-        const want = live.current.paused || reduce ? 0 : SPEED
         // a motor with weight: about a second to get up to speed, a bit longer to stop
         vel += (want - vel) * Math.min(1, dt * (want > vel ? 2.6 : 1.6))
         angle += vel * dt
@@ -65,10 +87,21 @@ function useRecord(spin: React.RefObject<HTMLDivElement | null>, paused: boolean
       if (!live.current.scratch || e.button !== 0) return
       e.preventDefault()
       el.setPointerCapture(e.pointerId)
-      hold = { id: e.pointerId, pointer: pointerAngle(e), at: performance.now(), vel: 0 }
+      hold = {
+        id: e.pointerId,
+        pointer: pointerAngle(e),
+        at: performance.now(),
+        vel: 0,
+        moves: []
+      }
       // the record stops dead under your hand
       vel = 0
       el.classList.add('is-held')
+      if (free) {
+        // caught it again while it was still running free
+        free = false
+        return
+      }
       const p = usePlayer.getState()
       // where in the 30 s preview to start: roughly where the song is
       const at = ((livePosition(p) / 1000) % 30) / 30
@@ -89,16 +122,22 @@ function useRecord(spin: React.RefObject<HTMLDivElement | null>, paused: boolean
       hold.vel = hold.vel * 0.4 + (d / dt) * 0.6
       hold.pointer = a
       hold.at = now
+      hold.moves.push({ t: now, d })
+      if (hold.moves.length > 12) hold.moves.shift()
       scratchMove(hold.vel / SPEED)
     }
     const up = (e: PointerEvent): void => {
       if (!hold || e.pointerId !== hold.id) return
-      // let go with a push: it carries on from your hand's speed
-      vel = Math.max(-SPEED * 3, Math.min(SPEED * 3, hold.vel))
+      // the speed of the last ~90 ms of the hand: a flick sends the record spinning
+      const now = performance.now()
+      const recent = hold.moves.filter((m) => now - m.t < 90)
+      const flick = recent.length >= 2 ? (recent.reduce((n, m) => n + m.d, 0) / Math.max(16, now - recent[0].t)) * 1000 : 0
       hold = null
       el.classList.remove('is-held')
-      scratchStop()
-      if (usePlayer.getState().isLocal) void duck(1, 260)
+      vel = Math.max(-SPEED * 6, Math.min(SPEED * 6, flick))
+      const want = live.current.paused || reduce ? 0 : SPEED
+      if (Math.abs(vel - want) > SPEED * 0.4) free = true
+      else release()
     }
     el.addEventListener('pointerdown', down)
     el.addEventListener('pointermove', move)
@@ -111,8 +150,9 @@ function useRecord(spin: React.RefObject<HTMLDivElement | null>, paused: boolean
       el.removeEventListener('pointermove', move)
       el.removeEventListener('pointerup', up)
       el.removeEventListener('pointercancel', up)
-      if (hold) {
+      if (hold || free) {
         hold = null
+        free = false
         void duck(1, 200)
       }
       scratchStop()
@@ -194,11 +234,17 @@ export function Turntable({ art, paused }: { art: string | null; paused: boolean
         </g>
         {/* start / stop and speed buttons */}
         <rect x="150" y="852" width="150" height="56" rx="7" fill="url(#ttButton)" stroke="rgba(0,0,0,0.5)" />
-        <text x="225" y="886" textAnchor="middle" className="tt__label">START · STOP</text>
+        <text x="225" y="886" textAnchor="middle" className="tt__label">
+          START · STOP
+        </text>
         <rect x="318" y="862" width="70" height="38" rx="6" fill="url(#ttButton)" stroke="rgba(0,0,0,0.5)" />
-        <text x="353" y="887" textAnchor="middle" className="tt__label">33</text>
+        <text x="353" y="887" textAnchor="middle" className="tt__label">
+          33
+        </text>
         <rect x="398" y="862" width="70" height="38" rx="6" fill="url(#ttButton)" stroke="rgba(0,0,0,0.5)" />
-        <text x="433" y="887" textAnchor="middle" className="tt__label">45</text>
+        <text x="433" y="887" textAnchor="middle" className="tt__label">
+          45
+        </text>
         <circle cx="353" cy="850" r="4" className="tt__led" />
         {/* pitch slider */}
         <rect x="910" y="560" width="26" height="300" rx="7" fill="#08090a" stroke="rgba(255,255,255,0.1)" />
@@ -207,11 +253,15 @@ export function Turntable({ art, paused }: { art: string | null; paused: boolean
         ))}
         <rect x="900" y="696" width="46" height="34" rx="5" fill="url(#ttChrome)" stroke="rgba(0,0,0,0.6)" />
         <rect x="904" y="711" width="38" height="3" fill="rgba(0,0,0,0.5)" />
-        <text x="923" y="890" textAnchor="middle" className="tt__label tt__label--dim">PITCH</text>
+        <text x="923" y="890" textAnchor="middle" className="tt__label tt__label--dim">
+          PITCH
+        </text>
         {/* power knob and target light */}
         <circle cx="96" cy="120" r="34" fill="url(#ttKnob)" stroke="rgba(255,255,255,0.14)" />
         <rect x="93" y="92" width="6" height="22" rx="3" fill="#e9eaee" />
-        <text x="96" y="182" textAnchor="middle" className="tt__label tt__label--dim">POWER</text>
+        <text x="96" y="182" textAnchor="middle" className="tt__label tt__label--dim">
+          POWER
+        </text>
         {/* arm base, anti-skate and lift lever */}
         <circle cx="850" cy="180" r="88" fill="#0e0f11" stroke="rgba(255,255,255,0.08)" strokeWidth="2" />
         <circle cx="850" cy="180" r="70" fill="url(#ttKnob)" />
@@ -221,7 +271,9 @@ export function Turntable({ art, paused }: { art: string | null; paused: boolean
         {/* arm rest */}
         <circle cx="879" cy="492" r="17" fill="#0b0b0d" />
         <circle cx="879" cy="492" r="11" fill="url(#ttChrome)" />
-        <text x="830" y="918" textAnchor="middle" className="tt__brand">PULSE · DIRECT DRIVE</text>
+        <text x="830" y="918" textAnchor="middle" className="tt__brand">
+          PULSE · DIRECT DRIVE
+        </text>
       </svg>
 
       {/* what turns: strobe dots, the record and its label */}
@@ -270,98 +322,6 @@ export function Turntable({ art, paused }: { art: string | null; paused: boolean
           <rect x="-3" y="74" width="6" height="8" fill="#111" />
         </g>
       </svg>
-    </div>
-  )
-}
-
-/* ================= CD deck ================= */
-
-export function CdDeck({ art, paused, title, artist, durationMs }: { art: string | null; paused: boolean; title: string; artist: string; durationMs: number }): React.JSX.Element {
-  const pos = useLivePosition()
-  const reduce = useApp((s) => s.settings.reduceMotion)
-  useBeat(!reduce && !paused)
-  const meters = useRef<HTMLDivElement>(null)
-  // the level meters follow the music (left: the low end, right: the mids and highs)
-  useEffect(() => {
-    const el = meters.current
-    if (!el || reduce) return
-    const rows = Array.from(el.querySelectorAll<HTMLElement>('.cdd__meters > span'))
-    const lv = [0, 0]
-    let raf = 0
-    const avg = (bands: Float32Array, a: number, z: number): number => {
-      let s = 0
-      for (let k = a; k < z; k++) s += bands[k]
-      return s / (z - a)
-    }
-    const tick = (): void => {
-      raf = requestAnimationFrame(tick)
-      const b = readBeat()
-      const want = paused ? [0, 0] : [Math.min(1, avg(b.bands, 0, 18) * 1.35 + b.kick * 0.15), Math.min(1, avg(b.bands, 10, Math.min(BANDS, 40)) * 1.5 + b.kick * 0.1)]
-      rows.forEach((row, r) => {
-        // quick up, slow down, like a real meter
-        lv[r] += (want[r] - lv[r]) * (want[r] > lv[r] ? 0.6 : 0.12)
-        const lit = Math.round(lv[r] * row.children.length)
-        for (let j = 0; j < row.children.length; j++) row.children[j].classList.toggle('on', j < lit)
-      })
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [paused, reduce])
-  const text = `${title} — ${artist}`
-  const long = text.length > 24
-  return (
-    <div className={`cdd ${paused ? 'is-paused' : ''}`} aria-hidden="true">
-      <div className="cdd__body">
-        <span className="cdd__brush" />
-        <div className="cdd__well">
-          <div className="cdd__disc">
-            <span className="cdd__data" />
-            <span className="cdd__print">{art && <img src={art} alt="" draggable={false} />}</span>
-            <span className="cdd__hub" />
-          </div>
-          {/* the shimmer and the lid don't turn */}
-          <span className="cdd__rainbow" />
-          <span className="cdd__lid" />
-          <span className="cdd__hinge" />
-        </div>
-        <div className="cdd__panel">
-          <div className="cdd__vfd">
-            <div className="cdd__row">
-              <span className="cdd__tag">CD</span>
-              <span className="cdd__tag">{paused ? '❚❚' : '▶'}</span>
-              <span className="cdd__time">{formatTime(pos)}</span>
-              <span className="cdd__total">-{formatTime(Math.max(0, durationMs - pos))}</span>
-            </div>
-            <div className="cdd__marquee">
-              <span key={text} className={long ? 'is-long' : ''}>
-                {text}
-                {long && <>&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;&nbsp;{text}</>}
-              </span>
-            </div>
-            <div className="cdd__meters" ref={meters}>
-              <small>L</small>
-              <span>
-                {Array.from({ length: 14 }, (_, i) => (
-                  <i key={i} />
-                ))}
-              </span>
-              <small>R</small>
-              <span>
-                {Array.from({ length: 14 }, (_, i) => (
-                  <i key={i} />
-                ))}
-              </span>
-            </div>
-          </div>
-          <div className="cdd__buttons">
-            {['⏮', paused ? '▶' : '❚❚', '⏭', '■', '●'].map((g, i) => (
-              <span key={i} className={`cdd__btn ${i === 4 ? 'cdd__btn--rec' : ''}`}>
-                {g}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
     </div>
   )
 }

@@ -1,6 +1,7 @@
 // Someone else's page: their Pulse profile when they use Pulse, and their public playlists
 // from Spotify.
 import { useEffect, useState } from 'react'
+import { TasteMatch } from '@/components/TasteMatch'
 import { useApp } from '@/lib/store'
 import { prefetch, useQuery } from '@/lib/useQuery'
 import * as sp from '@/lib/spotify'
@@ -94,7 +95,11 @@ export function UserView({ id }: { id: string }): React.JSX.Element {
     <div className="profile profile--view">
       <header className="profile__hero">
         <div className="profile__banner bleed">
-          {pulse?.banner ? <img decoding="async" src={pulse.banner} alt="" style={{ objectPosition: `50% ${pulse.bannerY ?? 50}%` }} /> : <div className="profile__banner-fallback" />}
+          {pulse?.banner ? (
+            <img decoding="async" src={pulse.banner} alt="" style={{ objectPosition: `50% ${pulse.bannerY ?? 50}%` }} />
+          ) : (
+            <div className="profile__banner-fallback" />
+          )}
         </div>
         <div className="profile__id">
           <div className="profile__avatar">
@@ -132,8 +137,14 @@ export function UserView({ id }: { id: string }): React.JSX.Element {
                     )
                   }
                 },
-                { label: 'Copy profile link', onSelect: () => void navigator.clipboard.writeText(`https://open.spotify.com/user/${id}`).then(() => toast('Link copied')) },
-                { label: 'Open in Spotify', onSelect: () => window.pulse.openExternal(`https://open.spotify.com/user/${id}`) }
+                {
+                  label: 'Copy profile link',
+                  onSelect: () => void navigator.clipboard.writeText(`https://open.spotify.com/user/${id}`).then(() => toast('Link copied'))
+                },
+                {
+                  label: 'Open in Spotify',
+                  onSelect: () => window.pulse.openExternal(`https://open.spotify.com/user/${id}`)
+                }
               ])
             }}
           >
@@ -153,6 +164,8 @@ export function UserView({ id }: { id: string }): React.JSX.Element {
         ) : null}
         {pulse && <NowCard id={id} name={name} />}
       </header>
+
+      {pulse && <TasteMatch profile={pulse} name={name} />}
 
       {pulse && pulse.blocks.length > 0 && (
         <div className="profile__blocks">
@@ -279,7 +292,16 @@ function ReadBlock({ block, profile }: { block: PulseProfile['blocks'][number]; 
         <>
           <h2 className="pblock__heading">Top songs this month</h2>
           {list.map((t) => (
-            <ItemRow key={t.id} item={t} onOpen={() => void playUris(list.map((x) => x.uri), t.uri)} />
+            <ItemRow
+              key={t.id}
+              item={t}
+              onOpen={() =>
+                void playUris(
+                  list.map((x) => x.uri),
+                  t.uri
+                )
+              }
+            />
           ))}
         </>
       )
@@ -298,7 +320,11 @@ function ReadBlock({ block, profile }: { block: PulseProfile['blocks'][number]; 
                 className="fav"
                 title={it.name}
                 onClick={() =>
-                  block.kind === 'artist' ? navigate({ name: 'artist', id: it.id }) : block.kind === 'album' ? navigate({ name: 'album', id: it.id }) : void playUris([it.uri])
+                  block.kind === 'artist'
+                    ? navigate({ name: 'artist', id: it.id })
+                    : block.kind === 'album'
+                      ? navigate({ name: 'album', id: it.id })
+                      : void playUris([it.uri])
                 }
               >
                 <Cover src={it.image} round={block.kind === 'artist'} radius={14} />

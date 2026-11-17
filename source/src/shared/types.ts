@@ -69,6 +69,22 @@ export interface Settings {
   songNotifications: boolean
   /** Which page Pulse opens on: Home, or the page you were on last time. */
   startPage: 'home' | 'last'
+  /** Keyboard shortcuts that work while Pulse is in the background. */
+  globalShortcuts: boolean
+  /** The keys for each of them (Electron accelerators, e.g. "Ctrl+Alt+Space"). */
+  globalKeys: Record<GlobalAction, string>
+}
+
+export type GlobalAction = 'toggle' | 'next' | 'previous' | 'volumeUp' | 'volumeDown' | 'like' | 'show'
+
+export const GLOBAL_KEYS: Record<GlobalAction, string> = {
+  toggle: 'Ctrl+Alt+Space',
+  next: 'Ctrl+Alt+Right',
+  previous: 'Ctrl+Alt+Left',
+  volumeUp: 'Ctrl+Alt+Up',
+  volumeDown: 'Ctrl+Alt+Down',
+  like: 'Ctrl+Alt+L',
+  show: 'Ctrl+Alt+P'
 }
 
 /** 'classic' is old: it shows as 'cover' now. */
@@ -138,7 +154,9 @@ export const DEFAULT_SETTINGS: Settings = {
   hardwareAcceleration: true,
   zoom: 1,
   songNotifications: false,
-  startPage: 'home'
+  startPage: 'home',
+  globalShortcuts: true,
+  globalKeys: { ...GLOBAL_KEYS }
 }
 
 export type ProfileBlock =
@@ -150,7 +168,13 @@ export type ProfileBlock =
   | { id: string; type: 'top-tracks' }
   | { id: string; type: 'playlist'; playlistId: string }
   | { id: string; type: 'stats' }
-  | { id: string; type: 'favorites'; title: string; kind: FavoriteKind; items: FavoriteItem[] }
+  | {
+      id: string
+      type: 'favorites'
+      title: string
+      kind: FavoriteKind
+      items: FavoriteItem[]
+    }
 
 export type FavoriteKind = 'artist' | 'album' | 'track'
 
@@ -232,6 +256,9 @@ export interface PlaybackSnapshot {
   artistId?: string | null
   /** Set while the AI DJ is running the show. */
   mode?: 'dj' | null
+  /** Your Spotify id and name (for the Listen along button on your Discord status). */
+  userId?: string | null
+  userName?: string | null
 }
 
 export const EMPTY_SNAPSHOT: PlaybackSnapshot = {
@@ -251,11 +278,7 @@ export const EMPTY_SNAPSHOT: PlaybackSnapshot = {
 }
 
 export type PlayerCommand =
-  | { type: 'toggle' }
-  | { type: 'next' }
-  | { type: 'previous' }
-  | { type: 'seek'; positionMs: number }
-  | { type: 'like' }
+  { type: 'toggle' } | { type: 'next' } | { type: 'previous' } | { type: 'seek'; positionMs: number } | { type: 'like' } | { type: 'volume'; delta: number }
 
 /** Someone you follow on Spotify and the last song they played (Spotify's Friend Activity). */
 export interface SpotifyFriend {
@@ -297,23 +320,10 @@ export interface LrclibResult {
 
 export type GeniusResponse =
   /** `html` is the song page; the renderer extracts the lyric containers. */
-  | { ok: true; url: string; title: string; artist: string; html: string }
-  | { ok: false; reason: string; url?: string }
+  { ok: true; url: string; title: string; artist: string; html: string } | { ok: false; reason: string; url?: string }
 
 export type ArtistLinkKind =
-  | 'instagram'
-  | 'tiktok'
-  | 'x'
-  | 'youtube'
-  | 'facebook'
-  | 'soundcloud'
-  | 'bandcamp'
-  | 'twitch'
-  | 'apple'
-  | 'deezer'
-  | 'genius'
-  | 'wikipedia'
-  | 'website'
+  'instagram' | 'tiktok' | 'x' | 'youtube' | 'facebook' | 'soundcloud' | 'bandcamp' | 'twitch' | 'apple' | 'deezer' | 'genius' | 'wikipedia' | 'website'
 
 export interface ArtistLink {
   kind: ArtistLinkKind
@@ -337,7 +347,12 @@ export interface PageTrack {
   durationMs: number
   explicit: boolean
   artists: { id: string; name: string }[]
-  album: { id: string; uri: string; image: string | null; name?: string } | null
+  album: {
+    id: string
+    uri: string
+    image: string | null
+    name?: string
+  } | null
 }
 
 export interface PageAlbum {
@@ -446,6 +461,8 @@ export interface PartyQueueItem {
   artists: string
   image: string | null
   addedBy?: string
+  /** Party votes: thumbs up minus thumbs down. */
+  score?: number
 }
 
 /* ---------- People ---------- */
@@ -465,7 +482,12 @@ export interface SpotifyUserPage {
   followers: number | null
   /** How many people they follow (when their page shows it). */
   following?: number | null
-  playlists: { id: string; name: string; image: string | null; followers: number | null }[]
+  playlists: {
+    id: string
+    name: string
+    image: string | null
+    followers: number | null
+  }[]
   /** Only the name and picture could be read (the playlists didn't load). */
   partial?: boolean
   /** Profiles shown on their page (their followers and who they follow). */
@@ -477,7 +499,14 @@ export interface EmbedPlaylist {
   name: string
   owner: string
   image: string | null
-  tracks: { id: string; uri: string; name: string; artists: string[]; durationMs: number; explicit: boolean }[]
+  tracks: {
+    id: string
+    uri: string
+    name: string
+    artists: string[]
+    durationMs: number
+    explicit: boolean
+  }[]
 }
 
 /** A Pulse user, short (for badges and search). */
@@ -492,7 +521,13 @@ export interface PulseSummary {
 
 /** What someone is playing (shared by their Pulse app). */
 export interface NowPlaying {
-  track: { uri: string; name: string; artists: string; image: string | null; durationMs: number } | null
+  track: {
+    uri: string
+    name: string
+    artists: string
+    image: string | null
+    durationMs: number
+  } | null
   positionMs: number
   paused: boolean
   /** Their party link, when one is on. */
@@ -544,7 +579,11 @@ export interface PulseProfile extends Omit<Profile, 'customColors'> {
   thumb: string | null
   customColors: [string, string, string, string] | null
   /** What the live blocks showed for the owner when they published. */
-  snapshot: { topArtists: PulseItem[]; topTracks: PulseItem[]; minutes: number | null }
+  snapshot: {
+    topArtists: PulseItem[]
+    topTracks: PulseItem[]
+    minutes: number | null
+  }
   updatedAt: number
 }
 
@@ -555,6 +594,8 @@ export type PartyControl =
   | { action: 'previous' }
   | { action: 'seek'; positionMs: number }
   | { action: 'remove'; uri: string }
+  /** From the party server only: the queue's vote scores changed (uri → thumbs up minus down). */
+  | { action: 'votes'; scores: Record<string, number> }
 
 export interface PartyState {
   nowPlaying: {
@@ -591,7 +632,11 @@ export interface PulseApi {
     clearCache(): Promise<number>
   }
   discord: {
-    status(): Promise<{ state: 'off' | 'connecting' | 'connected' | 'not-running'; shown: boolean; error: string | null }>
+    status(): Promise<{
+      state: 'off' | 'connecting' | 'connected' | 'not-running'
+      shown: boolean
+      error: string | null
+    }>
   }
   auth: {
     status(): Promise<AuthStatus>
@@ -649,7 +694,13 @@ export interface PulseApi {
     pulseLookup(ids: string[]): Promise<PulseSummary[]>
     pulseSearch(q: string): Promise<PulseSummary[]>
     /** Publishes your profile (null removes it). */
-    publish(body: { profile: Profile; snapshot: PulseProfile['snapshot']; thumb: string | null } | null): Promise<void>
+    publish(
+      body: {
+        profile: Profile
+        snapshot: PulseProfile['snapshot']
+        thumb: string | null
+      } | null
+    ): Promise<void>
     friends(): Promise<FriendsState>
     /** Ask, accept, or remove (also cancels or declines a request). Returns your lists afterwards. */
     friendAction(action: FriendAction, id: string, who?: { name: string; image: string | null }): Promise<FriendsState>
@@ -681,6 +732,8 @@ export interface PulseApi {
     remoteControl(url: string, control: PartyControl, guest: string): Promise<{ ok: boolean }>
     /** The app's queue, shown on the guests' page. */
     setQueue(q: PartyQueueItem[]): void
+    /** The host's own thumbs up (1), down (-1) or neither (0) for a queued song. */
+    vote(uri: string, v: number): Promise<void>
     onAdd(cb: (a: { track: PartyTrack; guest: string }) => void): () => void
     /** A guest pressed play/pause, skip, seek or removed a song. */
     onControl(cb: (a: { control: PartyControl; guest: string }) => void): () => void
@@ -769,8 +822,25 @@ export interface PulseApi {
 
 /** Where the app's own update is. */
 export type UpdateStatus =
-  | { state: 'idle' | 'checking' | 'dev'; version?: string; percent?: number; message?: string }
+  | {
+      state: 'idle' | 'checking' | 'dev'
+      version?: string
+      percent?: number
+      message?: string
+    }
   | { state: 'latest'; version: string; percent?: number; message?: string }
-  | { state: 'downloading'; version?: string; percent: number; message?: string; notes?: string[] }
-  | { state: 'ready'; version: string; percent?: number; message?: string; notes?: string[] }
+  | {
+      state: 'downloading'
+      version?: string
+      percent: number
+      message?: string
+      notes?: string[]
+    }
+  | {
+      state: 'ready'
+      version: string
+      percent?: number
+      message?: string
+      notes?: string[]
+    }
   | { state: 'error'; message: string; version?: string; percent?: number }

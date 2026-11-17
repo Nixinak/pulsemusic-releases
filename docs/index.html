@@ -474,6 +474,34 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
 .mix b { position: relative; font: 800 clamp(17px, 1.6vw, 22px)/1.02 var(--display); letter-spacing: -0.03em; }
 .mix span { position: relative; margin-top: 6px; font-size: 12px; opacity: 0.8; }
 .orb-ring { position: absolute; inset: -16px; border-radius: 50%; border: 2px dashed color-mix(in oklab, var(--c1) 70%, white); opacity: calc(0.25 + var(--kick, 0) * 0.6); transform: scale(calc(1 + var(--kick, 0) * 0.05)); pointer-events: none; }
+
+/* New in 1.6.8: a bento of what's new */
+.bento { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; }
+.bx { position: relative; overflow: hidden; border-radius: 28px; padding: 26px; min-height: 230px; display: flex; flex-direction: column; gap: 10px;
+  background: radial-gradient(130% 120% at 100% 0%, color-mix(in srgb, var(--a) 38%, transparent), transparent 60%), rgba(255,255,255,0.05);
+  box-shadow: inset 0 0 0 1px var(--line); transition: transform .5s var(--ease); }
+.bx:hover { transform: translateY(-4px) rotate(-.3deg); }
+.bx h3 { margin: auto 0 0; font: 800 clamp(24px, 2.4vw, 32px)/1.02 var(--display); letter-spacing: -0.03em; }
+.bx p { margin: 0; color: var(--mist); font-size: 16px; max-width: 46ch; }
+.bx small { font-weight: 800; letter-spacing: .12em; text-transform: uppercase; font-size: 12px; color: var(--a); }
+.bx--w3 { grid-column: span 3; } .bx--w2 { grid-column: span 2; } .bx--w4 { grid-column: span 4; }
+.bx__feed { position: absolute; right: 22px; top: 22px; width: 120px; height: 170px; border-radius: 20px; background: linear-gradient(160deg, var(--a), #1a0b24); box-shadow: 0 20px 40px rgba(0,0,0,.4); overflow: hidden; }
+.bx__feed i { position: absolute; left: 14px; right: 14px; height: 70px; border-radius: 12px; background: rgba(255,255,255,.22); animation: feed 3.6s var(--ease) infinite; }
+.bx__feed i:nth-child(2) { animation-delay: -1.8s; }
+@keyframes feed { 0% { top: 180px; } 40%, 55% { top: 22px; } 100% { top: -90px; } }
+.bx__ring { position: absolute; right: 26px; top: 24px; width: 92px; height: 92px; border-radius: 50%; display: grid; place-items: center; font: 800 26px var(--display);
+  background: conic-gradient(var(--a) 0 72%, rgba(255,255,255,.12) 72%); }
+.bx__ring::before { content: ''; position: absolute; inset: 9px; border-radius: 50%; background: #241433; }
+.bx__ring span { position: relative; }
+.bx__badges { position: absolute; right: 20px; top: 20px; display: flex; gap: 8px; font-size: 26px; }
+.bx__badges span { width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; rotate: -6deg; background: conic-gradient(from 210deg, #ffe08a, #ffcc3d, #a8761a, #ffcc3d, #ffe08a); }
+.bx__badges span:nth-child(2) { rotate: 4deg; background: conic-gradient(from 210deg, #f3f6fb, #c9d3e3, #7d8799, #c9d3e3, #f3f6fb); }
+.bx__votes { position: absolute; right: 22px; top: 22px; display: grid; gap: 8px; }
+.bx__votes div { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,.08); font-weight: 700; font-size: 14px; }
+.bx__votes b { color: #3ddc84; }
+.bx__keys { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.bx__keys kbd { padding: 4px 10px; border-radius: 8px; font: 700 13px var(--body); background: rgba(255,255,255,.1); box-shadow: inset 0 -2px 0 rgba(0,0,0,.3), inset 0 0 0 1px var(--line); }
+@media (max-width: 900px) { .bento { grid-template-columns: 1fr; } .bx--w2, .bx--w3, .bx--w4 { grid-column: auto; } }
 </style>
 </head>
 <body>
@@ -490,6 +518,7 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
 <header class="top glass">
   <a class="brand" href="#top"><img src="assets/icon.png" alt="" width="34" height="34">Pulse Music</a>
   <nav aria-label="Sections">
+    <a href="#new">New</a>
     <a href="#lyrics">Lyrics</a>
     <a href="#dj">AI DJ</a>
     <a href="#made">Made for you</a>
@@ -514,7 +543,7 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>
             Download for Windows
           </a>
-          <a class="btn btn--glass" href="#made">What's new</a>
+          <a class="btn btn--glass" href="#new">What's new</a>
         </div>
         <p class="fine" id="version">Free for Windows 10 and 11. You need Spotify Premium.</p>
       </div>
@@ -604,13 +633,62 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
     </div>
   </section>
 
+  <!-- New in 1.6.8 -->
+  <section class="chapter" id="new">
+    <div class="wrap">
+      <header class="chead"><span class="new">New in 1.6.8</span><h2>More to find, more to share.</h2></header>
+      <div class="bento">
+        <article class="bx bx--w3" style="--a:#ff4f8b">
+          <span class="bx__feed" aria-hidden="true"><i></i><i></i></span>
+          <small>Discover</small>
+          <h3>Scroll through new music.</h3>
+          <p>One song at a time, like a video feed. Each one plays its preview on its own; like it, queue it or skip it.</p>
+        </article>
+        <article class="bx bx--w3" style="--a:#7a5cff">
+          <span class="bx__ring" aria-hidden="true"><span>72%</span></span>
+          <small>Taste match</small>
+          <h3>How close is your music?</h3>
+          <p>On a friend's profile: a percentage, the artists you share, and a blend of both your favourites to play.</p>
+        </article>
+        <article class="bx bx--w2" style="--a:#2ad1c9">
+          <small>Smart playlists</small>
+          <h3>Playlists by rules.</h3>
+          <p>"Liked songs, 120–140 BPM, from 2020 on, played twice at most." Pulse measures the tempo itself.</p>
+        </article>
+        <article class="bx bx--w2" style="--a:#ffcc3d">
+          <span class="bx__badges" aria-hidden="true"><span>🔥</span><span>🎧</span></span>
+          <small>Achievements</small>
+          <h3>Badges for listening.</h3>
+          <p>Streaks, marathons, night owl, superfan: bronze, silver and gold, with fun facts about your listening.</p>
+        </article>
+        <article class="bx bx--w2" style="--a:#3ddc84">
+          <span class="bx__votes" aria-hidden="true"><div>👍 <b>+4</b></div><div>👎 <span>-1</span></div></span>
+          <small>Party votes</small>
+          <h3>The room decides.</h3>
+          <p>Guests vote songs up or down from their phones; the best go first, and a flop gets voted off.</p>
+        </article>
+        <article class="bx bx--w3" style="--a:#ff9a3d">
+          <small>Shortcuts everywhere</small>
+          <h3>Control it from any app.</h3>
+          <p>Play, skip, volume and like while you're in a game or the browser. Pick your own keys.</p>
+          <div class="bx__keys"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>Space</kbd></div>
+        </article>
+        <article class="bx bx--w3" style="--a:#00c2ff">
+          <small>Stories</small>
+          <h3>Lyrics for your story.</h3>
+          <p>Pick a few lines and share them as a 9:16 picture with the cover, made to fit Instagram.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
   <!-- Friends / listen along -->
   <section class="chapter" id="friends">
     <div class="wrap">
       <header class="chead"><h2>Listen along with friends.</h2></header>
       <div class="split">
       <div class="copy">
-        <p>Connect your Spotify account once and see what the people you follow on Spotify are playing, right on the Friends page. Follow anyone from their profile: when you follow each other, you're friends.</p>
+        <p>Connect your Spotify account once and everyone you follow, on Spotify and on Pulse, shows up in one feed of what they're playing. People who use Pulse wear its badge. Follow anyone from their profile: when you follow each other, you're friends.</p>
         <p>If a friend uses Pulse too, you see what they're playing right now. <strong>One click puts you in the same song, at the same second,</strong> and you stay in step until you pick something else.</p>
       </div>
       <div class="friends">
@@ -641,6 +719,7 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
       <div class="split">
       <div class="copy">
         <p>Friends scan a code or open a link on their phones. They search, add songs to your queue, and can play, pause and skip too. Nothing to install.</p>
+        <p><strong>Everyone votes:</strong> thumbs up moves a song forward, enough thumbs down sends it off the queue.</p>
       </div>
       <div class="party">
         <div class="phone glass">
@@ -672,7 +751,7 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
       <header class="chead"><h2>Your Discord, in sync.</h2></header>
       <div class="split">
       <div class="copy">
-        <p>Friends see the song you're playing with its cover in full size, a live progress bar and a button to listen on Spotify. The title opens the song, the artist opens their page.</p>
+        <p>Friends see the song you're playing with its cover in full size and a live progress bar. <strong>Listen along</strong> opens Pulse on their computer and plays what you play, in step; Listen on Spotify opens the song.</p>
         <p>The little badge on the cover changes with you: <strong>paused, a song you liked, the AI DJ on air or a party running.</strong></p>
       </div>
       <div class="dcwrap">
@@ -694,8 +773,8 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
               </div>
               <div class="dc__prog"><span id="dcAt">0:00</span><div class="dc__bar"><i id="dcBar"></i></div><span id="dcLen">0:00</span></div>
               <div class="dc__btns">
+                <a class="dc__btn" href="#top">Listen along</a>
                 <a class="dc__btn" id="dcSpotify" target="_blank" rel="noopener">Listen on Spotify</a>
-                <a class="dc__btn" href="#top">Get Pulse Music</a>
               </div>
             </div>
           </div>
@@ -723,7 +802,7 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
         <div><dt>A real queue</dt><dd>Drag anything coming up into a new order, double-click to play it, remove or clear songs. Spotify's own API allows none of that.</dd></div>
         <div><dt>Every play counted</dt><dd>Like stats.fm: Pulse runs in the tray and counts what you play on your phone too. Last week, this year and all time.</dd></div>
         <div><dt>Your year in music</dt><dd>A big card in December, like Wrapped, with your top songs, artists and minutes.</dd></div>
-        <div><dt>Looks for Now Playing</dt><dd>A big album cover, a detailed turntable you can scratch (needle drop and vinyl crackle), a CD deck that spins up, a cassette with turning reels, a gig poster, a beat visualizer, or a lock screen with the cover as wallpaper, and real full screen over the taskbar.</dd></div>
+        <div><dt>Looks for Now Playing</dt><dd>A big album cover, a turntable you can grab and scratch (needle drop and vinyl crackle), a cartoon poster, a visualizer that moves with the beat, or a lock screen with the cover as wallpaper, and real full screen over the taskbar.</dd></div>
         <div><dt>Picture walls</dt><dd>A mosaic of your own pictures on your profile, next to your songs and links.</dd></div>
         <div><dt>Song transitions</dt><dd>Optional fades between songs, with both covers on screen.</dd></div>
         <div><dt>Discord status</dt><dd>The song with its cover, a live progress bar and a badge that shows what Pulse is doing.</dd></div>
@@ -732,6 +811,8 @@ kbd { font: 600 14px var(--body); padding: 2px 8px; border-radius: 7px; backgrou
         <div><dt>Mini player</dt><dd>A small window for the song that's playing.</dd></div>
         <div><dt>Spotify Connect</dt><dd>Pulse shows up as a device, and it can play on your phone or speaker.</dd></div>
         <div><dt>Updates itself</dt><dd>New versions download in the background.</dd></div>
+        <div><dt>Settings that make sense</dt><dd>Sorted into sections with a search box: start page, app size, song notifications, Performance or Quality animations, hardware acceleration.</dd></div>
+        <div><dt>Fun facts</dt><dd>Your longest streak, the song you played most in a day, your longest session and your hour, as a colourful board on Your stats.</dd></div>
       </dl>
     </div>
   </section>

@@ -5,12 +5,13 @@
 //  - Spotify's own lyrics, line-synced for many songs LRCLIB doesn't have.
 // Both are read the way the Spotify web player reads them. Nothing here counts against Pulse's
 // Web API allowance, and the sign-in never leaves this computer.
-import { BrowserWindow, session } from 'electron'
+import { app, BrowserWindow, session } from 'electron'
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import type { SpotifyFriend, SpotifyLyrics } from '@shared/types'
 
 const PARTITION = 'persist:spotify-account'
-const UA =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
 
 const ses = (): Electron.Session => {
   const s = session.fromPartition(PARTITION)
@@ -20,7 +21,9 @@ const ses = (): Electron.Session => {
 
 /** Signed in: Spotify's login cookie is there. */
 async function signedIn(): Promise<boolean> {
-  const c = await ses().cookies.get({ name: 'sp_dc' }).catch(() => [])
+  const c = await ses()
+    .cookies.get({ name: 'sp_dc' })
+    .catch(() => [])
   return c.some((x) => !!x.value)
 }
 
@@ -35,7 +38,16 @@ function captureToken(): Promise<string | null> {
   return new Promise((resolve) => {
     const s = ses()
     let done = false
-    const win = new BrowserWindow({ show: false, width: 1200, height: 800, webPreferences: { session: s, backgroundThrottling: false, sandbox: true } })
+    const win = new BrowserWindow({
+      show: false,
+      width: 1200,
+      height: 800,
+      webPreferences: {
+        session: s,
+        backgroundThrottling: false,
+        sandbox: true
+      }
+    })
     win.webContents.setAudioMuted(true)
     const finish = (v: string | null): void => {
       if (done) return
@@ -49,7 +61,11 @@ function captureToken(): Promise<string | null> {
       const h = d.requestHeaders
       const auth = h.Authorization ?? h.authorization
       if (auth && /^Bearer\s+\S{40,}/.test(auth)) {
-        token = { value: auth.replace(/^Bearer\s+/, ''), clientToken: h['client-token'] ?? h['Client-Token'] ?? null, at: Date.now() }
+        token = {
+          value: auth.replace(/^Bearer\s+/, ''),
+          clientToken: h['client-token'] ?? h['Client-Token'] ?? null,
+          at: Date.now()
+        }
         // the next tick, so this request still goes through
         setTimeout(() => finish(token!.value), 0)
       }
@@ -131,7 +147,9 @@ export function connectSpotifyAccount(parent: BrowserWindow | null): Promise<boo
 
 export async function disconnectSpotifyAccount(): Promise<void> {
   token = null
-  await ses().clearStorageData().catch(() => undefined)
+  await ses()
+    .clearStorageData()
+    .catch(() => undefined)
 }
 
 export async function spotifyAccountStatus(): Promise<{ connected: boolean }> {
@@ -142,33 +160,146 @@ export async function spotifyAccountStatus(): Promise<{ connected: boolean }> {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Json = any
-const idOf = (uri: unknown): string => String(uri ?? '').split(':').pop() ?? ''
+const idOf = (uri: unknown): string =>
+  String(uri ?? '')
+    .split(':')
+    .pop() ?? ''
 
 let friendsCache: { at: number; list: SpotifyFriend[] } | null = null
+
+/** The last answer, without anything personal beyond names, for a support question later. */
+function noteRaw(how: string, j: Json): void {
+  try {
+    const sample = Array.isArray(j?.friends) ? { friends: j.friends.length, first: j.friends[0] ?? null } : { keys: j ? Object.keys(j) : null }
+    writeFileSync(join(app.getPath('userData'), 'spotify-friends-debug.json'), JSON.stringify({ at: new Date().toISOString(), how, sample }, null, 2))
+  } catch {
+    /* only a note */
+  }
+}
+
+/** Reads one entry of the list, whichever shape Spotify sends. */
+function toFriend(f: Json): SpotifyFriend | null {
+  const user = f?.user ?? f?.userInfo
+  const track = f?.track ?? f?.trackInfo ?? f?.currentTrack
+  if (!user?.uri || !track?.uri) return null
+  return {
+    id: decodeURIComponent(idOf(user.uri)),
+    name: String(user.name ?? user.displayName ?? ''),
+    image: user.imageUrl || user.image || null,
+    at: Number(f.timestamp ?? f.lastUpdate) || 0,
+    track: {
+      id: idOf(track.uri),
+      uri: String(track.uri),
+      name: String(track.name ?? ''),
+      image: track.imageUrl || track.album?.imageUrl || null,
+      artist: {
+        id: idOf(track.artist?.uri),
+        name: String(track.artist?.name ?? '')
+      },
+      album: {
+        id: idOf(track.album?.uri),
+        name: String(track.album?.name ?? '')
+      },
+      context: track.context?.uri
+        ? {
+            uri: String(track.context.uri),
+            name: String(track.context.name ?? '')
+          }
+        : null
+    }
+  }
+}
+
+const parse = (j: Json): SpotifyFriend[] | null =>
+  Array.isArray(j?.friends)
+    ? (j.friends as Json[])
+        .map(toFriend)
+        .filter((x): x is SpotifyFriend => !!x)
+        .sort((a, b) => b.at - a.at)
+    : null
+
+/**
+ * The list the web player itself loads, read from inside it: the web player is opened hidden
+ * (wide, so its Friend Activity panel is there), and its own buddylist answer is noted. Used when
+ * asking directly gives nothing, which happens when Spotify changes how it wants to be asked.
+ */
+function fromWebPlayer(): Promise<Json | null> {
+  return new Promise((resolve) => {
+    const win = new BrowserWindow({
+      show: false,
+      width: 1800,
+      height: 1100,
+      webPreferences: {
+        session: ses(),
+        backgroundThrottling: false,
+        sandbox: true
+      }
+    })
+    win.webContents.setAudioMuted(true)
+    const dbg = win.webContents.debugger
+    let done = false
+    const finish = (v: Json | null): void => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      try {
+        dbg.detach()
+      } catch {
+        /* already */
+      }
+      if (!win.isDestroyed()) win.destroy()
+      resolve(v)
+    }
+    const timer = setTimeout(() => finish(null), 30_000)
+    const wanted = new Set<string>()
+    try {
+      dbg.attach('1.3')
+    } catch {
+      return finish(null)
+    }
+    dbg.on('message', (_e, method: string, params: Json) => {
+      if (method === 'Network.responseReceived' && /buddylist/i.test(String(params?.response?.url ?? ''))) wanted.add(params.requestId)
+      if (method === 'Network.loadingFinished' && wanted.has(params?.requestId)) {
+        void dbg
+          .sendCommand('Network.getResponseBody', {
+            requestId: params.requestId
+          })
+          .then((r: { body: string; base64Encoded: boolean }) => {
+            const text = r.base64Encoded ? Buffer.from(r.body, 'base64').toString('utf8') : r.body
+            const j = JSON.parse(text) as Json
+            if (Array.isArray(j?.friends)) finish(j)
+          })
+          .catch(() => undefined)
+      }
+    })
+    void dbg.sendCommand('Network.enable').catch(() => undefined)
+    win.loadURL('https://open.spotify.com/', { userAgent: UA }).catch(() => undefined)
+  })
+}
+
+let deepAt = 0
 
 export async function spotifyFriends(): Promise<SpotifyFriend[] | null> {
   // at most every 30 s, however many pages ask
   if (friendsCache && Date.now() - friendsCache.at < 30_000) return friendsCache.list
-  const j = await webGet<Json>('https://guc-spclient.spotify.com/presence-view/v1/buddylist')
-  if (!j || !Array.isArray(j.friends)) return friendsCache?.list ?? null
-  const list: SpotifyFriend[] = (j.friends as Json[])
-    .filter((f) => f?.user?.uri && f?.track?.uri)
-    .map((f) => ({
-      id: decodeURIComponent(idOf(f.user.uri)),
-      name: String(f.user.name ?? ''),
-      image: f.user.imageUrl || null,
-      at: Number(f.timestamp) || 0,
-      track: {
-        id: idOf(f.track.uri),
-        uri: String(f.track.uri),
-        name: String(f.track.name ?? ''),
-        image: f.track.imageUrl || null,
-        artist: { id: idOf(f.track.artist?.uri), name: String(f.track.artist?.name ?? '') },
-        album: { id: idOf(f.track.album?.uri), name: String(f.track.album?.name ?? '') },
-        context: f.track.context?.uri ? { uri: String(f.track.context.uri), name: String(f.track.context.name ?? '') } : null
-      }
-    }))
-    .sort((a, b) => b.at - a.at)
+  let list: SpotifyFriend[] | null = null
+  let raw: Json = null
+  for (const host of ['https://guc-spclient.spotify.com', 'https://spclient.wg.spotify.com']) {
+    raw = await webGet<Json>(`${host}/presence-view/v1/buddylist`)
+    list = parse(raw)
+    if (list?.length) break
+  }
+  noteRaw('direct', raw)
+  // nothing that way: ask the web player (at most every 5 minutes, it takes a few seconds)
+  if (!list?.length && Date.now() - deepAt > 5 * 60_000 && (await signedIn())) {
+    deepAt = Date.now()
+    const j = await fromWebPlayer()
+    if (j) {
+      noteRaw('web player', j)
+      list = parse(j)
+    }
+  }
+  if (!list) return friendsCache?.list ?? null
   friendsCache = { at: Date.now(), list }
   return list
 }
@@ -189,7 +320,12 @@ export async function spotifyLyrics(trackId: string): Promise<SpotifyLyrics | nu
     out = {
       synced,
       lines: (l.lines as Json[])
-        .map((x) => ({ timeMs: Number(x.startTimeMs) || 0, text: String(x.words ?? '').replace(/♪/g, '').trim() }))
+        .map((x) => ({
+          timeMs: Number(x.startTimeMs) || 0,
+          text: String(x.words ?? '')
+            .replace(/♪/g, '')
+            .trim()
+        }))
         .filter((x, i, all) => x.text || (i > 0 && all[i - 1].text)),
       provider: String(l.providerDisplayName ?? l.provider ?? 'Spotify')
     }

@@ -14,23 +14,37 @@ import {
   session,
   shell,
   Tray,
-  webContents
+  webContents,
+  globalShortcut
 } from 'electron'
 import { join, resolve } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 import { rmSync } from 'node:fs'
-import {
-  EMPTY_SNAPSHOT,
-  type PlaybackSnapshot,
-  type PlayerCommand,
-  type Settings
-} from '@shared/types'
+import { EMPTY_SNAPSHOT, GLOBAL_KEYS, type GlobalAction, type PlaybackSnapshot, type PlayerCommand, type Settings } from '@shared/types'
 import trayIconPath from '../../resources/tray.png?asset'
 import appIconPath from '../../build/icon.png?asset'
 import { getAccessToken, grantedScopes, isLoggedIn, loadTokens, login, logout, customClientId, setCustomClientId } from './auth'
 import { isStoreName, readStore, writeStore } from './datastore'
 import { djChat } from './dj'
-import { friendAction, nowOf, followsOf, getListeners, getSpotifyFollows, shareNow, savedSpotifyUser, userFromHtml, getEmbedPlaylist, getFriends, getPulseProfile, getSpotifyUser, lookupPulse, publishPulse, pulseServerOn, searchPulse, searchSpotifyUsers } from './social'
+import {
+  friendAction,
+  nowOf,
+  followsOf,
+  getListeners,
+  getSpotifyFollows,
+  shareNow,
+  savedSpotifyUser,
+  userFromHtml,
+  getEmbedPlaylist,
+  getFriends,
+  getPulseProfile,
+  getSpotifyUser,
+  lookupPulse,
+  publishPulse,
+  pulseServerOn,
+  searchPulse,
+  searchSpotifyUsers
+} from './social'
 import { cleanOldVoices, installVoice, speak, voiceStatus } from './voice'
 import { discordStatus, refreshPresence, setDiscordEnabled, setDiscordGetButton, updatePresence } from './discord'
 import { fetchGenius, fetchLrclib, fetchLyricsOvh } from './lyrics'
@@ -42,7 +56,7 @@ import { relatedArtists, songPreview } from './recs'
 import { connectLastfm, disconnectLastfm, lastfmNowPlaying, lastfmScrobble, lastfmStatus, setLastfmEnabled, startLastfm } from './lastfm'
 import { checkForUpdatesNow, initUpdates, installUpdateNow, setAutoUpdates, updateStatus } from './updater'
 import { prepareTunnel } from './tunnel'
-import { partyInfo, setPartyNowPlaying, setPartyQueue, startParty, stopParty } from './party'
+import { partyInfo, setPartyNowPlaying, setPartyQueue, startParty, stopParty, partyVote } from './party'
 import { getSettings, loadSettings, updateSettings } from './settings'
 import { loadProfile, saveProfile } from './profile'
 import type { Profile } from '@shared/types'
@@ -60,9 +74,7 @@ let snapshot: PlaybackSnapshot = EMPTY_SNAPSHOT
 const isDev = !app.isPackaged && !!process.env['ELECTRON_RENDERER_URL']
 
 // Look like regular Chrome so Spotify's player does not reject the browser.
-app.userAgentFallback = app.userAgentFallback
-  .replace(/\sElectron\/\S+/, '')
-  .replace(new RegExp(`\\s${app.getName()}/\\S+`, 'i'), '')
+app.userAgentFallback = app.userAgentFallback.replace(/\sElectron\/\S+/, '').replace(new RegExp(`\\s${app.getName()}/\\S+`, 'i'), '')
 
 // Smoother rendering: GPU rasterisation even on GPUs Chromium is unsure about. Settings →
 // Performance can turn the GPU off for drivers that draw black or flickering windows (read here,
@@ -104,11 +116,24 @@ export function cleanPartyUrl(raw: unknown): string | null {
     return null
   }
 }
+/**
+ * The link Pulse was opened with: a party to join (pulsemusic://join?u=<party page>), or a
+ * friend to listen along with (pulsemusic://listen?u=<Spotify id>&n=<name>, from the Listen
+ * along button on their Discord status). Listen links are handed on as "listen:<id>:<name>".
+ */
 const joinFromArgv = (argv: string[]): string | null => {
   const link = argv.find((a) => a.startsWith(`${PROTOCOL}://`))
   if (!link) return null
   try {
-    return cleanPartyUrl(new URL(link).searchParams.get('u'))
+    const u = new URL(link)
+    const kind = (u.hostname || u.pathname.replace(/^\/+/, '')).replace(/\/+$/, '')
+    if (kind === 'listen') {
+      const id = u.searchParams.get('u') ?? ''
+      if (!/^[A-Za-z0-9._-]{1,64}$/.test(id)) return null
+      const name = (u.searchParams.get('n') ?? '').slice(0, 60)
+      return `listen:${id}:${encodeURIComponent(name)}`
+    }
+    return cleanPartyUrl(u.searchParams.get('u'))
   } catch {
     return null
   }
@@ -271,17 +296,19 @@ function buildTrayMenu(): void {
   tray.setContextMenu(
     Menu.buildFromTemplate([
       ...(s.hasTrack
-        ? [
-            { label: s.title.slice(0, 60), enabled: false },
-            { label: s.artists.slice(0, 60), enabled: false },
-            { type: 'separator' as const }
-          ]
+        ? [{ label: s.title.slice(0, 60), enabled: false }, { label: s.artists.slice(0, 60), enabled: false }, { type: 'separator' as const }]
         : []),
-      { label: s.paused ? 'Play' : 'Pause', click: () => sendCommand({ type: 'toggle' }) },
+      {
+        label: s.paused ? 'Play' : 'Pause',
+        click: () => sendCommand({ type: 'toggle' })
+      },
       { label: 'Next', click: () => sendCommand({ type: 'next' }) },
       { label: 'Previous', click: () => sendCommand({ type: 'previous' }) },
       { type: 'separator' },
-      { label: miniWindow ? 'Close mini player' : 'Mini player', click: toggleMini },
+      {
+        label: miniWindow ? 'Close mini player' : 'Mini player',
+        click: toggleMini
+      },
       { label: 'Show Pulse Music', click: showMain },
       { type: 'separator' },
       { label: 'Quit', click: () => app.quit() }
@@ -302,10 +329,46 @@ function applySettings(s: Settings, prev?: Settings): void {
   setDiscordGetButton(s.discordGetButton ?? true)
   if (!prev || prev.launchAtStartup !== s.launchAtStartup) {
     // started by Windows it opens quietly in the tray
-    if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: s.launchAtStartup, args: ['--hidden'] })
+    if (app.isPackaged)
+      app.setLoginItemSettings({
+        openAtLogin: s.launchAtStartup,
+        args: ['--hidden']
+      })
   }
   if (prev && prev.autoUpdate !== s.autoUpdate) setAutoUpdates(s.autoUpdate !== false)
   applyZoom(s)
+  applyGlobalKeys(s)
+}
+
+/* ---------- Keyboard shortcuts that work from any app ---------- */
+let keysOn = ''
+const KEY_COMMANDS: Record<GlobalAction, () => void> = {
+  toggle: () => sendCommand({ type: 'toggle' }),
+  next: () => sendCommand({ type: 'next' }),
+  previous: () => sendCommand({ type: 'previous' }),
+  volumeUp: () => sendCommand({ type: 'volume', delta: 0.05 }),
+  volumeDown: () => sendCommand({ type: 'volume', delta: -0.05 }),
+  like: () => sendCommand({ type: 'like' }),
+  show: () => showMain()
+}
+
+/** (Re)registers the shortcuts from Settings; keys another app already uses are skipped. */
+function applyGlobalKeys(s: Settings): void {
+  if (!app.isReady()) return
+  const keys = { ...GLOBAL_KEYS, ...(s.globalKeys ?? {}) }
+  const sig = s.globalShortcuts === false ? 'off' : JSON.stringify(keys)
+  if (sig === keysOn) return
+  keysOn = sig
+  globalShortcut.unregisterAll()
+  if (s.globalShortcuts === false) return
+  for (const [action, accel] of Object.entries(keys) as [GlobalAction, string][]) {
+    if (!accel) continue
+    try {
+      if (!globalShortcut.register(accel, KEY_COMMANDS[action])) console.warn('[keys] taken by another app:', accel)
+    } catch (e) {
+      console.warn('[keys] not a valid shortcut:', accel, e)
+    }
+  }
 }
 
 /** The size the whole app is drawn at (Settings → General → Size). */
@@ -352,9 +415,7 @@ function registerIpc(): void {
   })
   ipcMain.handle('dj:voice-status', () => voiceStatus())
   ipcMain.handle('dj:install-voice', (e) => installVoice(e.sender))
-  ipcMain.handle('dj:speak', (_e, text: string, voice?: string) =>
-    speak(String(text).slice(0, 1200), (voice ?? getSettings().djSpeaker) as never)
-  )
+  ipcMain.handle('dj:speak', (_e, text: string, voice?: string) => speak(String(text).slice(0, 1200), (voice ?? getSettings().djSpeaker) as never))
 
   ipcMain.handle('store:get', (_e, name: unknown) => (isStoreName(name) ? readStore(name) : null))
   ipcMain.handle('store:set', (_e, name: unknown, data: unknown) => {
@@ -369,7 +430,10 @@ function registerIpc(): void {
   ipcMain.handle('image:save', async (_e, dataUrl: string, name: string) => {
     const png = pngFromDataUrl(dataUrl)
     if (!png || !mainWindow) return false
-    const safe = String(name || 'Pulse Music').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 80)
+    const safe = String(name || 'Pulse Music')
+      .replace(/[\\/:*?"<>|]+/g, ' ')
+      .trim()
+      .slice(0, 80)
     const res = await dialog.showSaveDialog(mainWindow, {
       title: 'Save image',
       defaultPath: join(app.getPath('pictures'), `${safe}.png`),
@@ -382,7 +446,11 @@ function registerIpc(): void {
   ipcMain.handle('image:copy', async (_e, dataUrl: string) => {
     const png = pngFromDataUrl(dataUrl)
     if (!png) return false
-    await clipboard.write([new ClipboardItem({ 'image/png': new Blob([new Uint8Array(png)], { type: 'image/png' }) })])
+    await clipboard.write([
+      new ClipboardItem({
+        'image/png': new Blob([new Uint8Array(png)], { type: 'image/png' })
+      })
+    ])
     return true
   })
 
@@ -406,7 +474,10 @@ function registerIpc(): void {
   ipcMain.handle('update:check', () => checkForUpdatesNow())
   ipcMain.handle('update:status', () => updateStatus())
   ipcMain.handle('app:version', () => app.getVersion())
-  ipcMain.handle('app:gpu', () => ({ on: app.isHardwareAccelerationEnabled?.() ?? true, wanted: getSettings().hardwareAcceleration !== false }))
+  ipcMain.handle('app:gpu', () => ({
+    on: app.isHardwareAccelerationEnabled?.() ?? true,
+    wanted: getSettings().hardwareAcceleration !== false
+  }))
   ipcMain.handle('app:relaunch', () => {
     quitting = true
     app.relaunch()
@@ -458,7 +529,13 @@ function registerIpc(): void {
     if (action !== 'follow' && action !== 'unfollow' && action !== 'dismiss') throw new Error('Unknown friend action')
     if (!sid(id)) throw new Error('Bad user id')
     const w = who as { name?: unknown; image?: unknown } | null
-    const info = w && typeof w === 'object' ? { name: typeof w.name === 'string' ? w.name.slice(0, 60) : '', image: typeof w.image === 'string' ? w.image.slice(0, 1000) : null } : undefined
+    const info =
+      w && typeof w === 'object'
+        ? {
+            name: typeof w.name === 'string' ? w.name.slice(0, 60) : '',
+            image: typeof w.image === 'string' ? w.image.slice(0, 1000) : null
+          }
+        : undefined
     return friendAction(action, sid(id)!, info)
   })
   ipcMain.handle('people:share-now', (_e, now: unknown) => shareNow((now ?? null) as Parameters<typeof shareNow>[0]))
@@ -478,6 +555,7 @@ function registerIpc(): void {
     refreshPresence()
   })
   ipcMain.handle('party:info', () => partyInfo())
+  ipcMain.handle('party:vote', (_e, uri: unknown, v: unknown) => partyVote('host', String(uri ?? ''), Number(v) || 0))
   // A guest's side: talk to a friend's party (the browser page can't, it's another origin).
   ipcMain.handle('party:pending-join', () => {
     const u = pendingJoin
@@ -487,7 +565,10 @@ function registerIpc(): void {
   const remote = async (url: unknown, path: string, init?: RequestInit): Promise<unknown> => {
     const base = cleanPartyUrl(url)
     if (!base) throw new Error('That is not a Pulse party link.')
-    const res = await fetch(`${base}/${path}`, { ...init, signal: AbortSignal.timeout(8000) })
+    const res = await fetch(`${base}/${path}`, {
+      ...init,
+      signal: AbortSignal.timeout(8000)
+    })
     const body = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error((body as { error?: string }).error ?? `The party answered ${res.status}.`)
     return body
@@ -498,14 +579,20 @@ function registerIpc(): void {
     remote(url, 'api/add', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uri: String(uri), guest: String(guest).slice(0, 24) })
+      body: JSON.stringify({
+        uri: String(uri),
+        guest: String(guest).slice(0, 24)
+      })
     })
   )
   ipcMain.handle('party:remote-control', (_e, url: string, control: unknown, guest: string) =>
     remote(url, 'api/control', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...(control as object), guest: String(guest).slice(0, 24) })
+      body: JSON.stringify({
+        ...(control as object),
+        guest: String(guest).slice(0, 24)
+      })
     })
   )
   ipcMain.on('party:queue', (_e, q) => {
@@ -552,8 +639,7 @@ function registerIpc(): void {
   })
 
   ipcMain.on('playback:publish', (_e, s: PlaybackSnapshot) => {
-    const changed =
-      s.trackId !== snapshot.trackId || s.paused !== snapshot.paused || s.title !== snapshot.title
+    const changed = s.trackId !== snapshot.trackId || s.paused !== snapshot.paused || s.title !== snapshot.title
     snapshot = s
     setPartyNowPlaying(s)
     miniWindow?.webContents.send('playback:snapshot', s)
@@ -610,8 +696,9 @@ function registerIpc(): void {
 function allowLoopbackAudio(): void {
   if (process.platform !== 'win32') return
   session.defaultSession.setDisplayMediaRequestHandler((req, cb) => {
+    // only Pulse's own window asks (some Electron builds don't say which frame asked)
     const from = req.frame ? webContents.fromFrame(req.frame) : null
-    if (!mainWindow || from !== mainWindow.webContents || !req.audioRequested) return cb({})
+    if (!mainWindow || !req.audioRequested || (from && from !== mainWindow.webContents)) return cb({})
     desktopCapturer
       .getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } })
       .then((list) => cb(list[0] ? { video: list[0], audio: 'loopback' } : {}))
@@ -646,6 +733,7 @@ app.whenReady().then(async () => {
   })
 })
 
+app.on('will-quit', () => globalShortcut.unregisterAll())
 app.on('window-all-closed', () => app.quit())
 
 app.on('before-quit', () => {

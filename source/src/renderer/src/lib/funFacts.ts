@@ -13,6 +13,13 @@ export interface Fact {
   /** The detail under it: a song, a date. */
   detail?: string
   art?: string | null
+  /** A small picture of the number. */
+  viz?:
+    | { kind: 'days'; days: boolean[] }
+    | { kind: 'bars'; values: number[]; labels: string[]; peak: number }
+    | { kind: 'clock'; values: number[]; peak: number }
+    | { kind: 'share'; value: number }
+    | { kind: 'span'; from: number; to: number }
 }
 
 const dayStart = (t: number): number => {
@@ -52,12 +59,25 @@ export function funFacts(all: Play[], from: number): Fact[] {
   const today = dayStart(Date.now())
   const last = days[days.length - 1]
   const current = last === today || nextDay(last) === today ? run.len : 0
+  const lit = new Set(days)
+  const recentDays: boolean[] = []
+  for (let k = 20; k >= 0; k--) {
+    const d = new Date(today)
+    d.setDate(d.getDate() - k)
+    recentDays.push(lit.has(dayStart(d.getTime())))
+  }
   if (best.len >= 2)
     out.push({
+      viz: { kind: 'days', days: recentDays },
       id: 'streak',
       value: `${best.len} days`,
       label: 'Longest streak',
-      detail: current >= 2 && current !== best.len ? `${shortDate(best.from)} – ${shortDate(best.to)} · now on ${current}` : current === best.len ? 'And it is still going' : `${shortDate(best.from)} – ${shortDate(best.to)}`
+      detail:
+        current >= 2 && current !== best.len
+          ? `${shortDate(best.from)} – ${shortDate(best.to)} · now on ${current}`
+          : current === best.len
+            ? 'And it is still going'
+            : `${shortDate(best.from)} – ${shortDate(best.to)}`
     })
 
   // the song played most times in one day
@@ -71,24 +91,76 @@ export function funFacts(all: Play[], from: number): Fact[] {
   }
   const repeat = [...perDay.values()].sort((a, b) => b.n - a.n)[0]
   if (repeat && repeat.n >= 3)
-    out.push({ id: 'repeat', value: `${repeat.n}×`, label: 'On repeat in one day', detail: `${repeat.p.name} · ${shortDate(repeat.day)}`, art: repeat.p.art })
+    out.push({
+      id: 'repeat',
+      value: `${repeat.n}×`,
+      label: 'On repeat in one day',
+      detail: `${repeat.p.name} · ${shortDate(repeat.day)}`,
+      art: repeat.p.art
+    })
 
   // the longest session: music with no break longer than 15 minutes
-  let session = { ms: 0, from: plays[0].at }
+  let session = { ms: 0, from: plays[0].at, end: plays[0].at }
   let cur = { ms: 0, from: plays[0].at, end: plays[0].at }
   for (const p of plays) {
     if (p.at - cur.end > 15 * 60_000) cur = { ms: 0, from: p.at, end: p.at }
     cur.ms += p.ms
     cur.end = Math.max(cur.end, p.at + p.ms)
-    if (cur.ms > session.ms) session = { ms: cur.ms, from: cur.from }
+    if (cur.ms > session.ms) session = { ms: cur.ms, from: cur.from, end: cur.end }
   }
-  if (session.ms >= 30 * 60_000) out.push({ id: 'session', value: duration(session.ms), label: 'Longest session', detail: `Without a break, ${shortDate(session.from)}` })
+  if (session.ms >= 30 * 60_000) {
+    // where in the day it was (fractions of 24 hours; a session past midnight runs to the end)
+    const d0 = dayStart(session.from)
+    const f = (t: number): number => Math.max(0, Math.min(1, (t - d0) / 86_400_000))
+    const hm = (t: number): string =>
+      new Date(t).toLocaleTimeString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    out.push({
+      id: 'session',
+      value: duration(session.ms),
+      label: 'Longest session',
+      detail: `${shortDate(session.from)}, ${hm(session.from)}–${hm(session.end)}`,
+      viz: { kind: 'span', from: f(session.from), to: f(session.end) }
+    })
+  }
 
   // the day with the most music
   const dayMs = new Map<number, number>()
   for (const p of plays) dayMs.set(dayStart(p.at), (dayMs.get(dayStart(p.at)) ?? 0) + p.ms)
   const biggest = [...dayMs.entries()].sort((a, b) => b[1] - a[1])[0]
-  if (biggest && days.length >= 2) out.push({ id: 'day', value: duration(biggest[1]), label: 'Your biggest day', detail: new Date(biggest[0]).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) })
+  if (biggest && days.length >= 2) {
+    // the last two weeks, day by day, with the biggest one marked when it is among them
+    const vals: number[] = []
+    const labels: string[] = []
+    let peakAt = -1
+    for (let k = 13; k >= 0; k--) {
+      const d = new Date(today)
+      d.setDate(d.getDate() - k)
+      const key = dayStart(d.getTime())
+      if (key === biggest[0]) peakAt = vals.length
+      vals.push(dayMs.get(key) ?? 0)
+      labels.push(String(d.getDate()))
+    }
+    const top = Math.max(...vals, 1)
+    out.push({
+      id: 'day',
+      value: duration(biggest[1]),
+      label: 'Your biggest day',
+      detail: new Date(biggest[0]).toLocaleDateString('en-GB', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long'
+      }),
+      viz: {
+        kind: 'bars',
+        values: vals.map((v) => v / top),
+        labels,
+        peak: peakAt >= 0 ? peakAt : vals.indexOf(Math.max(...vals))
+      }
+    })
+  }
 
   // your hour and your weekday
   const hours = new Array(24).fill(0) as number[]
@@ -104,14 +176,34 @@ export function funFacts(all: Play[], from: number): Fact[] {
   const morning = hours.slice(5, 10).reduce((a, b) => a + b, 0) / total
   const kind = night >= 0.18 ? 'Night owl' : morning >= 0.25 ? 'Early bird' : peak >= 17 ? 'Evening listener' : 'Daytime listener'
   out.push({
+    viz: {
+      kind: 'clock',
+      values: hours.map((h) => h / (Math.max(...hours) || 1)),
+      peak
+    },
     id: 'hour',
     value: hourLabel(peak),
     label: 'Your hour',
-    detail: night >= 0.18 ? `${kind}: ${Math.round(night * 100)}% after midnight` : morning >= 0.25 ? `${kind}: ${Math.round(morning * 100)}% before 10 AM` : kind
+    detail:
+      night >= 0.18 ? `${kind}: ${Math.round(night * 100)}% after midnight` : morning >= 0.25 ? `${kind}: ${Math.round(morning * 100)}% before 10 AM` : kind
   })
   if (days.length >= 7) {
     const wd = weekdays.indexOf(Math.max(...weekdays))
-    out.push({ id: 'weekday', value: WEEKDAYS[wd], label: 'Your favourite day', detail: `${Math.round((weekdays[wd] / total) * 100)}% of your listening` })
+    // Monday first
+    const order = [1, 2, 3, 4, 5, 6, 0]
+    const top = Math.max(...weekdays) || 1
+    out.push({
+      id: 'weekday',
+      value: WEEKDAYS[wd],
+      label: 'Your favourite day',
+      detail: `${Math.round((weekdays[wd] / total) * 100)}% of your listening`,
+      viz: {
+        kind: 'bars',
+        values: order.map((d) => weekdays[d] / top),
+        labels: order.map((d) => WEEKDAYS[d][0]),
+        peak: order.indexOf(wd)
+      }
+    })
   }
 
   // artists heard for the first time in this time
@@ -128,7 +220,12 @@ export function funFacts(all: Play[], from: number): Fact[] {
         }
       if (fresh.size) {
         const top = [...fresh.values()].sort((a, b) => b.ms - a.ms)[0]
-        out.push({ id: 'new', value: String(fresh.size), label: fresh.size === 1 ? 'New artist' : 'New artists', detail: `Most played: ${top.name}` })
+        out.push({
+          id: 'new',
+          value: String(fresh.size),
+          label: fresh.size === 1 ? 'New artist' : 'New artists',
+          detail: `Most played: ${top.name}`
+        })
       }
     }
   }
@@ -143,7 +240,14 @@ export function funFacts(all: Play[], from: number): Fact[] {
     else skips.set(k, { n: 1, p })
   }
   const skipped = [...skips.values()].sort((a, b) => b.n - a.n)[0]
-  if (skipped && skipped.n >= 3) out.push({ id: 'skip', value: `${skipped.n}×`, label: 'Skipped the most', detail: skipped.p.name, art: skipped.p.art })
+  if (skipped && skipped.n >= 3)
+    out.push({
+      id: 'skip',
+      value: `${skipped.n}×`,
+      label: 'Skipped the most',
+      detail: skipped.p.name,
+      art: skipped.p.art
+    })
 
   // how many different songs and how much of it was the top artist
   const songs = new Set(plays.map(songKey)).size
@@ -155,7 +259,13 @@ export function funFacts(all: Play[], from: number): Fact[] {
     byArtist.set(k, { name: a.name, ms: (byArtist.get(k)?.ms ?? 0) + p.ms })
   }
   const lead = [...byArtist.values()].sort((a, b) => b.ms - a.ms)[0]
-  out.push({ id: 'variety', value: songs.toLocaleString('en-US'), label: 'Different songs', detail: lead ? `${Math.round((lead.ms / total) * 100)}% of the time: ${lead.name}` : undefined })
+  out.push({
+    id: 'variety',
+    value: songs.toLocaleString('en-US'),
+    label: 'Different songs',
+    detail: lead ? `${Math.round((lead.ms / total) * 100)}% of the time: ${lead.name}` : undefined,
+    viz: lead ? { kind: 'share', value: lead.ms / total } : undefined
+  })
 
   return out
 }

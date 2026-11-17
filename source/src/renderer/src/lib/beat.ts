@@ -20,7 +20,12 @@ export interface BeatFrame {
   live: boolean
 }
 
-const frame: BeatFrame = { level: 0, kick: 0, bands: new Float32Array(BANDS), live: false }
+const frame: BeatFrame = {
+  level: 0,
+  kick: 0,
+  bands: new Float32Array(BANDS),
+  live: false
+}
 
 let users = 0
 let starting: Promise<void> | null = null
@@ -30,11 +35,14 @@ let analyser: AnalyserNode | null = null
 let freq: Uint8Array<ArrayBuffer> | null = null
 /** Band edges in FFT bins (log spaced, 40 Hz – 14 kHz). */
 let edges: number[] = []
-let failed = false
+/** When capturing the sound last failed (it is tried again after a while). */
+let failedAt = 0
 let lastAt = 0
 let bassAvg = 0
 let bassVar = 0
 let lastKick = 0
+/** Each band's recent loudest, so quiet highs move as much as loud lows (it sinks slowly). */
+const peaks = new Float32Array(BANDS).fill(0.3)
 let stopTimer = 0
 
 /** What the computer plays: Electron's display capture with loopback audio (the main process
@@ -44,13 +52,24 @@ async function captureOutput(): Promise<MediaStream> {
   const id = await window.pulse.recs?.loopbackSource?.().catch(() => null)
   if (!id) throw new Error('no loopback here')
   try {
-    return await navigator.mediaDevices.getDisplayMedia({ audio: true, video: { width: 16, height: 16, frameRate: 1 } })
+    return await navigator.mediaDevices.getDisplayMedia({
+      audio: true,
+      video: { width: 16, height: 16, frameRate: 1 }
+    })
   } catch (e) {
     console.info('[beat] display capture refused, trying desktop capture:', e instanceof Error ? e.message : e)
   }
   return navigator.mediaDevices.getUserMedia({
     audio: { mandatory: { chromeMediaSource: 'desktop' } },
-    video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: id, maxWidth: 16, maxHeight: 16, maxFrameRate: 1 } }
+    video: {
+      mandatory: {
+        chromeMediaSource: 'desktop',
+        chromeMediaSourceId: id,
+        maxWidth: 16,
+        maxHeight: 16,
+        maxFrameRate: 1
+      }
+    }
   } as unknown as MediaStreamConstraints)
 }
 
@@ -72,7 +91,7 @@ async function startLoopback(): Promise<void> {
   const src = ctx.createMediaStreamSource(new MediaStream(audio))
   analyser = ctx.createAnalyser()
   analyser.fftSize = 2048
-  analyser.smoothingTimeConstant = 0.55
+  analyser.smoothingTimeConstant = 0.3
   analyser.minDecibels = -85
   analyser.maxDecibels = -20
   src.connect(analyser)
@@ -103,10 +122,10 @@ export function useBeat(on = true): void {
     if (!on) return
     users++
     window.clearTimeout(stopTimer)
-    if (!stream && !starting && !failed) {
+    if (!stream && !starting && Date.now() - failedAt > 60_000) {
       starting = startLoopback()
         .catch((e) => {
-          failed = true
+          failedAt = Date.now()
           console.info('[beat] following the tempo instead of the sound:', e instanceof Error ? e.message : e)
         })
         .finally(() => (starting = null))
@@ -120,6 +139,9 @@ export function useBeat(on = true): void {
 }
 
 /* ---------- The tempo guess ---------- */
+
+let shapeBeat = -1
+const shape = new Float32Array(BANDS)
 
 let tempoFor = ''
 let bpm = 0
@@ -157,9 +179,12 @@ export function readBeat(): BeatFrame {
       let n = 0
       for (let i = edges[b]; i < edges[b + 1] && i < freq.length; i++, n++) sum += freq[i]
       const v = n ? sum / n / 255 : 0
-      // a little tilt, so the highs aren't always shorter than the lows
-      const shaped = Math.min(1, v * (0.85 + (b / BANDS) * 0.45))
-      frame.bands[b] += (shaped - frame.bands[b]) * (shaped > frame.bands[b] ? 0.6 : 0.18)
+      // each band against its own recent loudest: the shape of the music, not just its volume
+      peaks[b] = Math.max(v, peaks[b] * Math.exp(-dt / 2500), 0.12)
+      const rel = v / peaks[b]
+      // a curve that makes the hits stand out from what's always there
+      const shaped = Math.min(1, Math.pow(rel, 1.6) * 0.92 + v * 0.15)
+      frame.bands[b] += (shaped - frame.bands[b]) * (shaped > frame.bands[b] ? 0.85 : 0.22)
       total += v
     }
     const level = total / BANDS
@@ -187,9 +212,16 @@ export function readBeat(): BeatFrame {
   }
   const target = playing ? 0.45 : 0
   frame.level += (target - frame.level) * 0.05
+  // a new random shape on every beat that falls away until the next one (like music does),
+  // instead of a rolling wave
+  const beatNo = tempo > 0 ? Math.floor(livePosition(usePlayer.getState()) / (60_000 / tempo)) : Math.floor(now / 500)
+  if (beatNo !== shapeBeat) {
+    shapeBeat = beatNo
+    for (let b = 0; b < BANDS; b++) shape[b] = 0.35 + Math.random() * 0.65 * (b < 12 ? 1 : 0.75)
+  }
   for (let b = 0; b < BANDS; b++) {
-    const wave = playing ? 0.25 + 0.2 * Math.sin(now / 420 + b * 0.55) + frame.kick * 0.45 * (1 - b / BANDS) : 0
-    frame.bands[b] += (wave - frame.bands[b]) * 0.2
+    const want = playing ? 0.12 + shape[b] * (0.25 + frame.kick * 0.75) : 0
+    frame.bands[b] += (want - frame.bands[b]) * (want > frame.bands[b] ? 0.7 : 0.16)
   }
   return frame
 }

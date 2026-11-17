@@ -39,7 +39,10 @@ function Orb({ status, playing }: { status: string; playing: boolean }): React.J
       if (now - colorsAt > 1000) {
         colorsAt = now
         const cs = getComputedStyle(el)
-        colors = { a: cs.getPropertyValue('--amb-1').trim() || colors.a, b: cs.getPropertyValue('--amb-2').trim() || colors.b }
+        colors = {
+          a: cs.getPropertyValue('--amb-1').trim() || colors.a,
+          b: cs.getPropertyValue('--amb-2').trim() || colors.b
+        }
       }
       const beat = readBeat()
       smoothVoice += (voiceLevel() - smoothVoice) * 0.3
@@ -104,7 +107,11 @@ function Orb({ status, playing }: { status: string; playing: boolean }): React.J
   )
 }
 
-function useProblem(): { text: string | null; setup: boolean; recheck: () => void } {
+function useProblem(): {
+  text: string | null
+  setup: boolean
+  recheck: () => void
+} {
   const s = useApp((st) => st.settings)
   const [ready, setReady] = useState<boolean | undefined>(undefined)
   const [nonce, setNonce] = useState(0)
@@ -113,33 +120,14 @@ function useProblem(): { text: string | null; setup: boolean; recheck: () => voi
     void window.pulse.dj.localReady().then(setReady)
   }, [s.djProvider, nonce])
   const recheck = (): void => setNonce((n) => n + 1)
-  if (s.djProvider === 'claude') return { text: s.djClaudeKey ? null : 'Add your Claude API key in Settings.', setup: false, recheck }
+  if (s.djProvider === 'claude')
+    return {
+      text: s.djClaudeKey ? null : 'Add your Claude API key in Settings.',
+      setup: false,
+      recheck
+    }
   if (ready === false) return { text: 'The AI DJ isn’t set up yet.', setup: true, recheck }
   return { text: null, setup: false, recheck }
-}
-
-/** The song that's on, small, at the bottom of the stage. */
-function NowOnStage(): React.JSX.Element | null {
-  const track = usePlayer((s) => s.track)
-  const navigate = useApp((s) => s.navigate)
-  const pos = useLivePosition()
-  if (!track) return null
-  const pct = track.durationMs ? Math.min(100, (pos / track.durationMs) * 100) : 0
-  return (
-    <div className="djs__now">
-      <Cover src={track.artUrlSmall ?? track.artUrl} size={46} radius={10} />
-      <span className="djs__now-text">
-        <b>{track.name}</b>
-        <small>
-          <ArtistLinks artists={track.artists} onOpen={(id) => navigate({ name: 'artist', id })} />
-        </small>
-      </span>
-      <span className="djs__now-time">
-        {formatTime(pos)} / {formatTime(track.durationMs)}
-      </span>
-      <span className="djs__now-bar" style={{ ['--p' as string]: `${pct}%` }} />
-    </div>
-  )
 }
 
 export function DjView(): React.JSX.Element {
@@ -283,8 +271,6 @@ export function DjView(): React.JSX.Element {
             </div>
           )}
         </div>
-
-        <NowOnStage />
       </section>
 
       <section className="djs__section">
@@ -314,7 +300,13 @@ export function DjView(): React.JSX.Element {
                   key={`${p.id}-${i}`}
                   className={`${now ? 'is-now' : ''} ${i < current ? 'is-past' : ''}`}
                   title="Double-click to play from here"
-                  onDoubleClick={() => void playUris(set.slice(i).map((x) => x.uri), undefined, { source: 'dj' })}
+                  onDoubleClick={() =>
+                    void playUris(
+                      set.slice(i).map((x) => x.uri),
+                      undefined,
+                      { source: 'dj' }
+                    )
+                  }
                 >
                   <span className="djs__num">{now ? <EqBars playing={!paused} /> : i + 1}</span>
                   <Cover src={p.image} size={48} radius={10} />

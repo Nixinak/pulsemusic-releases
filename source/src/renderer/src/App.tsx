@@ -45,6 +45,7 @@ import { DjVoiceOverlay } from '@/components/DjVoice'
 import { startHistory } from '@/lib/history'
 import { startMadeForYou } from '@/lib/madeForYou'
 import { MadeView } from '@/views/MadeView'
+import { DiscoverView } from '@/views/DiscoverView'
 import { restoreStartPage, startAppExtras } from '@/lib/appExtras'
 
 function useTheme(): void {
@@ -56,10 +57,7 @@ function useTheme(): void {
     root.dataset.font = settings.font
     root.dataset.density = settings.density
     root.dataset.render = settings.renderMode ?? 'performance'
-    const colors =
-      settings.bgPalette === 'custom'
-        ? settings.customColors
-        : PRESETS.find((p) => p.id === settings.bgPalette)?.colors
+    const colors = settings.bgPalette === 'custom' ? settings.customColors : PRESETS.find((p) => p.id === settings.bgPalette)?.colors
     setChosenPalette(settings.bgPalette !== 'artwork' && colors ? paletteFromColors(colors) : null, settings.bgScope)
   }, [settings])
 }
@@ -92,6 +90,8 @@ function Page({ route, onSignOut }: { route: Route; onSignOut: () => void }): Re
       return <StatsView />
     case 'mix':
       return <MixView />
+    case 'discover':
+      return <DiscoverView />
     case 'party':
       return <PartyView />
     case 'dj':
@@ -255,13 +255,13 @@ function Shell({ onSignOut }: { onSignOut: () => void }): React.JSX.Element {
         <TopBar />
         <div className="main__scroll" ref={scroller}>
           <ScrollContext.Provider value={scroller}>
-          <AnimatePresence mode="popLayout" initial={false}>
-            <PageTransition key={routeKey(route)} id={routeKey(route)}>
-              <PageErrorBoundary onBack={back}>
-                <Page route={route} onSignOut={onSignOut} />
-              </PageErrorBoundary>
-            </PageTransition>
-          </AnimatePresence>
+            <AnimatePresence mode="popLayout" initial={false}>
+              <PageTransition key={routeKey(route)} id={routeKey(route)}>
+                <PageErrorBoundary onBack={back}>
+                  <Page route={route} onSignOut={onSignOut} />
+                </PageErrorBoundary>
+              </PageTransition>
+            </AnimatePresence>
           </ScrollContext.Provider>
         </div>
         <ListenWithBar />
@@ -343,7 +343,8 @@ function Login({ onDone }: { onDone: () => void }): React.JSX.Element {
           </button>
           {error && <p className="login__error">{error}</p>}
           <p className="login__fine">
-            Playback needs Spotify Premium.{savedId ? ' Using your own Spotify app.' : ''}
+            Playback needs Spotify Premium.
+            {savedId ? ' Using your own Spotify app.' : ''}
           </p>
           <button className="link login__own-toggle" onClick={() => setOwnOpen(!ownOpen)}>
             {ownOpen ? 'Hide' : 'Can’t sign in? Use your own Spotify app'}
@@ -360,16 +361,14 @@ function Login({ onDone }: { onDone: () => void }): React.JSX.Element {
                 </li>
                 <li>
                   <b>Create app</b>: any name, and as Redirect URI add{' '}
-                  <code
-                    className="login__copy"
-                    title="Copy"
-                    onClick={() => void navigator.clipboard.writeText(redirect).then(() => setError(null))}
-                  >
+                  <code className="login__copy" title="Copy" onClick={() => void navigator.clipboard.writeText(redirect).then(() => setError(null))}>
                     {redirect}
                   </code>
                   . Tick <b>Web API</b> and <b>Web Playback SDK</b>, then save.
                 </li>
-                <li>Copy the app’s <b>Client ID</b> here:</li>
+                <li>
+                  Copy the app’s <b>Client ID</b> here:
+                </li>
               </ol>
               <input
                 className="field login__own-input"
@@ -449,7 +448,11 @@ export default function App(): React.JSX.Element | null {
             }
             await window.pulse.auth.logout()
             disposePlayer()
-            usePlayer.setState({ track: null, activeDevice: null, sdkReady: false })
+            usePlayer.setState({
+              track: null,
+              activeDevice: null,
+              sdkReady: false
+            })
             window.location.reload()
           }}
         />

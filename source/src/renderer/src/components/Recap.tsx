@@ -29,7 +29,11 @@ function CountUp({ value, suffix = '' }: { value: number; suffix?: string }): Re
   const wdth = useTransform(mv, [0, value || 1], [75, 100])
   const settings = useTransform(wdth, (w) => `'wdth' ${w}`)
   useEffect(() => {
-    const c = animate(mv, value, { duration: 2.2, ease: [0.16, 1, 0.3, 1], delay: 0.35 })
+    const c = animate(mv, value, {
+      duration: 2.2,
+      ease: [0.16, 1, 0.3, 1],
+      delay: 0.35
+    })
     return () => c.stop()
   }, [mv, value])
   return (
@@ -49,7 +53,12 @@ function Rise({ text, delay = 0, className = '' }: { text: string; delay?: numbe
           <motion.span
             initial={{ y: '110%', rotate: 4 }}
             animate={{ y: '0%', rotate: 0 }}
-            transition={{ type: 'spring', stiffness: 160, damping: 20, delay: delay + i * 0.07 }}
+            transition={{
+              type: 'spring',
+              stiffness: 160,
+              damping: 20,
+              delay: delay + i * 0.07
+            }}
           >
             {w}
           </motion.span>
@@ -125,7 +134,10 @@ const SLIDES: Slide[] = [
               key={i}
               className="rc__bar"
               style={{ animationDelay: `${(i % 7) * -0.17}s` }}
-              variants={{ hidden: { scaleY: 0 }, show: { scaleY: 1, transition: { delay: 0.8 + i * 0.03 } } }}
+              variants={{
+                hidden: { scaleY: 0 },
+                show: { scaleY: 1, transition: { delay: 0.8 + i * 0.03 } }
+              }}
             />
           ))}
         </motion.div>
@@ -172,7 +184,18 @@ const SLIDES: Slide[] = [
     id: 'artists',
     colors: ['#ffe600', '#ff7a00', '#ff3d7f', '#00c2a8'],
     ink: '#16130a',
-    render: (r) => <Ranked title="Artists on rotation" items={r.topArtists.map((a) => ({ id: a.id, name: a.name, sub: a.minutes !== undefined ? formatMinutes(a.minutes) : '', image: a.image }))} round />
+    render: (r) => (
+      <Ranked
+        title="Artists on rotation"
+        items={r.topArtists.map((a) => ({
+          id: a.id,
+          name: a.name,
+          sub: a.minutes !== undefined ? formatMinutes(a.minutes) : '',
+          image: a.image
+        }))}
+        round
+      />
+    )
   },
   {
     id: 'top-song',
@@ -210,7 +233,17 @@ const SLIDES: Slide[] = [
     id: 'songs',
     colors: ['#00e676', '#00b3a4', '#c6ff00', '#004d40'],
     ink: '#03140c',
-    render: (r) => <Ranked title="Your top songs" items={r.topTracks.map((t) => ({ id: t.id, name: t.name, sub: t.artist, image: t.image }))} />
+    render: (r) => (
+      <Ranked
+        title="Your top songs"
+        items={r.topTracks.map((t) => ({
+          id: t.id,
+          name: t.name,
+          sub: t.artist,
+          image: t.image
+        }))}
+      />
+    )
   },
   {
     id: 'clock',
@@ -225,17 +258,34 @@ const SLIDES: Slide[] = [
     render: (r) => (
       <div className="rc__grid3">
         {[
-          { n: r.artistCount, label: r.artistCount === 1 ? 'artist' : 'different artists' },
-          { n: r.songCount, label: r.songCount === 1 ? 'song' : 'different songs' },
-          { n: r.period === 'all' ? r.days : r.newArtists, label: r.period === 'all' ? 'days with music' : 'artists new to you' },
-          { n: r.streak, label: r.streak === 1 ? 'day streak' : 'days in a row, your longest streak' }
+          {
+            n: r.artistCount,
+            label: r.artistCount === 1 ? 'artist' : 'different artists'
+          },
+          {
+            n: r.songCount,
+            label: r.songCount === 1 ? 'song' : 'different songs'
+          },
+          {
+            n: r.period === 'all' ? r.days : r.newArtists,
+            label: r.period === 'all' ? 'days with music' : 'artists new to you'
+          },
+          {
+            n: r.streak,
+            label: r.streak === 1 ? 'day streak' : 'days in a row, your longest streak'
+          }
         ].map((s, i) => (
           <motion.div
             key={i}
             className="rc__tile"
             initial={{ y: 80, opacity: 0, rotate: i % 2 ? 4 : -4 }}
             animate={{ y: 0, opacity: 1, rotate: i % 2 ? 1.5 : -1.5 }}
-            transition={{ type: 'spring', stiffness: 140, damping: 16, delay: 0.2 + i * 0.15 }}
+            transition={{
+              type: 'spring',
+              stiffness: 140,
+              damping: 16,
+              delay: 0.2 + i * 0.15
+            }}
           >
             <span className="rc__tile-n">
               <CountUp value={s.n} />
@@ -277,7 +327,12 @@ function Ranked({
             key={it.id}
             initial={{ x: i % 2 ? 120 : -120, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 130, damping: 17, delay: 0.35 + i * 0.16 }}
+            transition={{
+              type: 'spring',
+              stiffness: 130,
+              damping: 17,
+              delay: 0.35 + i * 0.16
+            }}
           >
             <span className="rc__rank-n">{i + 1}</span>
             <Art src={it.image} round={round} />
@@ -399,8 +454,16 @@ async function renderSummaryCard(r: Recap, style: 'artwork' | 'color' | 'light')
       ctx.fillText(s, x, 1075 + i * 62)
     })
   }
-  col('Top artists', r.topArtists.map((a) => a.name), pad)
-  col('Top songs', r.topTracks.map((t) => t.name), W / 2 + 10)
+  col(
+    'Top artists',
+    r.topArtists.map((a) => a.name),
+    pad
+  )
+  col(
+    'Top songs',
+    r.topTracks.map((t) => t.name),
+    W / 2 + 10
+  )
   ctx.fillStyle = soft
   ctx.font = '700 36px "Figtree Variable", sans-serif'
   ctx.fillText('Minutes listened', pad, 1480)
@@ -420,7 +483,12 @@ async function renderSummaryCard(r: Recap, style: 'artwork' | 'color' | 'light')
 function Summary({ r, onReplay, onShare }: { r: Recap; onReplay: () => void; onShare: () => void }): React.JSX.Element {
   return (
     <div className="rc__summary">
-      <motion.div className="rc__sum-card" initial={{ y: 60, opacity: 0, rotate: -2 }} animate={{ y: 0, opacity: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 120, damping: 16 }}>
+      <motion.div
+        className="rc__sum-card"
+        initial={{ y: 60, opacity: 0, rotate: -2 }}
+        animate={{ y: 0, opacity: 1, rotate: 0 }}
+        transition={{ type: 'spring', stiffness: 120, damping: 16 }}
+      >
         <div className="rc__sum-head">
           <Art src={r.topArtists[0]?.image ?? null} />
           <div>
@@ -471,7 +539,9 @@ function Summary({ r, onReplay, onShare }: { r: Recap; onReplay: () => void; onS
         </button>
       </div>
       {r.source === 'spotify' && (
-        <p className="rc__fine rc__note">Top lists come from Spotify until Pulse Music has seen more of your listening. Minutes count what you played with Pulse Music open.</p>
+        <p className="rc__fine rc__note">
+          Top lists come from Spotify until Pulse Music has seen more of your listening. Minutes count what you played with Pulse Music open.
+        </p>
       )}
     </div>
   )
@@ -524,14 +594,30 @@ function songFor(r: Recap, slideId: string | null): { uri: string; context?: boo
  * open; puts back what you were listening to when it closes.
  */
 function useRecapMusic(open: boolean, data: Recap | null, slideId: string | null, on: boolean): void {
-  const before = useRef<{ uri: string; context: string | null; position: number; playing: boolean } | null | undefined>(undefined)
+  const before = useRef<
+    | {
+        uri: string
+        context: string | null
+        position: number
+        playing: boolean
+      }
+    | null
+    | undefined
+  >(undefined)
   const playing = useRef<string | null>(null)
 
   // remember what played before Recap
   useEffect(() => {
     if (!open) return
     const s = usePlayer.getState()
-    before.current = s.track ? { uri: s.track.uri, context: s.contextUri, position: livePosition(s), playing: !s.paused } : null
+    before.current = s.track
+      ? {
+          uri: s.track.uri,
+          context: s.contextUri,
+          position: livePosition(s),
+          playing: !s.paused
+        }
+      : null
     playing.current = null
     return () => {
       const was = before.current
@@ -543,7 +629,10 @@ function useRecapMusic(open: boolean, data: Recap | null, slideId: string | null
         if (was?.playing) {
           // an artist (or a radio) can't start at a chosen song: then the song itself plays
           const offsetOk = !!was.context && (/^spotify:(playlist|album):/.test(was.context) || was.context.endsWith(':collection'))
-          if (offsetOk) void playContext(was.context!, was.uri, undefined, { positionMs: was.position })
+          if (offsetOk)
+            void playContext(was.context!, was.uri, undefined, {
+              positionMs: was.position
+            })
           else void playUris([was.uri], undefined, { positionMs: was.position })
         } else if (!usePlayer.getState().paused) void togglePlay()
       }, 350)
@@ -615,12 +704,14 @@ export function RecapStories(): React.JSX.Element {
     setData(null)
     setIndex(0)
     elapsed.current = 0
-    void buildRecap(period).then((r) => {
+    const show = (r: Recap): void => {
       if (!alive) return
       // Pre-load the images so slides don't pop in.
       void Promise.all([...r.topArtists.map((a) => a.image), ...r.topTracks.map((t) => t.image)].map((u) => loadImage(u)))
       setData(r)
-    })
+    }
+    // shows straight away; pictures still being looked up arrive a moment later
+    void buildRecap(period, show).then(show)
     return () => {
       alive = false
     }
@@ -728,7 +819,12 @@ export function RecapStories(): React.JSX.Element {
                   </button>
                 ))}
               </div>
-              <button className={`rc__icon ${music ? '' : 'is-off'}`} aria-label={music ? 'Turn music off' : 'Turn music on'} title={music ? 'Music on' : 'Music off'} onClick={toggleMusic}>
+              <button
+                className={`rc__icon ${music ? '' : 'is-off'}`}
+                aria-label={music ? 'Turn music off' : 'Turn music on'}
+                title={music ? 'Music on' : 'Music off'}
+                onClick={toggleMusic}
+              >
                 <VolumeIcon size={18} level={music ? 1 : 0} />
               </button>
               <button className="rc__icon" aria-label={paused ? 'Resume' : 'Pause'} onClick={() => setPaused((p) => !p)}>
@@ -747,7 +843,15 @@ export function RecapStories(): React.JSX.Element {
           <main className="rc__stage">
             {!data ? (
               <div className="rc__center">
-                <motion.div className="rc__loader" animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.4, ease: 'linear' }} />
+                <motion.div
+                  className="rc__loader"
+                  animate={{ rotate: 360 }}
+                  transition={{
+                    repeat: Infinity,
+                    duration: 1.4,
+                    ease: 'linear'
+                  }}
+                />
                 <p className="rc__lede">Counting your plays…</p>
               </div>
             ) : (

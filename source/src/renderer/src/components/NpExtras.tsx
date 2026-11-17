@@ -1,7 +1,6 @@
 // More Now Playing looks:
-//  - Cassette: a tape in a see-through shell, the cover on its label, the reels turning while it
-//    plays and the tape winding from one reel to the other as the song goes on,
-//  - Poster: the song printed as a gig poster (big cover, the title in huge letters, small print),
+//  - Poster: a cartoon poster: the cover as a taped-on sticker, the title written by hand,
+//    stickers for the artist and album, doodles and a squiggly progress line,
 //  - Visualizer: the cover as a round disc inside a ring of bars that moves with the music.
 import { useEffect, useRef } from 'react'
 import { useLivePosition } from './common'
@@ -10,169 +9,113 @@ import { usePlayer } from '@/lib/player'
 import { useApp } from '@/lib/store'
 import { BANDS, readBeat, useBeat } from '@/lib/beat'
 
-/* ================= Cassette ================= */
-
-/** Where the reels sit in the drawing, and how big the tape on them can get. */
-const REEL = { y: 318, left: 352, right: 648, hub: 40, min: 50, max: 112 }
-
-export function Cassette({ art, paused, title, artist }: { art: string | null; paused: boolean; title: string; artist: string }): React.JSX.Element {
-  const left = useRef<SVGGElement>(null)
-  const right = useRef<SVGGElement>(null)
-  const pos = useLivePosition()
-  const dur = usePlayer((s) => s.track?.durationMs ?? 0)
-  const progress = dur ? Math.min(1, pos / dur) : 0
-  // the tape moves from the left reel to the right one as the song plays
-  const rl = REEL.min + (REEL.max - REEL.min) * (1 - progress)
-  const rr = REEL.min + (REEL.max - REEL.min) * progress
-  const live = useRef({ paused, rl, rr })
-  live.current = { paused, rl, rr }
-
-  useEffect(() => {
-    const reduce = useApp.getState().settings.reduceMotion
-    let a = 0
-    let b = 0
-    let speed = 0
-    let last = performance.now()
-    let raf = 0
-    const tick = (now: number): void => {
-      raf = requestAnimationFrame(tick)
-      const dt = Math.min(0.05, (now - last) / 1000)
-      last = now
-      const want = live.current.paused || reduce ? 0 : 1
-      speed += (want - speed) * Math.min(1, dt * 5)
-      // the tape runs at one speed, so a full reel turns slower than an empty one
-      a += (speed * dt * 9000) / live.current.rl
-      b += (speed * dt * 9000) / live.current.rr
-      left.current?.setAttribute('transform', `rotate(${a % 360} ${REEL.left} ${REEL.y})`)
-      right.current?.setAttribute('transform', `rotate(${b % 360} ${REEL.right} ${REEL.y})`)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [])
-
-  const hub = (cx: number, ref: React.RefObject<SVGGElement | null>): React.JSX.Element => (
-    <g ref={ref}>
-      <circle cx={cx} cy={REEL.y} r={REEL.hub} fill="#eceae4" />
-      <circle cx={cx} cy={REEL.y} r={REEL.hub - 9} fill="#1a1a1d" />
-      {Array.from({ length: 6 }, (_, i) => (
-        <rect key={i} x={cx - 4} y={REEL.y - REEL.hub + 6} width="8" height="13" rx="2" fill="#eceae4" transform={`rotate(${i * 60} ${cx} ${REEL.y})`} />
-      ))}
-      {/* a mark on the reel, so the turning is easy to see */}
-      <rect x={cx - 2} y={REEL.y - REEL.hub - 4} width="4" height="10" rx="2" fill="rgba(0,0,0,0.35)" />
-    </g>
-  )
-
-  return (
-    <div className={`cass ${paused ? 'is-paused' : ''}`} aria-hidden="true">
-      <svg viewBox="0 0 1000 640" className="cass__svg">
-        <defs>
-          <linearGradient id="cassShell" x1="0" y1="0" x2="0.3" y2="1">
-            <stop offset="0" stopColor="#3a3c43" />
-            <stop offset="0.5" stopColor="#1f2024" />
-            <stop offset="1" stopColor="#141518" />
-          </linearGradient>
-          <linearGradient id="cassPaper" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#f6f1e6" />
-            <stop offset="1" stopColor="#e6dfcf" />
-          </linearGradient>
-          <radialGradient id="cassTape" cx="0.5" cy="0.5" r="0.5">
-            <stop offset="0.6" stopColor="#3b2619" />
-            <stop offset="0.9" stopColor="#2a190f" />
-            <stop offset="1" stopColor="#4a3020" />
-          </radialGradient>
-          <clipPath id="cassWin">
-            <rect x="250" y="246" width="500" height="144" rx="64" />
-          </clipPath>
-          <clipPath id="cassArt">
-            <rect x="96" y="86" width="132" height="132" rx="8" />
-          </clipPath>
-          <filter id="cassSoft" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="12" />
-          </filter>
-        </defs>
-        {/* shadow and shell */}
-        <rect x="40" y="56" width="920" height="580" rx="40" fill="rgba(0,0,0,0.55)" filter="url(#cassSoft)" />
-        <rect x="20" y="20" width="960" height="600" rx="36" fill="url(#cassShell)" />
-        <rect x="21.5" y="21.5" width="957" height="597" rx="35" fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth="2" />
-        {[
-          [52, 52],
-          [948, 52],
-          [52, 588],
-          [948, 588]
-        ].map(([x, y]) => (
-          <g key={`${x}${y}`}>
-            <circle cx={x} cy={y} r="13" fill="#0c0c0e" />
-            <path d={`M${x - 7} ${y}h14M${x} ${y - 7}v14`} stroke="#5d5f66" strokeWidth="3" strokeLinecap="round" />
-          </g>
-        ))}
-
-        {/* the label */}
-        <rect x="70" y="62" width="860" height="360" rx="20" fill="url(#cassPaper)" />
-        <rect x="70" y="232" width="860" height="22" style={{ fill: 'var(--amb-1)' }} opacity="0.85" />
-        <rect x="70" y="254" width="860" height="10" style={{ fill: 'var(--amb-2)' }} opacity="0.7" />
-        {art ? (
-          <image href={art} x="96" y="86" width="132" height="132" preserveAspectRatio="xMidYMid slice" clipPath="url(#cassArt)" />
-        ) : (
-          <rect x="96" y="86" width="132" height="132" rx="8" fill="#d8d0bf" />
-        )}
-        <text x="252" y="128" className="cass__hand cass__hand--title">
-          {title.length > 30 ? `${title.slice(0, 29)}…` : title}
-        </text>
-        <text x="252" y="182" className="cass__hand">
-          {artist.length > 38 ? `${artist.slice(0, 37)}…` : artist}
-        </text>
-        <line x1="252" y1="140" x2="900" y2="140" stroke="rgba(0,0,0,0.12)" strokeWidth="2" />
-        <line x1="252" y1="194" x2="900" y2="194" stroke="rgba(0,0,0,0.12)" strokeWidth="2" />
-        <text x="104" y="392" className="cass__side">A</text>
-        <text x="900" y="222" textAnchor="end" className="cass__type">
-          C·60 · TYPE II
-        </text>
-
-        {/* the window: tinted plastic, the reels behind it */}
-        <rect x="244" y="240" width="512" height="156" rx="70" fill="#09090b" />
-        <g clipPath="url(#cassWin)">
-          <rect x="250" y="246" width="500" height="144" fill="#121215" />
-          <circle cx={REEL.left} cy={REEL.y} r={rl} fill="url(#cassTape)" />
-          <circle cx={REEL.right} cy={REEL.y} r={rr} fill="url(#cassTape)" />
-          {hub(REEL.left, left)}
-          {hub(REEL.right, right)}
-          <rect x="250" y="246" width="500" height="144" fill="rgba(140,150,170,0.08)" />
-          <path d="M260 262 L420 262 L380 386 L260 386 Z" fill="rgba(255,255,255,0.05)" />
-        </g>
-        <rect x="244" y="240" width="512" height="156" rx="70" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
-
-        {/* the bottom, where the tape meets the head */}
-        <path d="M236 620 L282 470 L718 470 L764 620 Z" fill="#17181b" stroke="rgba(255,255,255,0.08)" strokeWidth="2" />
-        {[330, 420, 500, 580, 670].map((x, i) => (
-          <circle key={x} cx={x} cy={i === 2 ? 560 : 548} r={i === 2 ? 20 : 13} fill="#060607" />
-        ))}
-        <rect x="300" y="596" width="400" height="10" rx="3" style={{ fill: 'color-mix(in srgb, #3b2619 80%, var(--amb-1))' }} />
-      </svg>
-    </div>
-  )
-}
-
 /* ================= Poster ================= */
 
-export function Poster({ art, paused, title, artist, album, durationMs }: { art: string | null; paused: boolean; title: string; artist: string; album: string; durationMs: number }): React.JSX.Element {
+/** Doodles drawn around the poster (stars, a heart, squiggles, a lightning bolt). */
+const DOODLES = [
+  {
+    d: 'M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.2l7.1-.6L12 2Z',
+    x: 6,
+    y: 8,
+    s: 46,
+    r: -14,
+    c: 'var(--pz-a)'
+  },
+  {
+    d: 'M12 21s-7-4.4-9.3-8.6C.9 9 3 5 6.6 5c2.1 0 3.5 1.2 4.4 2.5C11.9 6.2 13.3 5 15.4 5 19 5 21.1 9 19.3 12.4 17 16.6 12 21 12 21Z',
+    x: 86,
+    y: 6,
+    s: 40,
+    r: 12,
+    c: 'var(--pz-b)'
+  },
+  {
+    d: 'M13 2 4 14h7l-1 8 9-12h-7l1-8Z',
+    x: 88,
+    y: 70,
+    s: 44,
+    r: 10,
+    c: 'var(--pz-c)'
+  },
+  {
+    d: 'M2 12c2-4 4-4 6 0s4 4 6 0 4-4 6 0',
+    x: 4,
+    y: 78,
+    s: 54,
+    r: -8,
+    c: 'var(--pz-d)'
+  },
+  {
+    d: 'M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.2l7.1-.6L12 2Z',
+    x: 92,
+    y: 40,
+    s: 24,
+    r: 20,
+    c: 'var(--pz-b)'
+  }
+]
+
+export function Poster({
+  art,
+  paused,
+  title,
+  artist,
+  album,
+  durationMs
+}: {
+  art: string | null
+  paused: boolean
+  title: string
+  artist: string
+  album: string
+  durationMs: number
+}): React.JSX.Element {
   const pos = useLivePosition()
   const progress = durationMs ? Math.min(1, pos / durationMs) : 0
   const size = title.length > 34 ? 'is-long' : title.length > 16 ? 'is-mid' : ''
+  // the squiggly progress line: a wave drawn up to where the song is
+  const wave = Array.from({ length: 41 }, (_, i) => `${i === 0 ? 'M' : 'L'}${(i * 2.5).toFixed(1)} ${(6 + Math.sin(i * 0.9) * 3.2).toFixed(2)}`).join(' ')
   return (
     <div className={`poster ${paused ? 'is-paused' : ''}`} aria-hidden="true">
-      <div className="poster__art">{art && <img src={art} alt="" draggable={false} />}</div>
-      <div className="poster__head">
-        <span>Now playing</span>
-        <span>{formatTime(durationMs)}</span>
+      {DOODLES.map((d, i) => (
+        <svg
+          key={i}
+          className="poster__doodle"
+          viewBox="0 0 24 24"
+          style={{
+            left: `${d.x}%`,
+            top: `${d.y}%`,
+            width: d.s,
+            height: d.s,
+            rotate: `${d.r}deg`,
+            ['--c' as string]: d.c,
+            animationDelay: `${i * -0.7}s`
+          }}
+        >
+          <path d={d.d} />
+        </svg>
+      ))}
+      <span className="poster__bubble">now playing!</span>
+      <div className="poster__sticker">
+        <span className="poster__tape poster__tape--l" />
+        <span className="poster__tape poster__tape--r" />
+        <div className="poster__art">{art && <img src={art} alt="" draggable={false} />}</div>
       </div>
       <h2 className={`poster__title ${size}`}>{title}</h2>
-      <div className="poster__foot">
-        <span className="poster__artist">{artist}</span>
-        <span className="poster__album">{album}</span>
+      <div className="poster__tags">
+        <span className="poster__tag poster__tag--artist">{artist}</span>
+        {album && album !== title && <span className="poster__tag poster__tag--album">{album}</span>}
+        <span className="poster__tag poster__tag--time">{formatTime(durationMs)}</span>
       </div>
-      <div className="poster__bar">
-        <i style={{ width: `${progress * 100}%` }} />
-      </div>
+      <svg className="poster__wave" viewBox="0 0 100 12" preserveAspectRatio="none">
+        <path d={wave} className="poster__wave-bg" />
+        <defs>
+          <clipPath id="posterWaveClip">
+            <rect x="-2" y="-4" height="20" width={progress * 100 + 2} />
+          </clipPath>
+        </defs>
+        <path d={wave} className="poster__wave-on" clipPath="url(#posterWaveClip)" />
+      </svg>
     </div>
   )
 }
@@ -210,17 +153,17 @@ export function PulseRing({ art, paused }: { art: string | null; paused: boolean
       const b = readBeat()
       const still = paused || reduce
       for (let i = 0; i < BANDS; i++) {
-        const want = still ? 0.04 : Math.min(1, b.bands[i] * 1.25)
-        shown[i] += (want - shown[i]) * (want > shown[i] ? 0.55 : 0.12)
+        const want = still ? 0.04 : Math.min(1, b.bands[i] * 1.1 + b.kick * 0.18 * (i < 14 ? 1 : 0.4))
+        shown[i] += (want - shown[i]) * (want > shown[i] ? 0.9 : 0.2)
       }
       if (!still) spin += dt * 4
       const kick = still ? 0 : b.kick
-      if (disc.current) disc.current.style.transform = `scale(${1 + kick * 0.035}) rotate(${spin}deg)`
+      if (disc.current) disc.current.style.transform = `scale(${1 + kick * 0.06}) rotate(${spin}deg)`
       g.setTransform(dpr, 0, 0, dpr, 0, 0)
       g.clearRect(0, 0, w, w)
       const c = w / 2
       const r0 = w * 0.335
-      const len = w * 0.15
+      const len = w * (0.13 + kick * 0.05)
       const bars = BANDS * 2
       // the song's colour (read once a second: it only changes with the song)
       if (now - tintAt > 1000) {
@@ -235,7 +178,7 @@ export function PulseRing({ art, paused }: { art: string | null; paused: boolean
       g.fillStyle = glow
       g.fillRect(0, 0, w, w)
       g.lineCap = 'round'
-      g.lineWidth = Math.max(2, (Math.PI * 2 * r0) / bars * 0.48)
+      g.lineWidth = Math.max(2, ((Math.PI * 2 * r0) / bars) * 0.48)
       for (let i = 0; i < bars; i++) {
         // the lows at the top, mirrored left and right
         const band = i < BANDS ? i : bars - 1 - i

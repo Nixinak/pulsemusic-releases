@@ -8,7 +8,7 @@ import { pickImage, playlistSongs } from '@/lib/spotify'
 import { Glass } from './Glass'
 import { useProfile } from '@/lib/profile'
 import { Cover } from './common'
-import { PartyIcon, ChartIcon, HeartIcon, HomeIcon, LibraryIcon, MicIcon, PlusIcon, SearchIcon, SettingsIcon, UsersIcon, WandIcon } from './Icons'
+import { PartyIcon, ChartIcon, HeartIcon, HomeIcon, LibraryIcon, MicIcon, PlusIcon, SearchIcon, SettingsIcon, UsersIcon, WandIcon, SparkleIcon } from './Icons'
 import { useNewFollowers } from '@/lib/friends'
 import { contextMenuFor } from './menus'
 
@@ -18,6 +18,7 @@ const NAV: { label: string; route: Route; icon: typeof HomeIcon }[] = [
   { label: 'Library', route: { name: 'library' }, icon: LibraryIcon },
   { label: 'DJ', route: { name: 'dj' }, icon: MicIcon },
   { label: 'Your stats', route: { name: 'stats' }, icon: ChartIcon },
+  { label: 'Discover', route: { name: 'discover' }, icon: SparkleIcon },
   { label: 'Mix', route: { name: 'mix' }, icon: WandIcon },
   { label: 'Party', route: { name: 'party' }, icon: PartyIcon },
   { label: 'Friends', route: { name: 'friends' }, icon: UsersIcon }
@@ -31,7 +32,9 @@ const readCollapsed = (): boolean => {
     return false
   }
 }
-export const useSidebar = create<{ collapsed: boolean }>(() => ({ collapsed: readCollapsed() }))
+export const useSidebar = create<{ collapsed: boolean }>(() => ({
+  collapsed: readCollapsed()
+}))
 export function toggleSidebar(): void {
   const collapsed = !useSidebar.getState().collapsed
   useSidebar.setState({ collapsed })
@@ -43,7 +46,17 @@ export function toggleSidebar(): void {
 }
 
 const PanelIcon = ({ size = 18 }: { size?: number }): React.JSX.Element => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.8}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
     <rect x="3.5" y="4.5" width="17" height="15" rx="3" />
     <path d="M9.5 4.5v15" />
   </svg>
@@ -76,8 +89,7 @@ export function Sidebar(): React.JSX.Element {
   const profile = useProfile((s) => s.profile)
   const requests = useNewFollowers()
 
-  const isActive = (r: Route): boolean =>
-    r.name === route.name && (!('id' in r) || ('id' in route && route.id === r.id))
+  const isActive = (r: Route): boolean => r.name === route.name && (!('id' in r) || ('id' in route && route.id === r.id))
 
   return (
     <Glass className="sidebar" radius={26} bezel={22} refraction={70} blur={14} tone="regular">
@@ -86,7 +98,12 @@ export function Sidebar(): React.JSX.Element {
           <span className="sidebar__logo" aria-hidden="true" />
           <span className="sidebar__name">Pulse</span>
         </button>
-        <button className="icon-btn icon-btn--sm sidebar__toggle" aria-label={collapsed ? 'Show sidebar' : 'Hide sidebar'} title={collapsed ? 'Show sidebar (Ctrl+B)' : 'Hide sidebar (Ctrl+B)'} onClick={toggleSidebar}>
+        <button
+          className="icon-btn icon-btn--sm sidebar__toggle"
+          aria-label={collapsed ? 'Show sidebar' : 'Hide sidebar'}
+          title={collapsed ? 'Show sidebar (Ctrl+B)' : 'Hide sidebar (Ctrl+B)'}
+          onClick={toggleSidebar}
+        >
           <PanelIcon />
         </button>
       </div>
@@ -139,9 +156,7 @@ export function Sidebar(): React.JSX.Element {
               <span className="plitem__name">
                 <Emo>{p.name}</Emo>
               </span>
-              <span className="plitem__meta">
-                {p.owner.id === me?.id ? playlistSongs(p) : (p.owner.display_name ?? 'Playlist')}
-              </span>
+              <span className="plitem__meta">{p.owner.id === me?.id ? playlistSongs(p) : (p.owner.display_name ?? 'Playlist')}</span>
             </span>
             {contextUri === p.uri && !paused && <span className="plitem__dot" />}
           </button>

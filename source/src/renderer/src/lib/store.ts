@@ -17,6 +17,8 @@ export type Route =
   | { name: 'settings' }
   | { name: 'profile' }
   | { name: 'mix' }
+  /** New songs one at a time, like a short-video feed. */
+  | { name: 'discover' }
   | { name: 'stats' }
   | { name: 'dj' }
   | { name: 'party' }
@@ -41,9 +43,7 @@ export interface MenuItem {
 }
 
 export type Modal =
-  | { type: 'create-playlist'; addUris?: string[] }
-  | { type: 'edit-playlist'; playlist: SPlaylist }
-  | { type: 'delete-playlist'; playlist: SPlaylist }
+  { type: 'create-playlist'; addUris?: string[] } | { type: 'edit-playlist'; playlist: SPlaylist } | { type: 'delete-playlist'; playlist: SPlaylist }
 
 interface Toast {
   id: number
@@ -117,7 +117,11 @@ export const useApp = create<AppState>((set, get) => ({
     const { history, index } = get()
     const cur = history[index]
     if (JSON.stringify(cur) === JSON.stringify(r)) return
-    set({ history: [...history.slice(0, index + 1), r], index: index + 1, nowPlaying: false })
+    set({
+      history: [...history.slice(0, index + 1), r],
+      index: index + 1,
+      nowPlaying: false
+    })
   },
   back: () => set((s) => ({ index: Math.max(0, s.index - 1) })),
   forward: () => set((s) => ({ index: Math.min(s.history.length - 1, s.index + 1) })),
@@ -241,7 +245,12 @@ export const useApp = create<AppState>((set, get) => ({
   setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
   recapOpen: false,
   recapPeriod: 'month',
-  setRecapOpen: (recapOpen, period) => set({ recapOpen, nowPlaying: false, ...(recapOpen ? { recapPeriod: period ?? 'month' } : {}) }),
+  setRecapOpen: (recapOpen, period) =>
+    set({
+      recapOpen,
+      nowPlaying: false,
+      ...(recapOpen ? { recapPeriod: period ?? 'month' } : {})
+    }),
 
   toasts: [],
   toast: (text, tone = 'info') => {
@@ -290,7 +299,6 @@ async function publicPlaylists(me: SUser | null): Promise<SPlaylist[]> {
 export const isOwnPlaylist = (p: SPlaylist, meId: string | undefined): boolean => p.owner.id === meId || p.collaborative
 
 /** Playlists the signed-in user can edit. */
-export const editablePlaylists = (s: AppState): SPlaylist[] =>
-  s.playlists.filter((p) => p.owner.id === s.me?.id || p.collaborative)
+export const editablePlaylists = (s: AppState): SPlaylist[] => s.playlists.filter((p) => p.owner.id === s.me?.id || p.collaborative)
 
 export const errorText = (e: unknown): string => (e instanceof Error ? e.message : String(e))

@@ -211,6 +211,9 @@
   position: absolute;
   inset: 0;
   overflow-y: auto;
+  /* room for the scrollbar is always kept, so a page that gets shorter or longer (a tab, a
+     Settings category, a list loading) never shifts sideways */
+  scrollbar-gutter: stable;
   overflow-anchor: none;
   overflow-x: hidden;
   padding: 72px var(--gutter) 150px;
@@ -1624,6 +1627,11 @@
 }
 .srow__control {
   flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 .token {
   display: flex;

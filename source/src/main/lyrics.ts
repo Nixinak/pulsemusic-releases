@@ -29,32 +29,38 @@ export async function fetchLrclib(q: LrclibQuery): Promise<LrclibResult | null> 
       album_name: q.albumName,
       duration: String(Math.round(q.durationSec))
     })
-    const res = await fetch(`https://lrclib.net/api/get?${exact}`, { headers })
+    // (asked ahead for the next song, the length may not be known: then any length will do)
+    const anyLength = !q.durationSec
+    const res = anyLength ? null : await fetch(`https://lrclib.net/api/get?${exact}`, { headers })
     let plainOnly: LrclibRecord | null = null
-    if (res.ok) {
+    if (res?.ok) {
       const r = (await res.json()) as LrclibRecord
       if (r.syncedLyrics || r.instrumental) return toResult(r)
       // plain only: another upload of the same song often has the timings, so look on
       if (r.plainLyrics) plainOnly = r
     }
 
-    const search = new URLSearchParams({ track_name: q.trackName, artist_name: q.artistName })
-    const sres = await fetch(`https://lrclib.net/api/search?${search}`, { headers })
+    const search = new URLSearchParams({
+      track_name: q.trackName,
+      artist_name: q.artistName
+    })
+    const sres = await fetch(`https://lrclib.net/api/search?${search}`, {
+      headers
+    })
     let list = sres.ok ? ((await sres.json()) as LrclibRecord[]) : []
     // nothing synced by title and artist: a looser search by words (other spellings, features)
-    if (!list.some((r) => r.syncedLyrics && Math.abs(r.duration - q.durationSec) <= 4)) {
+    const fits = (r: LrclibRecord): boolean => anyLength || Math.abs(r.duration - q.durationSec) <= 4
+    if (!list.some((r) => r.syncedLyrics && fits(r))) {
       const loose = await fetch(`https://lrclib.net/api/search?${new URLSearchParams({ q: `${q.artistName} ${q.trackName}` })}`, { headers }).catch(() => null)
       if (loose?.ok) list = [...list, ...((await loose.json()) as LrclibRecord[])]
     }
-    const candidates = list
-      .filter((r) => Math.abs(r.duration - q.durationSec) <= 4)
-      .sort((a, b) => {
-        // Prefer synced lyrics, then the closest duration.
-        const sa = a.syncedLyrics ? 0 : 1
-        const sb = b.syncedLyrics ? 0 : 1
-        if (sa !== sb) return sa - sb
-        return Math.abs(a.duration - q.durationSec) - Math.abs(b.duration - q.durationSec)
-      })
+    const candidates = list.filter(fits).sort((a, b) => {
+      // Prefer synced lyrics, then the closest duration.
+      const sa = a.syncedLyrics ? 0 : 1
+      const sb = b.syncedLyrics ? 0 : 1
+      if (sa !== sb) return sa - sb
+      return Math.abs(a.duration - q.durationSec) - Math.abs(b.duration - q.durationSec)
+    })
     const best = candidates[0]
     if (best?.syncedLyrics) return toResult(best)
     return plainOnly ? toResult(plainOnly) : best ? toResult(best) : null
@@ -80,10 +86,7 @@ export async function fetchLyricsOvh(q: { title: string; artist: string }): Prom
   try {
     const ctrl = new AbortController()
     const t = setTimeout(() => ctrl.abort(), 8000)
-    const res = await fetch(
-      `https://api.lyrics.ovh/v1/${encodeURIComponent(q.artist)}/${encodeURIComponent(q.title)}`,
-      { headers, signal: ctrl.signal }
-    )
+    const res = await fetch(`https://api.lyrics.ovh/v1/${encodeURIComponent(q.artist)}/${encodeURIComponent(q.title)}`, { headers, signal: ctrl.signal })
     clearTimeout(t)
     if (!res.ok) return null
     const j = (await res.json()) as { lyrics?: string }
@@ -125,7 +128,10 @@ export async function geniusSearch(query: string, perPage = 10): Promise<GeniusS
   const token = getSettings().geniusToken.trim()
   const tryFetch = async (url: string, auth: boolean): Promise<Response | null> => {
     try {
-      return await fetch(url, { headers: auth ? { ...headers, Authorization: `Bearer ${token}` } : headers, signal: AbortSignal.timeout(10_000) })
+      return await fetch(url, {
+        headers: auth ? { ...headers, Authorization: `Bearer ${token}` } : headers,
+        signal: AbortSignal.timeout(10_000)
+      })
     } catch {
       return null
     }
@@ -139,7 +145,9 @@ export async function geniusSearch(query: string, perPage = 10): Promise<GeniusS
   if (!res) return { error: 'Could not reach Genius.' }
   if (!res.ok) return { error: `Genius search failed (${res.status}).` }
   type Hit = { type?: string; index?: string; result: GeniusSong }
-  const json = (await res.json().catch(() => null)) as { response?: { hits?: Hit[]; sections?: { hits?: Hit[] }[] } } | null
+  const json = (await res.json().catch(() => null)) as {
+    response?: { hits?: Hit[]; sections?: { hits?: Hit[] }[] }
+  } | null
   // the official API answers with `hits`, the website's search with `sections[].hits`
   const hits = [...(json?.response?.hits ?? []), ...(json?.response?.sections ?? []).flatMap((x) => x.hits ?? [])]
   return hits.filter((h) => (h.type ?? h.index ?? 'song') === 'song' && h.result?.url).map((h) => h.result)
@@ -157,9 +165,19 @@ export async function fetchGenius(q: { title: string; artist: string }): Promise
     const page = await fetch(song.url, { headers })
     if (!page.ok) {
       // Genius sometimes refuses non-browser requests; offer the page link instead.
-      return { ok: false, reason: 'Genius did not send the lyrics page.', url: song.url }
+      return {
+        ok: false,
+        reason: 'Genius did not send the lyrics page.',
+        url: song.url
+      }
     }
-    return { ok: true, url: song.url, title: song.title, artist: song.primary_artist.name, html: await page.text() }
+    return {
+      ok: true,
+      url: song.url,
+      title: song.title,
+      artist: song.primary_artist.name,
+      html: await page.text()
+    }
   } catch (e) {
     console.error('[lyrics] genius failed', e)
     return { ok: false, reason: 'Could not reach Genius.' }

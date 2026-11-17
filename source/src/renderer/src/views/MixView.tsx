@@ -2,6 +2,7 @@
 // and any artists you pick (also ones you don't have saved), with a mood, an era and artist
 // spacing. Play it or save it as a playlist.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { SmartPlaylist } from '@/components/SmartPlaylist'
 import { coverNewPlaylist } from '@/lib/playlistCover'
 import { AnimatePresence, motion } from 'motion/react'
 import { useApp, errorText } from '@/lib/store'
@@ -46,7 +47,17 @@ function ArtistPicker({
     // Wait for a pause in typing so every key doesn't become a request.
     const t = window.setTimeout(() => {
       sp.searchArtists(term)
-        .then((list) => alive && setResults(list.map((a) => ({ id: a.id, name: a.name, image: sp.pickImage(a.images, 64) }))))
+        .then(
+          (list) =>
+            alive &&
+            setResults(
+              list.map((a) => ({
+                id: a.id,
+                name: a.name,
+                image: sp.pickImage(a.images, 64)
+              }))
+            )
+        )
         .catch(() => alive && setResults([]))
     }, 350)
     return () => {
@@ -149,7 +160,12 @@ function describe(text: string): Promise<Described> {
       const pages = await Promise.all(queries.flatMap((q) => [0, 10].map((o) => sp.searchTracks(q, o).catch(() => null))))
       const tracks = pages.flatMap((r) => (r?.tracks?.items ?? []).filter((t): t is STrack => !!t?.id))
       const words = key.split(' ').filter((w) => w.length > 3)
-      return { ids: new Set(tracks.map((t) => t.id)), artists: new Set(tracks.flatMap((t) => t.artists.map((a) => a.id))), words, tracks }
+      return {
+        ids: new Set(tracks.map((t) => t.id)),
+        artists: new Set(tracks.flatMap((t) => t.artists.map((a) => a.id))),
+        words,
+        tracks
+      }
     })()
     p.catch(() => describedCache.delete(key))
     describedCache.set(key, p)
@@ -160,7 +176,9 @@ function describe(text: string): Promise<Described> {
 /** The length slider: the first half goes 10–100 songs in fives, the second 100–200 in tens. */
 const MAX_SONGS = 200
 const posToCount = (pos: number): number =>
-  pos <= 50 ? Math.max(10, Math.round((10 + (pos / 50) * 90) / 5) * 5) : Math.min(MAX_SONGS, Math.round((100 + ((pos - 50) / 50) * (MAX_SONGS - 100)) / 10) * 10)
+  pos <= 50
+    ? Math.max(10, Math.round((10 + (pos / 50) * 90) / 5) * 5)
+    : Math.min(MAX_SONGS, Math.round((100 + ((pos - 50) / 50) * (MAX_SONGS - 100)) / 10) * 10)
 const countToPos = (n: number): number => (n <= 100 ? ((n - 10) / 90) * 50 : 50 + ((n - 100) / (MAX_SONGS - 100)) * 50)
 
 const DECADES = [1960, 1970, 1980, 1990, 2000, 2010, 2020]
@@ -177,14 +195,20 @@ function loadSource(id: string): Promise<Candidate[]> {
     p = (async () => {
       if (id === 'liked') {
         const items = await sp.getAllSavedTracks(3000)
-        return items.map((i) => ({ track: i.track, addedAt: Date.parse(i.added_at) }))
+        return items.map((i) => ({
+          track: i.track,
+          addedAt: Date.parse(i.added_at)
+        }))
       }
       if (id.startsWith('top:')) {
         const r = await sp.getTopTracks(id.slice(4) as sp.TimeRange, 50)
         return r.items.map((t) => ({ track: t, addedAt: 0 }))
       }
       const r = await sp.getPlaylistEntries(id)
-      return r.entries.map((e) => ({ track: e.track, addedAt: e.addedAt ? Date.parse(e.addedAt) : 0 }))
+      return r.entries.map((e) => ({
+        track: e.track,
+        addedAt: e.addedAt ? Date.parse(e.addedAt) : 0
+      }))
     })()
     p.catch(() => libraryCache.delete(id))
     libraryCache.set(id, p)
@@ -196,7 +220,14 @@ const year = (t: STrack): number => Number((t.album?.release_date ?? '').slice(0
 
 function generate(
   pool: Candidate[],
-  o: { vibe: Vibe; count: number; decades: number[]; perArtist: number; artists: string[]; described?: Described | null },
+  o: {
+    vibe: Vibe
+    count: number
+    decades: number[]
+    perArtist: number
+    artists: string[]
+    described?: Described | null
+  },
   playCounts: Map<string, number>,
   topIds: Set<string>
 ): STrack[] {
@@ -234,7 +265,12 @@ function generate(
     }
   }
   // Weighted sampling without replacement (each song gets a random key, largest keys win).
-  const keyed = list.map((c) => ({ c, k: Math.pow(Math.random(), 1 / Math.max(1e-6, weight(c))) })).sort((a, b) => b.k - a.k)
+  const keyed = list
+    .map((c) => ({
+      c,
+      k: Math.pow(Math.random(), 1 / Math.max(1e-6, weight(c)))
+    }))
+    .sort((a, b) => b.k - a.k)
   const perArtist = new Map<string, number>()
   const out: STrack[] = []
   for (const { c } of keyed) {
@@ -276,6 +312,7 @@ export function MixView(): React.JSX.Element {
   const [pool, setPool] = useState<Candidate[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [mix, setMix] = useState<STrack[] | null>(null)
+  const [tab, setTab] = useState<'mix' | 'smart'>('mix')
   const [name, setName] = useState('')
   const [saving, setSaving] = useState(false)
   /** The full-screen show while the mix is made (closing it doesn't stop the mix). */
@@ -354,13 +391,15 @@ export function MixView(): React.JSX.Element {
       if (result.length === 0) {
         setShowFailed(true)
         toast('No songs match those filters. Try fewer filters.', 'error')
-      }
-      else if (result.length < count) toast(`Only ${result.length} songs fit. Add sources or raise “Same artist” for a longer mix.`)
+      } else if (result.length < count) toast(`Only ${result.length} songs fit. Add sources or raise “Same artist” for a longer mix.`)
       setMix(result)
       // bring the new mix into view
       if (result.length) window.setTimeout(() => document.querySelector('.mix__result')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120)
       const vibeLabel = custom ? feelText.trim().replace(/^./, (c) => c.toUpperCase()) : (VIBES.find((v) => v.id === vibe)?.label ?? 'Balanced')
-      const date = new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+      const date = new Date().toLocaleDateString(undefined, {
+        day: 'numeric',
+        month: 'short'
+      })
       const mixName = only
         ? `${picked
             .slice(0, 3)
@@ -393,10 +432,20 @@ export function MixView(): React.JSX.Element {
   // Quick picks: your top artists, then artists from the songs read last time.
   const suggestions = useMemo<PickedArtist[]>(() => {
     const out = new Map<string, PickedArtist>()
-    for (const a of topArtists.data?.items ?? []) out.set(a.id, { id: a.id, name: a.name, image: sp.pickImage(a.images, 64) })
+    for (const a of topArtists.data?.items ?? [])
+      out.set(a.id, {
+        id: a.id,
+        name: a.name,
+        image: sp.pickImage(a.images, 64)
+      })
     for (const c of pool ?? []) {
       const a = c.track.artists[0]
-      if (a && !out.has(a.id)) out.set(a.id, { id: a.id, name: a.name, image: sp.pickImage(c.track.album?.images, 64) })
+      if (a && !out.has(a.id))
+        out.set(a.id, {
+          id: a.id,
+          name: a.name,
+          image: sp.pickImage(c.track.album?.images, 64)
+        })
       if (out.size > 30) break
     }
     return [...out.values()]
@@ -413,7 +462,11 @@ export function MixView(): React.JSX.Element {
         mix.map((t) => t.uri)
       )
       // its own cover: four of its album covers and the name
-      await coverNewPlaylist(p.id, mix.map((t) => sp.pickImage(t.album?.images, 300)), name || 'Pulse mix')
+      await coverNewPlaylist(
+        p.id,
+        mix.map((t) => sp.pickImage(t.album?.images, 300)),
+        name || 'Pulse mix'
+      )
       await refreshPlaylists()
       toast(`Saved ${name}`)
       navigate({ name: 'playlist', id: p.id })
@@ -426,12 +479,21 @@ export function MixView(): React.JSX.Element {
 
   const closeShow = useCallback(() => setShowOpen(false), [])
 
-  const sourceOptions: { id: string; label: string; image?: string | null; icon?: React.ReactNode }[] = [
+  const sourceOptions: {
+    id: string
+    label: string
+    image?: string | null
+    icon?: React.ReactNode
+  }[] = [
     { id: 'liked', label: 'Liked Songs', icon: <HeartIcon size={16} filled /> },
     { id: 'top:short_term', label: 'Top songs, 4 weeks' },
     { id: 'top:medium_term', label: 'Top songs, 6 months' },
     { id: 'top:long_term', label: 'Top songs, all time' },
-    ...playlists.map((p) => ({ id: p.id, label: p.name, image: sp.pickImage(p.images, 64) }))
+    ...playlists.map((p) => ({
+      id: p.id,
+      label: p.name,
+      image: sp.pickImage(p.images, 64)
+    }))
   ]
 
   const total = mix?.reduce((n, t) => n + t.duration_ms, 0) ?? 0
@@ -451,7 +513,11 @@ export function MixView(): React.JSX.Element {
       const img = c && sp.pickImage(c.track.album?.images, 300)
       if (!c || !img || seen.has(c.track.id)) continue
       seen.add(c.track.id)
-      out.push({ image: img, name: c.track.name, artist: c.track.artists.map((a) => a.name).join(', ') })
+      out.push({
+        image: img,
+        name: c.track.name,
+        artist: c.track.artists.map((a) => a.name).join(', ')
+      })
     }
     return out
   }, [pool, playlists])
@@ -465,9 +531,22 @@ export function MixView(): React.JSX.Element {
     ...(topArtists.data?.items ?? []).slice(0, 6).map((a) => sp.pickImage(a.images, 300))
   ].slice(0, 7)
   const summary = [
-    picked.length && onlyPicked ? `Only ${picked.map((a) => a.name).slice(0, 3).join(', ')}${picked.length > 3 ? ' and more' : ''}` : chosen.map((c) => c.label).slice(0, 2).join(' and ') + (chosen.length > 2 ? ` and ${chosen.length - 2} more` : ''),
+    picked.length && onlyPicked
+      ? `Only ${picked
+          .map((a) => a.name)
+          .slice(0, 3)
+          .join(', ')}${picked.length > 3 ? ' and more' : ''}`
+      : chosen
+          .map((c) => c.label)
+          .slice(0, 2)
+          .join(' and ') + (chosen.length > 2 ? ` and ${chosen.length - 2} more` : ''),
     vibe === 'custom' ? feelText.trim().toLowerCase() : (VIBES.find((v) => v.id === vibe)?.label ?? '').toLowerCase(),
-    decades.length ? [...decades].sort((x, y) => x - y).map((d) => `${String(d).slice(2)}s`).join(', ') : '',
+    decades.length
+      ? [...decades]
+          .sort((x, y) => x - y)
+          .map((d) => `${String(d).slice(2)}s`)
+          .join(', ')
+      : '',
     plural(count, 'song')
   ]
     .filter(Boolean)
@@ -483,208 +562,265 @@ export function MixView(): React.JSX.Element {
         saving={saving}
         onClose={closeShow}
         onPlay={() => mix && void playUris(mix.map((t) => t.uri))}
-        onPlayAt={(i) => mix?.[i] && void playUris(mix.map((t) => t.uri), mix[i].uri)}
+        onPlayAt={(i) =>
+          mix?.[i] &&
+          void playUris(
+            mix.map((t) => t.uri),
+            mix[i].uri
+          )
+        }
         onSave={() => void save()}
       />
       <header className="mix__top">
         <h1 className="page-title">Mix</h1>
-        <p className="muted">A new mix from music you love, made your way.</p>
+        <p className="muted">
+          {tab === 'mix' ? 'A new mix from music you love, made your way.' : 'A playlist made by your rules: tempo, years, how often you played it.'}
+        </p>
+        <div className="seg mix__tabs">
+          {(
+            [
+              ['mix', 'Mix'],
+              ['smart', 'Smart playlist']
+            ] as const
+          ).map(([id, label]) => (
+            <button key={id} className={`seg__btn ${tab === id ? 'is-on' : ''}`} onClick={() => setTab(id)}>
+              <span>{label}</span>
+              {tab === id && <motion.span layoutId="mix-tab" className="seg__pill" />}
+            </button>
+          ))}
+        </div>
       </header>
 
-      <div className="mix__layout">
-        <div className="mix__controls">
-          <section className="mix__group">
-            <h3>Take songs from</h3>
-            <div className="pills">
-              {sourceOptions.map((s) => (
-                <button key={s.id} className={`pill pill--src ${sources.includes(s.id) ? 'is-on' : ''}`} onClick={() => setSources((l) => toggle(l, s.id))}>
-                  {s.image !== undefined ? <Cover src={s.image} size={22} radius={5} /> : s.icon}
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </section>
+      {tab === 'smart' ? (
+        <SmartPlaylist />
+      ) : (
+        <>
+          <div className="mix__layout">
+            <div className="mix__controls">
+              <section className="mix__group">
+                <h3>Take songs from</h3>
+                <div className="pills">
+                  {sourceOptions.map((s) => (
+                    <button key={s.id} className={`pill pill--src ${sources.includes(s.id) ? 'is-on' : ''}`} onClick={() => setSources((l) => toggle(l, s.id))}>
+                      {s.image !== undefined ? <Cover src={s.image} size={22} radius={5} /> : s.icon}
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </section>
 
-          <section className="mix__group">
-            <h3>
-              Artists
-              {picked.length > 0 && (
-                <button className="link mix__clear" onClick={() => setPicked([])}>
-                  Clear
-                </button>
-              )}
-            </h3>
-            {picked.length > 0 && (
-              <div className="pills mix__picked">
-                {picked.map((a) => (
-                  <span key={a.id} className="pill pill--src is-on">
-                    <Cover src={a.image} size={22} round />
-                    {a.name}
-                    <button className="mix__x" aria-label={`Remove ${a.name}`} onClick={() => setPicked((l) => l.filter((x) => x.id !== a.id))}>
+              <section className="mix__group">
+                <h3>
+                  Artists
+                  {picked.length > 0 && (
+                    <button className="link mix__clear" onClick={() => setPicked([])}>
+                      Clear
+                    </button>
+                  )}
+                </h3>
+                {picked.length > 0 && (
+                  <div className="pills mix__picked">
+                    {picked.map((a) => (
+                      <span key={a.id} className="pill pill--src is-on">
+                        <Cover src={a.image} size={22} round />
+                        {a.name}
+                        <button className="mix__x" aria-label={`Remove ${a.name}`} onClick={() => setPicked((l) => l.filter((x) => x.id !== a.id))}>
+                          <CloseIcon size={13} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <ArtistPicker picked={picked} suggestions={suggestions} onAdd={(a) => setPicked((l) => (l.some((x) => x.id === a.id) ? l : [...l, a]))} />
+                {picked.length > 0 && (
+                  <div className="pills mix__mode">
+                    <button className={`pill ${onlyPicked ? 'is-on' : ''}`} onClick={() => setOnlyPicked(true)}>
+                      Only these artists
+                    </button>
+                    <button className={`pill ${!onlyPicked ? 'is-on' : ''}`} onClick={() => setOnlyPicked(false)}>
+                      Mix them into my library
+                    </button>
+                  </div>
+                )}
+              </section>
+
+              <section className="mix__group">
+                <h3>Feel</h3>
+                <div className="mix__vibes">
+                  {VIBES.map((v) => (
+                    <button
+                      key={v.id}
+                      className={`mix__vibe ${vibe === v.id ? 'is-on' : ''}`}
+                      onClick={() => {
+                        setVibe(v.id)
+                        setFeelText('')
+                      }}
+                    >
+                      <b>{v.label}</b>
+                      <small>{v.text}</small>
+                    </button>
+                  ))}
+                </div>
+                <label className={`mix__feel ${vibe === 'custom' ? 'is-on' : ''}`}>
+                  <SparkleIcon size={18} />
+                  <input
+                    value={feelText}
+                    maxLength={80}
+                    placeholder="Or type your own feel"
+                    spellCheck={false}
+                    onChange={(e) => {
+                      setFeelText(e.target.value)
+                      setVibe(e.target.value.trim() ? 'custom' : 'balanced')
+                    }}
+                    onKeyDown={(e) => e.key === 'Enter' && !loading && void run()}
+                  />
+                  {feelText && (
+                    <button
+                      className="mix__x"
+                      aria-label="Clear"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setFeelText('')
+                        setVibe('balanced')
+                      }}
+                    >
                       <CloseIcon size={13} />
                     </button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <ArtistPicker picked={picked} suggestions={suggestions} onAdd={(a) => setPicked((l) => (l.some((x) => x.id === a.id) ? l : [...l, a]))} />
-            {picked.length > 0 && (
-              <div className="pills mix__mode">
-                <button className={`pill ${onlyPicked ? 'is-on' : ''}`} onClick={() => setOnlyPicked(true)}>
-                  Only these artists
-                </button>
-                <button className={`pill ${!onlyPicked ? 'is-on' : ''}`} onClick={() => setOnlyPicked(false)}>
-                  Mix them into my library
-                </button>
-              </div>
-            )}
-          </section>
+                  )}
+                </label>
+              </section>
 
-          <section className="mix__group">
-            <h3>Feel</h3>
-            <div className="mix__vibes">
-              {VIBES.map((v) => (
-                <button
-                  key={v.id}
-                  className={`mix__vibe ${vibe === v.id ? 'is-on' : ''}`}
-                  onClick={() => {
-                    setVibe(v.id)
-                    setFeelText('')
-                  }}
-                >
-                  <b>{v.label}</b>
-                  <small>{v.text}</small>
-                </button>
-              ))}
-            </div>
-            <label className={`mix__feel ${vibe === 'custom' ? 'is-on' : ''}`}>
-              <SparkleIcon size={18} />
-              <input
-                value={feelText}
-                maxLength={80}
-                placeholder="Or type your own feel"
-                spellCheck={false}
-                onChange={(e) => {
-                  setFeelText(e.target.value)
-                  setVibe(e.target.value.trim() ? 'custom' : 'balanced')
-                }}
-                onKeyDown={(e) => e.key === 'Enter' && !loading && void run()}
-              />
-              {feelText && (
-                <button
-                  className="mix__x"
-                  aria-label="Clear"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    setFeelText('')
-                    setVibe('balanced')
-                  }}
-                >
-                  <CloseIcon size={13} />
-                </button>
-              )}
-            </label>
-          </section>
-
-          <section className="mix__group">
-            <h3>Era</h3>
-            <div className="pills">
-              <button className={`pill ${decades.length === 0 ? 'is-on' : ''}`} onClick={() => setDecades([])}>
-                Any
-              </button>
-              {DECADES.map((d) => (
-                <button key={d} className={`pill ${decades.includes(d) ? 'is-on' : ''}`} onClick={() => setDecades((l) => toggle(l, d))}>
-                  {String(d).slice(2)}s
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <div className="mix__row">
-            <section className="mix__group">
-              <h3>
-                Length <span className="mix__val">{plural(count, 'song')}</span>
-              </h3>
-              <Slider className="mix__slider" value={countToPos(count)} max={100} label="Number of songs" onCommit={(v) => setCount(posToCount(v))} onPreview={(v) => v !== null && setCount(posToCount(v))} />
-            </section>
-            <section className="mix__group">
-              <h3>Same artist</h3>
-              <div className="pills">
-                {[1, 2, 3, 5, 0].map((n) => (
-                  <button key={n} className={`pill ${perArtist === n ? 'is-on' : ''}`} onClick={() => setPerArtist(n)}>
-                    {n === 0 ? 'No limit' : `Up to ${n}`}
+              <section className="mix__group">
+                <h3>Era</h3>
+                <div className="pills">
+                  <button className={`pill ${decades.length === 0 ? 'is-on' : ''}`} onClick={() => setDecades([])}>
+                    Any
                   </button>
-                ))}
-              </div>
-            </section>
-          </div>
-        </div>
-
-        <aside className="mix__preview">
-          <CoverStack images={previewArt} className="mix__stack" />
-          <p className="mix__summary">{summary}</p>
-          <button className={`mixgo ${loading ? 'is-busy' : ''}`} disabled={loading} onClick={() => void run()}>
-            <span className="mixgo__sheen" aria-hidden="true" />
-            <span className="mixgo__icon" aria-hidden="true">
-              {loading ? <span className="cmd__spin" /> : <ShuffleIcon size={20} />}
-            </span>
-            <span className="mixgo__text">
-              <b>{loading ? 'Reading your library…' : mix ? 'Make another' : 'Make my mix'}</b>
-              <small>
-                {plural(count, 'song')} · {vibe === 'custom' && feelText.trim() ? feelText.trim() : (VIBES.find((v) => v.id === vibe)?.label ?? 'Balanced')}
-              </small>
-            </span>
-            <span className="mixgo__arrow" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 12h14M13 6l6 6-6 6" />
-              </svg>
-            </span>
-          </button>
-          {pool && <small className="muted">{plural(pool.length, 'song')} to choose from</small>}
-        </aside>
-      </div>
-
-      <AnimatePresence mode="wait">
-        {mix && mix.length > 0 && (
-          <motion.section
-            key={mix.map((t) => t.id).join().slice(0, 80)}
-            className="mix__result"
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ type: 'spring', stiffness: 200, damping: 26 }}
-          >
-            <div className="mix__result-head">
-              <div className="mix__mosaic" aria-hidden="true">
-                {mix.slice(0, 4).map((t, i) => (
-                  <Cover key={`${t.id}-${i}`} src={sp.pickImage(t.album?.images, 300)} radius={0} />
-                ))}
-              </div>
-              <div className="mix__result-text">
-                <input className="mix__name" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} aria-label="Mix name" />
-                <span className="muted">
-                  {plural(mix.length, 'song')}, {formatDuration(total)}
-                </span>
-                <div className="phead__actions">
-                  <button className="play-fab" aria-label="Play mix" onClick={() => void playUris(mix.map((t) => t.uri))}>
-                    <PlayIcon size={24} />
-                  </button>
-                  <button className="btn" disabled={saving} onClick={() => void save()}>
-                    <PlusIcon size={17} /> {saving ? 'Saving…' : 'Save as playlist'}
-                  </button>
+                  {DECADES.map((d) => (
+                    <button key={d} className={`pill ${decades.includes(d) ? 'is-on' : ''}`} onClick={() => setDecades((l) => toggle(l, d))}>
+                      {String(d).slice(2)}s
+                    </button>
+                  ))}
                 </div>
+              </section>
+
+              <div className="mix__row">
+                <section className="mix__group">
+                  <h3>
+                    Length <span className="mix__val">{plural(count, 'song')}</span>
+                  </h3>
+                  <Slider
+                    className="mix__slider"
+                    value={countToPos(count)}
+                    max={100}
+                    label="Number of songs"
+                    onCommit={(v) => setCount(posToCount(v))}
+                    onPreview={(v) => v !== null && setCount(posToCount(v))}
+                  />
+                </section>
+                <section className="mix__group">
+                  <h3>Same artist</h3>
+                  <div className="pills">
+                    {[1, 2, 3, 5, 0].map((n) => (
+                      <button key={n} className={`pill ${perArtist === n ? 'is-on' : ''}`} onClick={() => setPerArtist(n)}>
+                        {n === 0 ? 'No limit' : `Up to ${n}`}
+                      </button>
+                    ))}
+                  </div>
+                </section>
               </div>
             </div>
-            <TrackList tracks={mix} onPlay={(i) => void playUris(mix.map((t) => t.uri), mix[i].uri)} onReorder={(a, b) => setMix((m) => {
-              if (!m) return m
-              const next = m.slice()
-              const [x] = next.splice(a, 1)
-              next.splice(b, 0, x)
-              return next
-            })} />
-          </motion.section>
-        )}
-      </AnimatePresence>
+
+            <aside className="mix__preview">
+              <CoverStack images={previewArt} className="mix__stack" />
+              <p className="mix__summary">{summary}</p>
+              <button className={`mixgo ${loading ? 'is-busy' : ''}`} disabled={loading} onClick={() => void run()}>
+                <span className="mixgo__sheen" aria-hidden="true" />
+                <span className="mixgo__icon" aria-hidden="true">
+                  {loading ? <span className="cmd__spin" /> : <ShuffleIcon size={20} />}
+                </span>
+                <span className="mixgo__text">
+                  <b>{loading ? 'Reading your library…' : mix ? 'Make another' : 'Make my mix'}</b>
+                  <small>
+                    {plural(count, 'song')} · {vibe === 'custom' && feelText.trim() ? feelText.trim() : (VIBES.find((v) => v.id === vibe)?.label ?? 'Balanced')}
+                  </small>
+                </span>
+                <span className="mixgo__arrow" aria-hidden="true">
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M5 12h14M13 6l6 6-6 6" />
+                  </svg>
+                </span>
+              </button>
+              {pool && <small className="muted">{plural(pool.length, 'song')} to choose from</small>}
+            </aside>
+          </div>
+
+          <AnimatePresence mode="wait">
+            {mix && mix.length > 0 && (
+              <motion.section
+                key={mix
+                  .map((t) => t.id)
+                  .join()
+                  .slice(0, 80)}
+                className="mix__result"
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ type: 'spring', stiffness: 200, damping: 26 }}
+              >
+                <div className="mix__result-head">
+                  <div className="mix__mosaic" aria-hidden="true">
+                    {mix.slice(0, 4).map((t, i) => (
+                      <Cover key={`${t.id}-${i}`} src={sp.pickImage(t.album?.images, 300)} radius={0} />
+                    ))}
+                  </div>
+                  <div className="mix__result-text">
+                    <input className="mix__name" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} aria-label="Mix name" />
+                    <span className="muted">
+                      {plural(mix.length, 'song')}, {formatDuration(total)}
+                    </span>
+                    <div className="phead__actions">
+                      <button className="play-fab" aria-label="Play mix" onClick={() => void playUris(mix.map((t) => t.uri))}>
+                        <PlayIcon size={24} />
+                      </button>
+                      <button className="btn" disabled={saving} onClick={() => void save()}>
+                        <PlusIcon size={17} /> {saving ? 'Saving…' : 'Save as playlist'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <TrackList
+                  tracks={mix}
+                  onPlay={(i) =>
+                    void playUris(
+                      mix.map((t) => t.uri),
+                      mix[i].uri
+                    )
+                  }
+                  onReorder={(a, b) =>
+                    setMix((m) => {
+                      if (!m) return m
+                      const next = m.slice()
+                      const [x] = next.splice(a, 1)
+                      next.splice(b, 0, x)
+                      return next
+                    })
+                  }
+                />
+              </motion.section>
+            )}
+          </AnimatePresence>
+        </>
+      )}
     </div>
   )
 }

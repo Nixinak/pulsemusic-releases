@@ -75,6 +75,7 @@ const api: PulseApi = {
     stop: () => ipcRenderer.invoke('party:stop'),
     info: () => ipcRenderer.invoke('party:info'),
     setQueue: (q) => ipcRenderer.send('party:queue', q),
+    vote: (uri, v) => ipcRenderer.invoke('party:vote', uri, v),
     onAdd: (cb) => listen('party:add', cb),
     onLink: (cb) => listen('party:link', cb),
     onJoin: (cb) => listen('party:join', cb),

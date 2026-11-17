@@ -95,6 +95,12 @@ export function partyPage(): string {
   .add:active { transform: scale(.96); }
   .add:disabled { opacity: .55; box-shadow: none; }
   .add.done { background: rgba(255,255,255,.14); }
+  .votes { flex: none; display: inline-flex; align-items: center; gap: 1px; padding: 2px; border-radius: 999px; background: rgba(255,255,255,.08); }
+  .vote { width: 30px; height: 30px; border: 0; border-radius: 50%; background: transparent; font-size: 15px; cursor: pointer; filter: grayscale(.9); opacity: .7; }
+  .vote.on-up { filter: none; opacity: 1; background: rgba(61,220,132,.22); }
+  .vote.on-down { filter: none; opacity: 1; background: rgba(255,80,90,.22); }
+  .votes b { min-width: 22px; text-align: center; font-size: 13px; color: var(--dim); }
+  .votes b.up { color: #3ddc84; } .votes b.down { color: #ff6b74; }
   .by { flex: none; font-size: 12px; font-weight: 600; color: var(--text); background: rgba(255,255,255,.1); padding: 3px 10px; border-radius: 999px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .empty { color: var(--dim); padding: 14px 12px; font-size: 14px; }
 
@@ -274,8 +280,34 @@ function renderQueue() {
   if (!state.queue.length) queueBox.append(el('div', 'empty', 'Nothing queued'));
   state.queue.forEach((t, i) => {
     const x = el('button', 'x'); x.setAttribute('aria-label', 'Remove ' + t.name); x.append(svg(ICON.x)); x.onclick = () => control({ action: 'remove', uri: t.uri });
-    queueBox.append(track(t, [t.addedBy ? el('span', 'by', t.addedBy) : null, x], i + 1));
+    queueBox.append(track(t, [t.addedBy ? el('span', 'by', t.addedBy) : null, voteBox(t), x], i + 1));
   });
+}
+
+// Thumbs up or down: the best voted songs play first, and a song voted down enough leaves.
+let myVotes = {};
+try { myVotes = JSON.parse(localStorage.getItem('pulse-party-votes') || '{}'); } catch (e) {}
+function voteBox(t) {
+  const box = el('span', 'votes');
+  const mine = myVotes[t.uri] || 0;
+  const score = t.score || 0;
+  const up = el('button', 'vote' + (mine > 0 ? ' on-up' : ''), '👍'); up.setAttribute('aria-label', 'Thumbs up');
+  const down = el('button', 'vote' + (mine < 0 ? ' on-down' : ''), '👎'); down.setAttribute('aria-label', 'Thumbs down');
+  const n = el('b', score > 0 ? 'up' : score < 0 ? 'down' : '', score > 0 ? '+' + score : String(score));
+  const cast = async (v) => {
+    const next = (myVotes[t.uri] || 0) === v ? 0 : v;
+    const before = myVotes[t.uri] || 0;
+    myVotes[t.uri] = next;
+    try { localStorage.setItem('pulse-party-votes', JSON.stringify(myVotes)); } catch (e) {}
+    t.score = (t.score || 0) - before + next;
+    renderQueue();
+    try { await post('/api/vote', { uri: t.uri, v: next }); }
+    catch (e) { toast(e.message === 'Failed to fetch' ? 'The party host is not reachable.' : e.message); }
+    setTimeout(refresh, 600);
+  };
+  up.onclick = () => cast(1); down.onclick = () => cast(-1);
+  box.append(up, n, down);
+  return box;
 }
 
 function openInApp() {

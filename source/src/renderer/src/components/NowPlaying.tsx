@@ -18,10 +18,10 @@ import { useTransition } from '@/lib/transition'
 import type { NpPanel } from '@/lib/store'
 import type { NpTheme } from '@shared/types'
 import { LockClock, LockWall, NpEdgeMenu } from './NpThemes'
-import { CdDeck, Turntable } from './NpDevices'
-import { Cassette, Poster, PulseRing } from './NpExtras'
+import { Turntable } from './NpDevices'
+import { Poster, PulseRing } from './NpExtras'
 import { useNpSounds } from '@/lib/npSounds'
-import { getLyrics } from '@/lib/lyrics'
+import { getLyrics, prefetchLyrics } from '@/lib/lyrics'
 
 const TABS: { id: NpPanel; label: string; Icon: typeof LyricsIcon }[] = [
   { id: 'lyrics', label: 'Lyrics', Icon: LyricsIcon },
@@ -41,7 +41,9 @@ export function NowPlaying(): React.JSX.Element {
   // A song without lyrics shows the cover instead; the next song with lyrics brings them back
   // (Lyrics stays the chosen tab, only what's shown changes). Asking for them on purpose (the
   // Lyrics tab) shows the "no lyrics" note for that song.
-  const [noLyrics, setNoLyrics] = useState<string | null>(null)
+  // What is shown while the next song's lyrics are still being looked up stays as it was:
+  // after a song without lyrics the cover stays until lyrics are really there.
+  const [coverNow, setCoverNow] = useState(false)
   const [askedFor, setAskedFor] = useState<string | null>(null)
   useEffect(() => {
     if (chosen !== 'lyrics' || !track) return
@@ -53,15 +55,25 @@ export function NowPlaying(): React.JSX.Element {
       album: track.album.name,
       durationMs: track.durationMs
     }).then((d) => {
-      if (alive) setNoLyrics(d.kind === 'none' || d.kind === 'instrumental' ? track.id : null)
+      if (alive) setCoverNow(d.kind === 'none' || d.kind === 'instrumental')
     })
     return () => {
       alive = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chosen, track?.id])
+  // the next song's lyrics are fetched ahead, so they are there the moment it starts
+  const upcoming = usePlayer((s) => s.upNext[0] ?? s.nextUp)
+  useEffect(() => {
+    if (!open || !upcoming) return
+    prefetchLyrics({
+      id: upcoming.id,
+      name: upcoming.name,
+      artists: upcoming.artists.split(', ')
+    })
+  }, [open, upcoming?.id])
   const autoOn = useApp((s) => s.settings.npAutoCover !== false)
-  const autoCover = autoOn && chosen === 'lyrics' && !!track && noLyrics === track.id && askedFor !== track.id
+  const autoCover = autoOn && chosen === 'lyrics' && !!track && coverNow && askedFor !== track.id
   const panel: NpPanel = autoCover ? 'none' : chosen
   const liked = usePlayer((s) => s.liked)
   const paused = usePlayer((s) => s.paused)
@@ -70,7 +82,7 @@ export function NowPlaying(): React.JSX.Element {
   const showStage = transitioning && (panel === 'lyrics' || panel === 'queue')
   // "Album cover" is the base look ("Classic" was folded into it)
   const savedTheme = useApp((s) => s.settings.npTheme)
-  const theme: NpTheme = !savedTheme || savedTheme === 'classic' ? 'cover' : savedTheme
+  const theme: NpTheme = !savedTheme || savedTheme === 'classic' || savedTheme === 'cd' || savedTheme === 'cassette' ? 'cover' : savedTheme
   const wantFull = useApp((s) => !!s.settings.npFullscreen)
   const updateSettings = useApp((s) => s.updateSettings)
   const scratch = useApp((s) => s.settings.npScratch) ?? true
@@ -173,7 +185,17 @@ export function NowPlaying(): React.JSX.Element {
                     setPanel(panel === id && id !== 'none' ? 'none' : id)
                   }}
                 >
-                  {panel === id && <motion.span layoutId="np-tab" className="np__tab-bg" transition={{ type: 'spring', stiffness: 500, damping: 38 }} />}
+                  {panel === id && (
+                    <motion.span
+                      layoutId="np-tab"
+                      className="np__tab-bg"
+                      transition={{
+                        type: 'spring',
+                        stiffness: 500,
+                        damping: 38
+                      }}
+                    />
+                  )}
                   <Icon size={17} />
                   <span>{label}</span>
                 </button>
@@ -181,112 +203,122 @@ export function NowPlaying(): React.JSX.Element {
             </Glass>
           </header>
 
-          <LayoutGroup>
-          <div className={`np__body ${panel === 'none' ? 'np__body--solo' : ''}`}>
-            <section className="np__left">
-              {theme === 'lock' && <LockClock />}
-              {theme === 'vinyl' ? (
-                <motion.div layoutId="np-art" className="np__deck" transition={spring}>
-                  <Turntable art={track.artUrl} paused={paused} />
-                </motion.div>
-              ) : theme === 'cd' ? (
-                <motion.div layoutId="np-art" className="np__deck" transition={spring}>
-                  <CdDeck
-                    art={track.artUrl}
-                    paused={paused}
-                    title={track.name}
-                    artist={track.artists.map((a) => a.name).join(', ')}
-                    durationMs={track.durationMs}
-                  />
-                </motion.div>
-              ) : theme === 'cassette' ? (
-                <motion.div layoutId="np-art" className="np__deck np__deck--wide" transition={spring}>
-                  <Cassette art={track.artUrl} paused={paused} title={track.name} artist={track.artists.map((a) => a.name).join(', ')} />
-                </motion.div>
-              ) : theme === 'poster' ? (
-                <motion.div layoutId="np-art" className="np__deck np__deck--tall" transition={spring}>
-                  <Poster
-                    art={track.artUrl}
-                    paused={paused}
-                    title={track.name}
-                    artist={track.artists.map((a) => a.name).join(', ')}
-                    album={track.album.name}
-                    durationMs={track.durationMs}
-                  />
-                </motion.div>
-              ) : theme === 'pulse' ? (
-                <motion.div layoutId="np-art" className="np__deck" transition={spring}>
-                  <PulseRing art={track.artUrl} paused={paused} />
-                </motion.div>
-              ) : (
-                <motion.div layoutId="np-art" className={`np__art ${paused ? 'is-paused' : ''}`} transition={spring}>
-                  <SwapArt id={track.id} src={track.artUrl} radius={theme === 'cover' || theme === 'lock' ? 12 : 22} />
-                </motion.div>
-              )}
-
+          {/* another look: the old one fades out softly and the new one settles in (each look in its
+              own layout group, so nothing morphs from a turntable into a poster) */}
+          <AnimatePresence mode="wait" initial={false}>
+            <LayoutGroup id={theme} key={theme}>
               <motion.div
-                layout="position"
-                className="np__info"
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ ...spring, delay: 0.08 }}
+                className={`np__body ${panel === 'none' ? 'np__body--solo' : ''}`}
+                initial={{ opacity: 0, scale: 0.965, filter: 'blur(14px)' }}
+                animate={{
+                  opacity: 1,
+                  scale: 1,
+                  filter: 'blur(0px)',
+                  transition: { duration: 0.42, ease: [0.22, 1, 0.36, 1] }
+                }}
+                exit={{
+                  opacity: 0,
+                  scale: 1.02,
+                  filter: 'blur(10px)',
+                  transition: { duration: 0.2, ease: [0.4, 0, 1, 1] }
+                }}
               >
-                {(theme === 'vinyl' || theme === 'cd' || theme === 'cassette' || theme === 'pulse') && <small className="np__eyebrow">Now playing</small>}
-                <div className="np__titles">
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={track.id}
-                      initial={{ opacity: 0, x: 18 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -18 }}
-                      transition={{ duration: 0.25 }}
-                    >
-                      <h1 className="np__title link" onClick={() => track.album.id && navigate({ name: 'album', id: track.album.id })}>
-                        <Emo>{track.name}</Emo>
-                      </h1>
-                      <div className="np__artist">
-                        <ArtistLinks artists={track.artists} onOpen={(id) => navigate({ name: 'artist', id })} />
-                      </div>
+                <section className="np__left">
+                  {theme === 'lock' && <LockClock />}
+                  {theme === 'vinyl' ? (
+                    <motion.div layoutId="np-art" className="np__deck" transition={spring}>
+                      <Turntable art={track.artUrl} paused={paused} />
                     </motion.div>
-                  </AnimatePresence>
-                  <LikeButton liked={liked} size={24} variant="np" />
-                </div>
-                <Progress className="progress--np" />
-                <Transport big />
-                <div className="np__extras">
-                  <Volume />
-                  <DevicePicker />
-                </div>
-                <RemoteBadge />
-              </motion.div>
-            </section>
-
-            {/* popLayout takes the leaving panel out of the layout at once, so the cover
-                glides to the centre while the panel fades, instead of jumping afterwards. */}
-            <AnimatePresence mode="popLayout">
-              {panel !== 'none' && (
-                <motion.section
-                  key={showStage ? 'stage' : panel}
-                  className="np__right"
-                  initial={{ opacity: 0, x: 40, filter: 'blur(8px)' }}
-                  animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
-                  exit={{ opacity: 0, x: 60, filter: 'blur(10px)', transition: { duration: 0.35 } }}
-                  transition={spring}
-                >
-                  {showStage ? (
-                    <TransitionStage big />
-                  ) : panel === 'lyrics' ? (
-                    <Lyrics track={track} />
+                  ) : theme === 'poster' ? (
+                    <motion.div layoutId="np-art" className="np__deck np__deck--tall" transition={spring}>
+                      <Poster
+                        art={track.artUrl}
+                        paused={paused}
+                        title={track.name}
+                        artist={track.artists.map((a) => a.name).join(', ')}
+                        album={track.album.name}
+                        durationMs={track.durationMs}
+                      />
+                    </motion.div>
+                  ) : theme === 'pulse' ? (
+                    <motion.div layoutId="np-art" className="np__deck" transition={spring}>
+                      <PulseRing art={track.artUrl} paused={paused} />
+                    </motion.div>
                   ) : (
-                    <Glass radius={26} tone="clear" simple className="np__queue" data-own-scroll>
-                      <QueueList onClose={() => setPanel('none')} />
-                    </Glass>
+                    <motion.div layoutId="np-art" className={`np__art ${paused ? 'is-paused' : ''}`} transition={spring}>
+                      <SwapArt id={track.id} src={track.artUrl} radius={theme === 'cover' || theme === 'lock' ? 12 : 22} />
+                    </motion.div>
                   )}
-                </motion.section>
-              )}
-            </AnimatePresence>
-          </div>
-          </LayoutGroup>
+
+                  <motion.div
+                    layout="position"
+                    className="np__info"
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ ...spring, delay: 0.08 }}
+                  >
+                    {(theme === 'vinyl' || theme === 'pulse') && <small className="np__eyebrow">Now playing</small>}
+                    <div className="np__titles">
+                      <AnimatePresence mode="wait">
+                        <motion.div
+                          key={track.id}
+                          initial={{ opacity: 0, x: 18 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -18 }}
+                          transition={{ duration: 0.25 }}
+                        >
+                          <h1 className="np__title link" onClick={() => track.album.id && navigate({ name: 'album', id: track.album.id })}>
+                            <Emo>{track.name}</Emo>
+                          </h1>
+                          <div className="np__artist">
+                            <ArtistLinks artists={track.artists} onOpen={(id) => navigate({ name: 'artist', id })} />
+                          </div>
+                        </motion.div>
+                      </AnimatePresence>
+                      <LikeButton liked={liked} size={24} variant="np" />
+                    </div>
+                    <Progress className="progress--np" />
+                    <Transport big />
+                    <div className="np__extras">
+                      <Volume />
+                      <DevicePicker />
+                    </div>
+                    <RemoteBadge />
+                  </motion.div>
+                </section>
+
+                {/* popLayout takes the leaving panel out of the layout at once, so the cover
+                glides to the centre while the panel fades, instead of jumping afterwards. */}
+                <AnimatePresence mode="popLayout">
+                  {panel !== 'none' && (
+                    <motion.section
+                      key={showStage ? 'stage' : panel}
+                      className="np__right"
+                      initial={{ opacity: 0, x: 40, filter: 'blur(8px)' }}
+                      animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+                      exit={{
+                        opacity: 0,
+                        x: 60,
+                        filter: 'blur(10px)',
+                        transition: { duration: 0.35 }
+                      }}
+                      transition={spring}
+                    >
+                      {showStage ? (
+                        <TransitionStage big />
+                      ) : panel === 'lyrics' ? (
+                        <Lyrics track={track} />
+                      ) : (
+                        <Glass radius={26} tone="clear" simple className="np__queue" data-own-scroll>
+                          <QueueList onClose={() => setPanel('none')} />
+                        </Glass>
+                      )}
+                    </motion.section>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            </LayoutGroup>
+          </AnimatePresence>
 
           <NpEdgeMenu
             theme={theme}

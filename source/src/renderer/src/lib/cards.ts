@@ -13,11 +13,7 @@ const UI = '"Figtree Variable", system-ui, sans-serif'
 
 async function fontsReady(): Promise<void> {
   try {
-    await Promise.all([
-      document.fonts.load(`800 64px ${DISPLAY}`),
-      document.fonts.load(`700 32px ${UI}`),
-      document.fonts.load(`500 32px ${UI}`)
-    ])
+    await Promise.all([document.fonts.load(`800 64px ${DISPLAY}`), document.fonts.load(`700 32px ${UI}`), document.fonts.load(`500 32px ${UI}`)])
   } catch {
     /* fall back to system fonts */
   }
@@ -158,6 +154,7 @@ export async function renderLyricsCard(o: LyricsCardInput): Promise<string> {
   const ctx = canvas.getContext('2d')!
   const art = await loadImage(o.artUrl)
   const { text, soft } = drawBackground(ctx, W, H, o.style, currentPalette(), art)
+  if (o.format === 'story') return storyLayout(ctx, canvas, o, art, text, soft)
 
   const pad = 90
   // Header: cover + title.
@@ -190,7 +187,7 @@ export async function renderLyricsCard(o: LyricsCardInput): Promise<string> {
   const top = pad + cs + 90
   const bottom = H - pad - 80
   const maxW = W - pad * 2
-  let size = o.format === 'story' ? 88 : 78
+  let size = 78
   let laid: string[] = []
   for (; size >= 40; size -= 4) {
     ctx.font = `800 ${size}px ${DISPLAY}`
@@ -210,6 +207,91 @@ export async function renderLyricsCard(o: LyricsCardInput): Promise<string> {
   return canvas.toDataURL('image/png')
 }
 
+/**
+ * The Instagram story (9:16): the cover big in the middle of the top half, the song under it, and
+ * the lines on a frosted card, all inside the part of the picture Instagram doesn't cover with its
+ * own buttons (the top 220 px and the bottom 300 px stay clear).
+ */
+function storyLayout(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  o: LyricsCardInput,
+  art: HTMLImageElement | null,
+  text: string,
+  soft: string
+): string {
+  const W = canvas.width
+  const H = canvas.height
+  const top = 230
+  const bottom = H - 310
+  const pad = 96
+  let y = top
+  if (art) {
+    const cs = 560
+    const x = (W - cs) / 2
+    ctx.save()
+    ctx.shadowColor = 'rgba(0,0,0,0.45)'
+    ctx.shadowBlur = 70
+    ctx.shadowOffsetY = 30
+    roundRect(ctx, x, y, cs, cs, 34)
+    ctx.fillStyle = '#000'
+    ctx.fill()
+    ctx.restore()
+    ctx.save()
+    roundRect(ctx, x, y, cs, cs, 34)
+    ctx.clip()
+    drawCover(ctx, art, x, y, cs, cs)
+    ctx.restore()
+    y += cs + 64
+  }
+  ctx.textAlign = 'center'
+  ctx.fillStyle = text
+  ctx.font = `800 52px ${DISPLAY}`
+  const titleLines = wrap(ctx, o.title, W - pad * 2).slice(0, 2)
+  titleLines.forEach((l) => {
+    ctx.fillText(l, W / 2, y)
+    y += 58
+  })
+  ctx.font = `600 34px ${UI}`
+  ctx.fillStyle = soft
+  ctx.fillText(o.artist, W / 2, y + 2)
+  y += 60
+  ctx.textAlign = 'left'
+
+  // the lines on a frosted card, as big as fits
+  const cardX = pad - 30
+  const cardW = W - cardX * 2
+  const inner = cardW - 76
+  const room = bottom - y - 60
+  let size = 70
+  let laid: string[] = []
+  for (; size >= 36; size -= 3) {
+    ctx.font = `800 ${size}px ${DISPLAY}`
+    laid = o.lines.flatMap((l) => (l.trim() ? wrap(ctx, l, inner) : ['']))
+    if (laid.length * size * 1.2 + 76 <= room) break
+  }
+  const cardH = laid.length * size * 1.2 + 76
+  const cardY = y + Math.max(0, (room - cardH) / 2)
+  ctx.save()
+  roundRect(ctx, cardX, cardY, cardW, cardH, 40)
+  ctx.fillStyle = 'rgba(255,255,255,0.14)'
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)'
+  ctx.lineWidth = 2
+  ctx.stroke()
+  ctx.restore()
+  ctx.fillStyle = text
+  ctx.font = `800 ${size}px ${DISPLAY}`
+  let ly = cardY + 38 + size * 0.95
+  for (const l of laid) {
+    ctx.fillText(l, cardX + 38, ly)
+    ly += size * 1.2
+  }
+
+  brand(ctx, W / 2, bottom + 70, soft, 'center')
+  return canvas.toDataURL('image/png')
+}
+
 export interface ProfileCardInput {
   name: string
   avatar: string | null
@@ -218,7 +300,10 @@ export interface ProfileCardInput {
   stats: { label: string; value: string }[]
   topArtists: { name: string; image: string | null }[]
   topTracks: { name: string; artist: string; image: string | null }[]
-  favourites: { title: string; items: { name: string; image: string | null }[] }[]
+  favourites: {
+    title: string
+    items: { name: string; image: string | null }[]
+  }[]
   style: CardStyle
 }
 

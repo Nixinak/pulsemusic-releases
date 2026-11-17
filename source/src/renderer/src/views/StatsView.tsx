@@ -11,6 +11,8 @@ import { useApp } from '@/lib/store'
 import { computeStats, isRealId, startOfYear, useHistory } from '@/lib/history'
 import { funFacts } from '@/lib/funFacts'
 import { FocusImg } from '@/components/FocusImg'
+import { FunFacts } from '@/components/FunFacts'
+import { Achievements } from '@/components/Achievements'
 import { formatMinutes } from '@/lib/recap'
 import { useQuery } from '@/lib/useQuery'
 import * as sp from '@/lib/spotify'
@@ -47,7 +49,12 @@ interface TopTrack {
   minutes?: number
 }
 
-const fromSpArtist = (a: SArtist): TopArtist => ({ id: a.id, name: a.name, image: sp.pickImage(a.images, 640), uri: a.uri })
+const fromSpArtist = (a: SArtist): TopArtist => ({
+  id: a.id,
+  name: a.name,
+  image: sp.pickImage(a.images, 640),
+  uri: a.uri
+})
 const fromSpTrack = (t: STrack): TopTrack => ({
   id: t.id,
   uri: t.uri,
@@ -60,7 +67,10 @@ const fromSpTrack = (t: STrack): TopTrack => ({
 
 /** Enough plays in the period to rank them ourselves; otherwise Spotify's nearest list fills in. */
 const ENOUGH: Record<Exclude<Range, 'all'>, number> = { week: 8, year: 25 }
-const FALLBACK: Record<Exclude<Range, 'all'>, sp.TimeRange> = { week: 'short_term', year: 'medium_term' }
+const FALLBACK: Record<Exclude<Range, 'all'>, sp.TimeRange> = {
+  week: 'short_term',
+  year: 'medium_term'
+}
 
 /** A song's cover; imported plays without one get it looked up. */
 function TrackArt({ t }: { t: TopTrack }): React.JSX.Element {
@@ -118,10 +128,7 @@ export function StatsView(): React.JSX.Element {
   const needSpotify = range === 'all' || (loaded && !own)
   const spArtists = useQuery(needSpotify ? `stats:artists50:${spRange}` : null, () => sp.getTopArtists(spRange, 50))
   const spTracks = useQuery(needSpotify ? `stats:tracks50:${spRange}` : null, () => sp.getTopTracks(spRange, 50))
-  const artistList: TopArtist[] = useMemo(
-    () => own?.artists ?? (spArtists.data?.items ?? []).filter((a) => a?.id).map(fromSpArtist),
-    [own, spArtists.data]
-  )
+  const artistList: TopArtist[] = useMemo(() => own?.artists ?? (spArtists.data?.items ?? []).filter((a) => a?.id).map(fromSpArtist), [own, spArtists.data])
   const top: TopTrack[] = useMemo(() => own?.tracks ?? (spTracks.data?.items ?? []).filter((t) => t?.id).map(fromSpTrack), [own, spTracks.data])
   const loading = !loaded || (needSpotify && spArtists.loading && !spArtists.data)
   const hero = artistList[0]
@@ -136,12 +143,23 @@ export function StatsView(): React.JSX.Element {
   const facts = useMemo(() => {
     if (!top.length) return null
     const byArtist = new Map<string, { name: string; n: number }>()
-    for (const t of top) for (const a of t.artists) byArtist.set(a.name.toLowerCase(), { name: a.name, n: (byArtist.get(a.name.toLowerCase())?.n ?? 0) + 1 })
+    for (const t of top)
+      for (const a of t.artists)
+        byArtist.set(a.name.toLowerCase(), {
+          name: a.name,
+          n: (byArtist.get(a.name.toLowerCase())?.n ?? 0) + 1
+        })
     const lead = [...byArtist.values()].sort((a, b) => b.n - a.n)[0]
     const year = new Date().getFullYear()
     const dated = top.filter((t) => t.year !== null)
     const fresh = dated.filter((t) => (t.year ?? 0) >= year - 1).length
-    return { artists: byArtist.size, lead, fresh, dated: dated.length, total: top.length }
+    return {
+      artists: byArtist.size,
+      lead,
+      fresh,
+      dated: dated.length,
+      total: top.length
+    }
   }, [top])
 
   // Little discoveries in the history for the chosen time (streaks, repeats, sessions…).
@@ -287,31 +305,8 @@ export function StatsView(): React.JSX.Element {
             )}
           </div>
 
-          {fun.length > 0 && (
-            <section className="facts">
-              <h2 className="stats__h">Fun facts</h2>
-              <ul className="facts__grid">
-                {fun.map((f, i) => (
-                  <motion.li
-                    key={f.id}
-                    className={`facts__card facts__card--${f.id}`}
-                    initial={{ opacity: 0, y: 14 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.04, type: 'spring', stiffness: 260, damping: 26 }}
-                  >
-                    {f.art && <img className="facts__art" src={f.art} alt="" decoding="async" />}
-                    <small>{f.label}</small>
-                    <b>{f.value}</b>
-                    {f.detail && (
-                      <span>
-                        <Emo>{f.detail}</Emo>
-                      </span>
-                    )}
-                  </motion.li>
-                ))}
-              </ul>
-            </section>
-          )}
+          <FunFacts facts={fun} />
+          <Achievements />
         </>
       )}
     </div>
