@@ -45,6 +45,7 @@ export function NowPlaying(): React.JSX.Element {
   const wantFull = useApp((s) => !!s.settings.npFullscreen)
   const updateSettings = useApp((s) => s.updateSettings)
   const sounds = useApp((s) => s.settings.npSounds) ?? true
+  const scratch = useApp((s) => s.settings.npScratch) ?? true
   useNpSounds(theme, open && !!track, sounds)
   const [isFull, setIsFull] = useState(false)
 
@@ -217,6 +218,8 @@ export function NowPlaying(): React.JSX.Element {
             full={isFull}
             sounds={sounds}
             onSounds={(on) => void updateSettings({ npSounds: on })}
+            scratch={scratch}
+            onScratch={(on) => void updateSettings({ npScratch: on })}
             onTheme={(t) => void updateSettings({ npTheme: t })}
             onFull={() => {
               const next = !isFull

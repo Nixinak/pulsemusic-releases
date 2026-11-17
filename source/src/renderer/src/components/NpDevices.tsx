@@ -9,13 +9,110 @@ import { formatTime } from '@/lib/format'
 import { usePlayer } from '@/lib/player'
 import { useApp } from '@/lib/store'
 import { BANDS, readBeat, useBeat } from '@/lib/beat'
+import { scratchMove, scratchStart, scratchStop } from '@/lib/npSounds'
 
 /* ================= Turntable ================= */
 
 /** Strobe dots around the platter edge (they turn with it). */
 const STROBE = Array.from({ length: 120 }, (_, i) => i * 3)
 
+/** 33⅓ turns a minute, in degrees a second. */
+const SPEED = 200
+
+/**
+ * Turns the record (with weight: it speeds up and slows down instead of jumping) and, when
+ * scratching is on, lets you grab it: it follows your hand, and the sound follows how fast and
+ * which way you move it.
+ */
+function useRecord(spin: React.RefObject<HTMLDivElement | null>, paused: boolean, scratch: boolean, sounds: boolean): void {
+  const live = useRef({ paused, scratch, sounds })
+  live.current = { paused, scratch, sounds }
+  useEffect(() => {
+    const el = spin.current
+    if (!el) return
+    const reduce = useApp.getState().settings.reduceMotion
+    let angle = 0
+    let vel = 0
+    let raf = 0
+    let last = performance.now()
+    let hold: { id: number; pointer: number; at: number; vel: number } | null = null
+    const center = (): { x: number; y: number } => {
+      const r = el.getBoundingClientRect()
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+    }
+    const pointerAngle = (e: PointerEvent): number => {
+      const c = center()
+      return (Math.atan2(e.clientY - c.y, e.clientX - c.x) * 180) / Math.PI
+    }
+    const tick = (): void => {
+      raf = requestAnimationFrame(tick)
+      const now = performance.now()
+      const dt = Math.min(0.05, (now - last) / 1000)
+      last = now
+      if (hold) {
+        // your hand slows down: the sound follows it towards silence
+        hold.vel *= Math.pow(0.02, dt)
+        if (now - hold.at > 40) scratchMove(hold.vel / SPEED)
+      } else {
+        const want = live.current.paused || reduce ? 0 : SPEED
+        // a motor with weight: about a second to get up to speed, a bit longer to stop
+        vel += (want - vel) * Math.min(1, dt * (want > vel ? 2.6 : 1.6))
+        angle += vel * dt
+      }
+      el.style.transform = `rotate(${angle % 360}deg)`
+    }
+    const down = (e: PointerEvent): void => {
+      if (!live.current.scratch || e.button !== 0) return
+      e.preventDefault()
+      el.setPointerCapture(e.pointerId)
+      hold = { id: e.pointerId, pointer: pointerAngle(e), at: performance.now(), vel: 0 }
+      el.classList.add('is-held')
+      if (live.current.sounds) scratchStart()
+    }
+    const move = (e: PointerEvent): void => {
+      if (!hold || e.pointerId !== hold.id) return
+      const a = pointerAngle(e)
+      let d = a - hold.pointer
+      if (d > 180) d -= 360
+      if (d < -180) d += 360
+      const now = performance.now()
+      const dt = Math.max(0.004, (now - hold.at) / 1000)
+      angle += d
+      // the hand's speed, smoothed a little
+      hold.vel = hold.vel * 0.4 + (d / dt) * 0.6
+      hold.pointer = a
+      hold.at = now
+      if (live.current.sounds) scratchMove(hold.vel / SPEED)
+    }
+    const up = (e: PointerEvent): void => {
+      if (!hold || e.pointerId !== hold.id) return
+      // let go with a push: it carries on from your hand's speed
+      vel = Math.max(-SPEED * 3, Math.min(SPEED * 3, hold.vel))
+      hold = null
+      el.classList.remove('is-held')
+      scratchStop()
+    }
+    el.addEventListener('pointerdown', down)
+    el.addEventListener('pointermove', move)
+    el.addEventListener('pointerup', up)
+    el.addEventListener('pointercancel', up)
+    raf = requestAnimationFrame(tick)
+    return () => {
+      cancelAnimationFrame(raf)
+      el.removeEventListener('pointerdown', down)
+      el.removeEventListener('pointermove', move)
+      el.removeEventListener('pointerup', up)
+      el.removeEventListener('pointercancel', up)
+      scratchStop()
+    }
+  }, [spin])
+}
+
 export function Turntable({ art, paused }: { art: string | null; paused: boolean }): React.JSX.Element {
+  const spin = useRef<HTMLDivElement>(null)
+  const scratch = useApp((s) => s.settings.npScratch) ?? true
+  const sounds = useApp((s) => s.settings.npSounds) ?? true
+  useRecord(spin, paused, scratch, sounds)
   const pos = useLivePosition()
   const dur = usePlayer((s) => s.track?.durationMs ?? 0)
   // the arm rests off the record while paused; playing, it creeps inwards with the song
@@ -23,7 +120,7 @@ export function Turntable({ art, paused }: { art: string | null; paused: boolean
   const armAngle = paused ? -17 : progress * 7
 
   return (
-    <div className={`tt ${paused ? 'is-paused' : ''}`} aria-hidden="true">
+    <div className={`tt ${paused ? 'is-paused' : ''} ${scratch ? 'can-scratch' : ''}`} aria-hidden="true">
       <svg className="tt__base" viewBox="0 0 1000 1000">
         <defs>
           <linearGradient id="ttBody" x1="0" y1="0" x2="0.35" y2="1">
@@ -110,7 +207,7 @@ export function Turntable({ art, paused }: { art: string | null; paused: boolean
       </svg>
 
       {/* what turns: strobe dots, the record and its label */}
-      <div className="tt__spin">
+      <div className="tt__spin" ref={spin} title={scratch ? 'Grab the record and scratch' : undefined}>
         <svg className="tt__dots" viewBox="0 0 200 200">
           {STROBE.map((a) => (
             <circle key={a} cx="100" cy="1.7" r="0.85" transform={`rotate(${a} 100 100)`} />

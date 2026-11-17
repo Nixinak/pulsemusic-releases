@@ -2,7 +2,6 @@ import { ImageCropLayer } from '@/components/ImageCropper'
 import { useLayoutEffect, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { useApp, currentRoute, errorText, type Route } from '@/lib/store'
-import { warmDj } from '@/lib/dj'
 import { ApiError, clearRateLimit } from '@/lib/spotify'
 import { pruneSaved } from '@/lib/persist'
 import { disposePlayer, initPlayer, nextTrack, previousTrack, startPublishing, togglePlay, usePlayer } from '@/lib/player'
@@ -142,7 +141,8 @@ function Shell({ onSignOut }: { onSignOut: () => void }): React.JSX.Element {
     tryLoad(0)
     void initPlayer(settings.volume)
     // Get the AI DJ's first set ready while the listener looks around.
-    window.setTimeout(() => warmDj(), 4000)
+    // the DJ gets its first set ready only when its page is opened (warming it up at every start,
+    // right when an update restarts the app, sent a burst of searches)
     // First start on a new computer: fetch the DJ's voice (about 330 MB) in the background,
     // so nobody has to find the download button in Settings.
     window.setTimeout(() => {

@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useApp } from '@/lib/store'
-import { startDj, stopDj, useDj, voiceLevel } from '@/lib/dj'
+import { startDj, stopDj, useDj, voiceLevel, warmDj } from '@/lib/dj'
 import { nextTrack, playUris, usePlayer } from '@/lib/player'
 import { BANDS, readBeat, useBeat } from '@/lib/beat'
 import { formatTime } from '@/lib/format'
@@ -143,6 +143,11 @@ function NowOnStage(): React.JSX.Element | null {
 }
 
 export function DjView(): React.JSX.Element {
+  // the first set is made while you look at the page, so Start is quick
+  useEffect(() => {
+    const t = window.setTimeout(() => !useDj.getState().active && warmDj(), 1500)
+    return () => window.clearTimeout(t)
+  }, [])
   // one selector each, so the DJ's chat log growing doesn't redraw the page
   const active = useDj((s) => s.active)
   const status = useDj((s) => s.status)

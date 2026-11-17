@@ -241,9 +241,15 @@ function restBackground(ms: number): void {
     /* storage unavailable */
   }
 }
+/* The first two minutes after a start (an update restarts the app) belong to what's on screen:
+   background work waits, so the start never sends everything at once. */
+const appStartedAt = Date.now()
+const START_CALM = 2 * 60_000
+
 /** How long background work must wait for room (0 = it may go now). */
 function backgroundWait(): number {
   if (Date.now() < bgRestUntil) return bgRestUntil - Date.now()
+  if (Date.now() - appStartedAt < START_CALM) return START_CALM - (Date.now() - appStartedAt)
   const ten = since(10)
   const cap10 = document.hidden ? BG_CAPS.tenMinHidden : BG_CAPS.tenMin
   if (ten.bg >= cap10 || ten.all >= ALL_CAPS.tenMin * 0.6) return 60_000
@@ -461,7 +467,7 @@ export async function getFollowedArtists(): Promise<SArtist[]> {
 }
 
 export const getRecentlyPlayed = (): Promise<CursorPaging<{ track: STrack; played_at: string }>> =>
-  api('/me/player/recently-played', { query: { limit: 50 }, background: true })
+  api('/me/player/recently-played', { query: { limit: 50 }, background: true, patient: true })
 
 export type TimeRange = 'short_term' | 'medium_term' | 'long_term'
 

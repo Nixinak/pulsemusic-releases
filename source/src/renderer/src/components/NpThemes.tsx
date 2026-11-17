@@ -116,16 +116,20 @@ export function NpEdgeMenu({
   theme,
   full,
   sounds,
+  scratch,
   onTheme,
   onFull,
-  onSounds
+  onSounds,
+  onScratch
 }: {
   theme: NpTheme
   full: boolean
   sounds: boolean
+  scratch: boolean
   onTheme: (t: NpTheme) => void
   onFull: () => void
   onSounds: (on: boolean) => void
+  onScratch: (on: boolean) => void
 }): React.JSX.Element {
   const [near, setNear] = useState(false)
   const [menu, setMenu] = useState(false)
@@ -230,6 +234,15 @@ export function NpEdgeMenu({
                 </span>
                 <i aria-hidden="true" />
               </button>
+              {theme === 'vinyl' && (
+                <button className={`npm__sound npm__sound--sub ${scratch ? 'is-on' : ''}`} role="switch" aria-checked={scratch} onClick={() => onScratch(!scratch)}>
+                  <span>
+                    <b>Scratch the record</b>
+                    <small>Grab the vinyl and spin it like a DJ</small>
+                  </span>
+                  <i aria-hidden="true" />
+                </button>
+              )}
             </Glass>
           </motion.div>
         )}

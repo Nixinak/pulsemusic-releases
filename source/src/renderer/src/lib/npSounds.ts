@@ -203,6 +203,130 @@ function seek(): void {
   for (let i = 0; i < 4; i++) burst(4800 + i * 300, 5, 0.025, 8, i * 0.045)
 }
 
+/* ---------- Scratching the record ----------
+ * Holding the record and moving it plays a short sung phrase ("ahh" syllables with a breathy
+ * start, made here) at the speed and in the direction your hand moves it, the way a DJ scratches
+ * a record: still = silent, quick back-and-forth = the classic sound. Spotify's own audio can't
+ * be scratched (it's protected), so this is a phrase of Pulse's own over the music. */
+
+let phrase: Float32Array | null = null
+
+/** About 2.4 s of four vowel syllables at a rising and falling pitch. */
+function makePhrase(rate: number): Float32Array {
+  const len = Math.floor(rate * 2.4)
+  const out = new Float32Array(len)
+  // a sawtooth voice through three vowel resonances ("ah"), a puff of breath at each syllable
+  const formants = [
+    { f: 780, bw: 90, g: 1 },
+    { f: 1180, bw: 110, g: 0.55 },
+    { f: 2700, bw: 160, g: 0.22 }
+  ].map((x) => {
+    const r = Math.exp((-Math.PI * x.bw) / rate)
+    return { a1: 2 * r * Math.cos((2 * Math.PI * x.f) / rate), a2: -r * r, g: x.g * (1 - r), y1: 0, y2: 0 }
+  })
+  let phase = 0
+  let breath = 0
+  const syll = [
+    { at: 0.0, len: 0.42, f0: 170 },
+    { at: 0.55, len: 0.38, f0: 215 },
+    { at: 1.05, len: 0.5, f0: 150 },
+    { at: 1.7, len: 0.55, f0: 190 }
+  ]
+  for (let i = 0; i < len; i++) {
+    const t = i / rate
+    const s = syll.find((x) => t >= x.at && t < x.at + x.len)
+    let src = 0
+    let env = 0
+    if (s) {
+      const u = (t - s.at) / s.len
+      env = Math.min(1, u * 25) * Math.pow(1 - u, 0.6)
+      const f0 = s.f0 * (1 + 0.12 * Math.sin(u * Math.PI))
+      phase += f0 / rate
+      if (phase >= 1) phase -= 1
+      src = (phase * 2 - 1) * env
+      // breath at the start of the syllable
+      breath = u < 0.12 ? (1 - u / 0.12) * 0.5 : 0
+    } else breath = 0
+    let y = 0
+    for (const fm of formants) {
+      const v = fm.g * src + fm.a1 * fm.y1 + fm.a2 * fm.y2
+      fm.y2 = fm.y1
+      fm.y1 = v
+      y += v
+    }
+    out[i] = y * 2.2 + (Math.random() * 2 - 1) * breath * 0.25
+  }
+  // normalise
+  let peak = 0
+  for (let i = 0; i < len; i++) peak = Math.max(peak, Math.abs(out[i]))
+  if (peak > 0) for (let i = 0; i < len; i++) out[i] = (out[i] / peak) * 0.9
+  return out
+}
+
+let scratchNode: ScriptProcessorNode | null = null
+let scratchGain: GainNode | null = null
+const scr = { target: 0, rate: 0, head: 0, lp: 0 }
+
+/** Your hand is on the record. */
+export function scratchStart(): void {
+  try {
+    const { ctx: c, out } = audio()
+    phrase ??= makePhrase(c.sampleRate)
+    if (scratchNode) return
+    const node = c.createScriptProcessor(1024, 0, 2)
+    const p = phrase
+    node.onaudioprocess = (e) => {
+      const l = e.outputBuffer.getChannelData(0)
+      const r = e.outputBuffer.getChannelData(1)
+      for (let i = 0; i < l.length; i++) {
+        // the hand's speed, smoothed over a few milliseconds (a record has weight)
+        scr.rate += (scr.target - scr.rate) * 0.004
+        scr.head += scr.rate
+        if (scr.head < 0) scr.head += p.length
+        else if (scr.head >= p.length - 1) scr.head -= p.length - 1
+        const k = Math.floor(scr.head)
+        const f = scr.head - k
+        let v = p[k] * (1 - f) + p[k + 1] * f
+        const speed = Math.min(1.5, Math.abs(scr.rate))
+        // slow movement sounds duller, like the real thing
+        scr.lp += (v - scr.lp) * Math.min(1, 0.05 + speed * 0.6)
+        v = scr.lp * Math.min(1, speed * 1.6) + (Math.random() * 2 - 1) * 0.02 * Math.min(1, speed)
+        l[i] = v
+        r[i] = v
+      }
+    }
+    const g = c.createGain()
+    g.gain.value = 0.55
+    node.connect(g).connect(out)
+    scratchNode = node
+    scratchGain = g
+  } catch (e) {
+    console.warn('[np sounds] scratch', e)
+  }
+}
+
+/** How fast the record moves under your hand: 1 = normal speed forwards, negative = backwards. */
+export function scratchMove(rate: number): void {
+  scr.target = Math.max(-6, Math.min(6, rate))
+}
+
+/** Your hand lets go. */
+export function scratchStop(): void {
+  scr.target = 0
+  const node = scratchNode
+  const g = scratchGain
+  scratchNode = null
+  scratchGain = null
+  if (!node || !g || !ctx) return
+  const t = ctx.currentTime
+  g.gain.setValueAtTime(g.gain.value, t)
+  g.gain.linearRampToValueAtTime(0, t + 0.12)
+  window.setTimeout(() => {
+    node.disconnect()
+    g.disconnect()
+  }, 200)
+}
+
 /* ---------- Following the player ---------- */
 
 function stopAll(): void {

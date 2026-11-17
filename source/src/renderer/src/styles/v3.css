@@ -3694,10 +3694,24 @@
   width: 72%;
   aspect-ratio: 1;
   border-radius: 50%;
-  animation: tt-spin 1.8s linear infinite;
+  touch-action: none;
+  will-change: transform;
 }
-.tt.is-paused .tt__spin {
-  animation-play-state: paused;
+/* the record can be grabbed (scratching) */
+.tt.can-scratch .tt__spin {
+  cursor: grab;
+}
+.tt.can-scratch .tt__spin.is-held {
+  cursor: grabbing;
+}
+.tt.can-scratch .tt__spin.is-held .tt__record {
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.tt__spindle,
+.tt__sheen {
+  pointer-events: none;
 }
 .tt__dots {
   position: absolute;
@@ -4058,7 +4072,6 @@
 .cdd__btn--rec {
   color: #c4122e;
 }
-.reduce-motion .tt__spin,
 .reduce-motion .cdd__disc,
 .reduce-motion .cdd__marquee span {
   animation: none;
@@ -4614,4 +4627,8 @@
 }
 .fx__connect-btn.btn--accent:hover:not(:disabled) {
   background: #3be477;
+}
+.npm__sound--sub {
+  margin-top: 2px;
+  border-top: 0;
 }

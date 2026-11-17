@@ -1387,8 +1387,11 @@ export function stopDj(keepError = false): void {
   stickyArtists = null
   djContext = null
   set((s) => ({ active: false, status: keepError ? s.status : 'idle', line: '', error: keepError ? s.error : null }))
-  // the next Start should be instant again
-  window.setTimeout(() => warmDj(), 4000)
+  // the next Start should be instant again (only while the DJ page is open)
+  window.setTimeout(() => {
+    const st = useApp.getState()
+    if (st.history[st.index]?.name === 'dj') warmDj()
+  }, 4000)
 }
 
 /** Checks that the chosen model answers; used by Settings. */

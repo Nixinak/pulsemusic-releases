@@ -55,6 +55,8 @@ export interface Settings {
   npFullscreen: boolean
   /** The turntable and the CD deck make their sounds (crackle, needle, spin-up). */
   npSounds: boolean
+  /** The turntable's record can be grabbed and scratched. */
+  npScratch: boolean
 }
 
 export type NpTheme = 'classic' | 'cover' | 'vinyl' | 'cd' | 'lock'
@@ -116,7 +118,8 @@ export const DEFAULT_SETTINGS: Settings = {
   djChattiness: 'sometimes',
   npTheme: 'classic',
   npFullscreen: false,
-  npSounds: true
+  npSounds: true,
+  npScratch: true
 }
 
 export type ProfileBlock =
