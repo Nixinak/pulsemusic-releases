@@ -11,8 +11,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { PageAlbum, PageArtist, PageTrack } from '@shared/types'
 
-const UA =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
 const WEEK = 7 * 24 * 3600_000
 
 type Cached = { at: number; data: PageArtist }
@@ -59,7 +58,10 @@ async function popular(id: string): Promise<{ tracks: PageTrack[]; avatar: strin
   const entity: any = JSON.parse(m[1])?.props?.pageProps?.state?.data?.entity
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tracks: PageTrack[] = (entity?.trackList ?? []).map((t: any) => ({
-    id: String(t.uri ?? '').split(':').pop() ?? '',
+    id:
+      String(t.uri ?? '')
+        .split(':')
+        .pop() ?? '',
     uri: t.uri,
     name: t.title ?? '',
     playcount: 0,
@@ -82,7 +84,12 @@ async function popular(id: string): Promise<{ tracks: PageTrack[]; avatar: strin
 // The public artist page loads one big JSON answer ("artist overview") with the popular songs,
 // play counts, covers, the whole discography, the bio and the stats. Pulse reads that answer
 // while the hidden page loads, so none of it costs requests from the app's Spotify allowance.
-type Overview = Partial<Pick<PageArtist, 'topTracks' | 'albums' | 'singles' | 'compilations' | 'latest' | 'bio' | 'links' | 'followers' | 'worldRank' | 'topCities' | 'gallery' | 'monthlyListeners'>> & {
+type Overview = Partial<
+  Pick<
+    PageArtist,
+    'topTracks' | 'albums' | 'singles' | 'compilations' | 'latest' | 'bio' | 'links' | 'followers' | 'worldRank' | 'topCities' | 'gallery' | 'monthlyListeners'
+  >
+> & {
   headerUrl?: string | null
 }
 
@@ -93,7 +100,10 @@ const bestSrc = (img: any): string | null => {
   if (!list.length) return null
   return list.reduce((a, b) => ((b.width ?? b.maxWidth ?? 0) > (a.width ?? a.maxWidth ?? 0) ? b : a)).url ?? null
 }
-const idOf = (uri: unknown): string => String(uri ?? '').split(':').pop() ?? ''
+const idOf = (uri: unknown): string =>
+  String(uri ?? '')
+    .split(':')
+    .pop() ?? ''
 const pad = (n: unknown): string => String(n).padStart(2, '0')
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -148,7 +158,14 @@ export function parseOverview(au: any): Overview {
     albums: group(disc.albums),
     singles: group(disc.singles),
     compilations: group(disc.compilations),
-    bio: bio ? String(bio).replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim() : null,
+    bio: bio
+      ? String(bio)
+          .replace(/<[^>]+>/g, '')
+          .replace(/&amp;/g, '&')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .trim()
+      : null,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     links: ((au?.profile?.externalLinks?.items ?? []) as any[]).map((l) => ({ name: l.name, url: l.url })).filter((l) => l.url),
     followers: typeof stats.followers === 'number' ? stats.followers : null,
@@ -199,7 +216,15 @@ async function readFromDom(win: BrowserWindow): Promise<Overview | null> {
     if (r.tracks.length && (r.cards.length || i >= 3)) {
       const seenIds = new Set<string>()
       const rel = r.cards.filter((c) => !seenIds.has(c.id) && seenIds.add(c.id))
-      const toAlbum = (c: (typeof rel)[number]): PageAlbum => ({ id: c.id, uri: `spotify:album:${c.id}`, name: c.name, type: c.type, date: c.date, image: c.image, tracks: 0 })
+      const toAlbum = (c: (typeof rel)[number]): PageAlbum => ({
+        id: c.id,
+        uri: `spotify:album:${c.id}`,
+        name: c.name,
+        type: c.type,
+        date: c.date,
+        image: c.image,
+        tracks: 0
+      })
       const latest = rel.find((c) => c.latest)
       return {
         topTracks: r.tracks.map((t) => ({
@@ -277,32 +302,42 @@ async function scrape(id: string): Promise<{ header: PageArtist['header']; month
     await dbg.sendCommand('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }).catch(() => {})
     dbg.on(
       'message',
-      (_e, method: string, params: { requestId: string; response?: { url: string }; sessionId?: string; targetInfo?: { type: string } }, sessionId?: string) => {
-      if (method === 'Target.attachedToTarget' && params.sessionId) {
-        void dbg.sendCommand('Network.enable', {}, params.sessionId).catch(() => {})
-        void dbg.sendCommand('Runtime.runIfWaitingForDebugger', {}, params.sessionId).catch(() => {})
-        return
-      }
-      const key = `${sessionId ?? ''}|${params.requestId}`
-      if (method === 'Network.responseReceived' && /pathfinder|api-partner|spclient/.test(params.response?.url ?? '')) {
-        watched.add(key)
-        seen.push((params.response?.url ?? '').replace(/^https?:\/\//, '').split('?')[0].slice(0, 60))
-      }
-      if (method === 'Network.loadingFinished' && watched.has(key)) {
-        watched.delete(key)
-        dbg
-          .sendCommand('Network.getResponseBody', { requestId: params.requestId }, sessionId)
-          .then((b: { body: string; base64Encoded: boolean }) => {
-            const text = b.base64Encoded ? Buffer.from(b.body, 'base64').toString('utf8') : b.body
-            const au = JSON.parse(text)?.data?.artistUnion
-            if (au && (au.discography || au.stats)) {
-              const o = parseOverview(au)
-              // several answers can arrive; keep the richest
-              if (!overview || (o.topTracks?.length ?? 0) >= (overview.topTracks?.length ?? 0)) overview = { ...overview, ...o }
-            }
-          })
-          .catch(() => {})
-      }
+      (
+        _e,
+        method: string,
+        params: { requestId: string; response?: { url: string }; sessionId?: string; targetInfo?: { type: string } },
+        sessionId?: string
+      ) => {
+        if (method === 'Target.attachedToTarget' && params.sessionId) {
+          void dbg.sendCommand('Network.enable', {}, params.sessionId).catch(() => {})
+          void dbg.sendCommand('Runtime.runIfWaitingForDebugger', {}, params.sessionId).catch(() => {})
+          return
+        }
+        const key = `${sessionId ?? ''}|${params.requestId}`
+        if (method === 'Network.responseReceived' && /pathfinder|api-partner|spclient/.test(params.response?.url ?? '')) {
+          watched.add(key)
+          seen.push(
+            (params.response?.url ?? '')
+              .replace(/^https?:\/\//, '')
+              .split('?')[0]
+              .slice(0, 60)
+          )
+        }
+        if (method === 'Network.loadingFinished' && watched.has(key)) {
+          watched.delete(key)
+          dbg
+            .sendCommand('Network.getResponseBody', { requestId: params.requestId }, sessionId)
+            .then((b: { body: string; base64Encoded: boolean }) => {
+              const text = b.base64Encoded ? Buffer.from(b.body, 'base64').toString('utf8') : b.body
+              const au = JSON.parse(text)?.data?.artistUnion
+              if (au && (au.discography || au.stats)) {
+                const o = parseOverview(au)
+                // several answers can arrive; keep the richest
+                if (!overview || (o.topTracks?.length ?? 0) >= (overview.topTracks?.length ?? 0)) overview = { ...overview, ...o }
+              }
+            })
+            .catch(() => {})
+        }
       }
     )
   } catch (e) {
@@ -328,7 +363,9 @@ async function scrape(id: string): Promise<{ header: PageArtist['header']; month
         if (!ov) {
           // the page's data answer wasn't caught: read what the page shows instead
           ov = await readFromDom(win).catch(() => null)
-          console.info(`[artist page] ${id}: data answer not seen (${seen.length ? seen.slice(-4).join(', ') : 'no API calls seen'}); read from the page: ${ov?.topTracks?.length ?? 0} songs, ${(ov?.albums?.length ?? 0) + (ov?.singles?.length ?? 0)} releases`)
+          console.info(
+            `[artist page] ${id}: data answer not seen (${seen.length ? seen.slice(-4).join(', ') : 'no API calls seen'}); read from the page: ${ov?.topTracks?.length ?? 0} songs, ${(ov?.albums?.length ?? 0) + (ov?.singles?.length ?? 0)} releases`
+          )
         }
         const head = r.header ?? ov?.headerUrl ?? null
         const source = overview ? 'data answer' : ov ? 'page content' : `embed only (seen: ${seen.slice(-3).join(', ') || 'no API calls'})`
@@ -365,7 +402,7 @@ async function measure(url: string): Promise<{ url: string; width: number; heigh
   try {
     const res = await fetch(url, { headers: { Range: 'bytes=0-65535' }, signal: AbortSignal.timeout(8000) })
     const b = Buffer.from(await res.arrayBuffer())
-    for (let i = 2; i < b.length - 9; ) {
+    for (let i = 2; i < b.length - 9;) {
       if (b[i] !== 0xff) break
       const marker = b[i + 1]
       const len = b.readUInt16BE(i + 2)
@@ -383,6 +420,27 @@ async function measure(url: string): Promise<{ url: string; width: number; heigh
 const quick = new Map<string, Promise<{ tracks: PageTrack[]; avatar: string | null }>>()
 /** The popular songs from the small embed page (about a second): shown while the full page
  *  data is still loading. Kept in memory for this session. */
+/** "Artist · 5.2M monthly listeners." from the artist page's link preview: a plain, light request
+ *  for when the full page didn't give the number. Short forms (5.2M) become whole numbers. */
+async function listenersFromHtml(id: string): Promise<number | null> {
+  try {
+    const res = await fetch(`https://open.spotify.com/artist/${id}`, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)', 'Accept-Language': 'en-US,en;q=0.9' },
+      signal: AbortSignal.timeout(8000)
+    })
+    if (!res.ok) return null
+    const html = await res.text()
+    const m = /([\d.,]+)\s*([KMB])?\s*monthly listeners/i.exec(html)
+    if (!m) return null
+    const n = Number(m[1].replace(/,/g, ''))
+    if (!Number.isFinite(n)) return null
+    const mult = m[2] ? { K: 1e3, M: 1e6, B: 1e9 }[m[2].toUpperCase() as 'K' | 'M' | 'B'] : 1
+    return Math.round(n * mult)
+  } catch {
+    return null
+  }
+}
+
 export function getArtistQuick(id: string): Promise<{ tracks: PageTrack[]; avatar: string | null }> {
   const hit = readDisk()[id]
   if (hit?.data.topTracks.length) return Promise.resolve({ tracks: hit.data.topTracks, avatar: hit.data.avatar })
@@ -400,6 +458,17 @@ export function getArtistPage(id: string): Promise<PageArtist | null> {
   const hit = readDisk()[id]
   // entries saved before Pulse read the page's full data (no `latest` field) are loaded again
   if (hit && Date.now() - hit.at < WEEK && 'latest' in hit.data) {
+    // saved without the listener count: ask the link preview for it once
+    if (hit.data.monthlyListeners == null && !(hit as { triedListeners?: boolean }).triedListeners) {
+      ;(hit as { triedListeners?: boolean }).triedListeners = true
+      return listenersFromHtml(id).then((n) => {
+        if (n) {
+          hit.data.monthlyListeners = n
+          writeDisk()
+        }
+        return hit.data
+      })
+    }
     // Entries saved before the full-size banner was known: upgrade them once.
     if (hit.data.header && hit.data.header.width < 2000) {
       return largest(hit.data.header.url).then((h) => {
@@ -431,7 +500,7 @@ export function getArtistPage(id: string): Promise<PageArtist | null> {
       header: web.header,
       avatar: pop.avatar,
       gallery: ov?.gallery ?? [],
-      monthlyListeners: web.monthlyListeners,
+      monthlyListeners: web.monthlyListeners ?? (await listenersFromHtml(id)),
       followers: ov?.followers ?? null,
       worldRank: ov?.worldRank ?? null,
       topCities: ov?.topCities ?? [],

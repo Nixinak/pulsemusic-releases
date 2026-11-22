@@ -18,6 +18,8 @@ interface Word {
   end: number
   /** Which line of the song it belongs to. */
   line: number
+  /** Which row of the stack it sits on (one to three words share a row). */
+  row: number
 }
 
 /** Pictures for common words: before things, after people (as in the video: "📷 camera", "you 👤"). */
@@ -109,7 +111,7 @@ function pictureOf(text: string): { before?: string; after?: string } {
 
 /** When each word is sung: exact with word timings, estimated from its length otherwise. */
 function toWords(lines: SyncedLine[]): Word[] {
-  const out: Word[] = []
+  const out: Omit<Word, 'row'>[] = []
   lines.forEach((l, li) => {
     const text = l.text.trim()
     if (!text || /^[♪♫\s.…-]+$/.test(text)) return
@@ -133,28 +135,44 @@ function toWords(lines: SyncedLine[]): Word[] {
       t += d
     }
   })
-  return out
+  return toRows(out)
 }
 
-/** How many words stay on screen. */
-const KEEP = 5
+/** How many rows stay on screen. */
+const KEEP = 4
 
-/** Each line of the song sits a little to the side of the last one. */
-const SWAY = ['0em', '-0.7em', '0.55em', '-0.3em', '0.75em']
-/** A slight tilt per word, so the stack looks set by hand. */
-const TILT = [0, -1.6, 1.2, -0.8, 1.8, -1.2, 0.6]
+/** Puts the words on rows of one to three: a row ends with the song's line, after a comma or
+ *  full stop, when it gets long, and a long word gets a row of its own. */
+function toRows(words: Omit<Word, 'row'>[]): Word[] {
+  let row = -1
+  let count = 0
+  let chars = 0
+  let prev: Omit<Word, 'row'> | null = null
+  return words.map((w) => {
+    const len = w.text.length
+    const fresh = !prev || prev.line !== w.line || count >= 3 || /[,.!?;:…]$/.test(prev.text) || chars + len > 15 || len >= 9 || (prev && prev.text.length >= 9)
+    if (fresh) {
+      row++
+      count = 0
+      chars = 0
+    }
+    count++
+    chars += len + 1
+    prev = w
+    return { ...w, row }
+  })
+}
 
 function Token({ w, now, old }: { w: Word; now: boolean; old: boolean }): React.JSX.Element {
   const pic = useMemo(() => pictureOf(w.text), [w.text])
-  const tilt = TILT[w.i % TILT.length]
   return (
     <motion.span
       layout="position"
       className={`kw ${now ? 'is-now' : ''} ${old ? 'is-old' : ''}`}
-      initial={{ opacity: 0, y: '0.7em', scale: 0.55, rotate: tilt * 5, filter: 'blur(10px)' }}
-      animate={{ opacity: old ? 0.42 : 1, y: 0, x: SWAY[w.line % SWAY.length], scale: now ? 1.06 : 1, rotate: now ? 0 : tilt, filter: 'blur(0px)' }}
-      exit={{ opacity: 0, y: '-0.6em', scale: 0.85, filter: 'blur(8px)', transition: { duration: 0.24 } }}
-      transition={{ type: 'spring', stiffness: 560, damping: 26, mass: 0.6 }}
+      initial={{ opacity: 0, y: '0.45em', filter: 'blur(8px)' }}
+      animate={{ opacity: old ? 0.42 : 1, y: 0, filter: 'blur(0px)' }}
+      exit={{ opacity: 0, filter: 'blur(6px)', transition: { duration: 0.2 } }}
+      transition={{ type: 'spring', stiffness: 420, damping: 36, mass: 0.7 }}
     >
       {pic.before && (
         <span className="kw__pic">
@@ -209,20 +227,38 @@ function Live({ lines, glow }: { lines: SyncedLine[]; glow: React.RefObject<HTML
   }, [words, glow])
 
   const cur = words[state.idx]
-  // the last few words; words from the line before are dimmed, and a line after a breath starts
-  // the stack again
-  const shown: Word[] = []
-  for (let k = state.idx; k >= 0 && shown.length < KEEP; k--) {
-    const w = words[k]
-    const after = words[k + 1]
-    if (k < state.idx && after && after.start - w.end > 1200) break
-    shown.unshift(w)
+  // the last few rows; rows from the line before are dimmed, and a line after a breath starts
+  // the stack again. Words show on their row as they're sung.
+  const rows: Word[][] = []
+  if (cur) {
+    for (let k = state.idx; k >= 0; k--) {
+      const w = words[k]
+      const after = words[k + 1]
+      if (k < state.idx && after && after.row !== w.row && after.start - w.end > 1200) break
+      if (!rows.length || rows[0][0].row !== w.row) {
+        if (rows.length >= KEEP) break
+        rows.unshift([])
+      }
+      rows[0].unshift(w)
+    }
   }
   return (
     <div className="kw-stack">
       <AnimatePresence initial={false}>
-        {shown.map((w) => (
-          <Token key={w.i} w={w} now={w.i === state.idx && state.singing} old={!!cur && w.line !== cur.line} />
+        {rows.map((r) => (
+          <motion.div
+            key={r[0].row}
+            layout="position"
+            className="kw-row"
+            exit={{ opacity: 0, y: '-0.3em', filter: 'blur(8px)', transition: { duration: 0.24 } }}
+            transition={{ type: 'spring', stiffness: 380, damping: 38 }}
+          >
+            <AnimatePresence initial={false}>
+              {r.map((w) => (
+                <Token key={w.i} w={w} now={w.i === state.idx && state.singing} old={!!cur && w.line !== cur.line} />
+              ))}
+            </AnimatePresence>
+          </motion.div>
         ))}
       </AnimatePresence>
     </div>

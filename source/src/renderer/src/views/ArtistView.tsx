@@ -245,7 +245,13 @@ function About({
   if (parts.length) facts.push(['Discography', parts.join(' · ')])
   if (info?.aka.length) facts.push(['Also known as', info.aka.join(', ')])
   if (page?.topCities.length)
-    facts.push(['Most listened in', page.topCities.slice(0, 3).map((c) => `${c.city} (${compact.format(c.listeners)})`).join(', ')])
+    facts.push([
+      'Most listened in',
+      page.topCities
+        .slice(0, 3)
+        .map((c) => `${c.city} (${compact.format(c.listeners)})`)
+        .join(', ')
+    ])
 
   if (!info && !page && !releases.length) return null
   return (
@@ -339,7 +345,14 @@ const pageTrack = (t: PageTrack): STrack => ({
   explicit: t.explicit,
   artists: t.artists.map((a) => ({ id: a.id, name: a.name, uri: `spotify:artist:${a.id}` })),
   album: t.album
-    ? { id: t.album.id, uri: t.album.uri, name: t.album.name ?? '', images: t.album.image ? [{ url: t.album.image, width: 300, height: 300 }] : [], artists: [], type: 'album' }
+    ? {
+        id: t.album.id,
+        uri: t.album.uri,
+        name: t.album.name ?? '',
+        images: t.album.image ? [{ url: t.album.image, width: 300, height: 300 }] : [],
+        artists: [],
+        type: 'album'
+      }
     : undefined,
   type: 'track'
 })
@@ -405,7 +418,7 @@ export function ArtistView({ id }: { id: string }): React.JSX.Element {
   // it's left out rather than risking a block
   const appearsQ = { data: undefined as SAlbumRef[] | undefined }
   // Search-based top songs only when the page has none.
-  const needSearch = pageDone && !(page?.topTracks.length)
+  const needSearch = pageDone && !page?.topTracks.length
   // search songs, also started right away: covers for the page/quick list, or the list itself
   const popularQ = useQuery(artist ? keys.artistPopular(id) : null, () => loadArtistPopular(id, artist!.name))
 
@@ -422,8 +435,7 @@ export function ArtistView({ id }: { id: string }): React.JSX.Element {
   // counts; full details from the Web API only when it came without covers (older answer).
   // covers through search (two requests) when the page list came without them
   // songs read from the page may come without artist names: they're this artist's songs
-  const withArtist = (t: STrack): STrack =>
-    t.artists.length || !artist ? t : { ...t, artists: [{ id: artist.id, name: artist.name, uri: artist.uri }] }
+  const withArtist = (t: STrack): STrack => (t.artists.length || !artist ? t : { ...t, artists: [{ id: artist.id, name: artist.name, uri: artist.uri }] })
   const popularRaw = useMemo<STrack[]>(() => {
     const full = new Map((popularQ.data ?? []).map((t) => [t.id, t]))
     const fill = (t: STrack): STrack => {
@@ -441,13 +453,28 @@ export function ArtistView({ id }: { id: string }): React.JSX.Element {
     const byName = new Map(releases.map((a) => [a.name.toLowerCase().trim(), a]))
     return popularRaw.map(withArtist).map((t) => {
       if (t.album?.images?.length) return t
-      const rel = byName.get(t.name.toLowerCase().replace(/\s*[([].*?[)\]]\s*/g, ' ').trim()) ?? byName.get(t.name.toLowerCase().trim())
+      const rel =
+        byName.get(
+          t.name
+            .toLowerCase()
+            .replace(/\s*[([].*?[)\]]\s*/g, ' ')
+            .trim()
+        ) ?? byName.get(t.name.toLowerCase().trim())
       return rel ? { ...t, album: { ...rel } } : t
     })
   }, [popularRaw, artist, releases])
   // Songs that still have no cover (new singles the search and the release list don't know yet):
   // asked one by one from Spotify, which always has the album and its cover.
-  const missing = useMemo(() => (pageDone ? named.filter((t) => t.id && !t.album?.images?.length).map((t) => t.id).slice(0, 12) : []), [named, pageDone])
+  const missing = useMemo(
+    () =>
+      pageDone
+        ? named
+            .filter((t) => t.id && !t.album?.images?.length)
+            .map((t) => t.id)
+            .slice(0, 12)
+        : [],
+    [named, pageDone]
+  )
   const fillQ = useQuery(missing.length ? `artist-fill:${id}:${missing.join(',')}` : null, () => loadTopTracks(missing))
   const popular = useMemo(() => {
     if (!fillQ.data?.length) return named
@@ -491,10 +518,8 @@ export function ArtistView({ id }: { id: string }): React.JSX.Element {
   const byKind = (k: Kind): SAlbumRef[] => releases.filter((a) => kindOf(a) === k)
   const appears = tidy(appearsQ.data ?? [])
   const genres = artist.genres ?? []
-  const meta = [
-    page?.monthlyListeners ? `${count.format(page.monthlyListeners)} monthly listeners` : null,
-    genres.length ? genres.slice(0, 2).join(', ') : null
-  ].filter(Boolean)
+  const meta = [genres.length ? genres.slice(0, 2).join(', ') : null].filter(Boolean)
+  const listeners = page?.monthlyListeners ?? null
   const deezer = info?.images.find((i) => i.source === 'deezer')?.url ?? null
   // The About photo: another picture than the banner when there is one.
   // (when it doesn't load or there is none, the artist's profile picture)
@@ -543,13 +568,28 @@ export function ArtistView({ id }: { id: string }): React.JSX.Element {
           >
             {artist.name}
           </motion.h1>
+          {/* the line is there from the start, so nothing moves when the number arrives */}
+          <p className={`artist__listeners ${listeners ? '' : 'is-waiting'}`} aria-busy={!listeners && !pageDone}>
+            {listeners ? (
+              <motion.span initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
+                <b>{count.format(listeners)}</b> monthly listeners
+              </motion.span>
+            ) : !pageDone ? (
+              <span className="artist__listeners-ghost" />
+            ) : null}
+          </p>
           {meta.length > 0 && (
             <motion.p className="artist__meta" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               {meta.join('  ·  ')}
             </motion.p>
           )}
           <div className="ahero__actions">
-            <PlayActions contextUri={artist.uri} uris={popular.map((t) => t.uri)} onShuffle={() => void shuffleArtist()} extra={<HeartFollow uri={artist.uri} name={artist.name} />} />
+            <PlayActions
+              contextUri={artist.uri}
+              uris={popular.map((t) => t.uri)}
+              onShuffle={() => void shuffleArtist()}
+              extra={<HeartFollow uri={artist.uri} name={artist.name} />}
+            />
             {info && <SocialLinks links={info.links} />}
           </div>
         </motion.div>
@@ -578,7 +618,12 @@ export function ArtistView({ id }: { id: string }): React.JSX.Element {
                 tracks={shown}
                 plays={plays ?? undefined}
                 showAlbum={!plays}
-                onPlay={(i) => void playUris(popular.map((t) => t.uri), shown[i].uri)}
+                onPlay={(i) =>
+                  void playUris(
+                    popular.map((t) => t.uri),
+                    shown[i].uri
+                  )
+                }
               />
             ) : (
               <p className="muted">No popular songs found.</p>

@@ -6,10 +6,6 @@ import { Emo } from '@/components/Emoji'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { homePalette, setPagePalette } from '@/lib/colors'
 import { useApp } from '@/lib/store'
-import { useFriends } from '@/lib/friends'
-import { computeStats, useHistory } from '@/lib/history'
-import { formatMinutes } from '@/lib/recap'
-import { SparkleIcon } from '@/components/Icons'
 import { motion } from 'motion/react'
 import { useQuery } from '@/lib/useQuery'
 import * as sp from '@/lib/spotify'
@@ -53,49 +49,6 @@ const ago = (date?: string): string => {
   if (days < 7) return `${days} ${days === 1 ? 'day' : 'days'} ago`
   if (days < 45) return `${Math.round(days / 7)} weeks ago`
   return new Date(date).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
-}
-
-/** Under the greeting: how today has gone so far, in a few lively words, and a way in. */
-function TodayLine(): React.JSX.Element | null {
-  const plays = useHistory((s) => s.plays)
-  const loaded = useHistory((s) => s.loaded)
-  const navigate = useApp((s) => s.navigate)
-  const { friends, outgoing, now } = useFriends()
-  const today = useMemo(() => {
-    const st = computeStats(plays, new Date(new Date().toDateString()).getTime())
-    return { minutes: Math.round(st.ms / 60_000), songs: st.plays, artist: st.artists[0]?.item.name ?? null }
-  }, [plays])
-  const live = [...friends, ...outgoing].filter((u) => now[u.id]?.track && !now[u.id]?.paused).length
-  if (!loaded) return <p className="home__today" aria-hidden="true" />
-  return (
-    <p className="home__today">
-      {today.minutes > 0 ? (
-        <>
-          <span className="home__pill">
-            <b>{formatMinutes(today.minutes)}</b> today
-          </span>
-          <span className="home__pill">
-            <b>{today.songs}</b> {today.songs === 1 ? 'song' : 'songs'}
-          </span>
-          {today.artist && (
-            <span className="home__pill">
-              mostly <b>{today.artist}</b>
-            </span>
-          )}
-        </>
-      ) : (
-        <span className="home__pill">Nothing played yet today</span>
-      )}
-      {live > 0 && (
-        <button className="home__pill home__pill--live" onClick={() => navigate({ name: 'friends' })}>
-          <i /> {live} {live === 1 ? 'friend' : 'friends'} listening
-        </button>
-      )}
-      <button className="home__pill home__pill--dj" onClick={() => navigate({ name: 'dj' })}>
-        <SparkleIcon size={14} /> Ask the DJ
-      </button>
-    </p>
-  )
 }
 
 export function Home(): React.JSX.Element {
@@ -200,7 +153,6 @@ export function Home(): React.JSX.Element {
             </motion.span>
           ))}
         </h1>
-        <TodayLine />
       </section>
 
       {recent.loading && !recent.data ? <div className="ring ring--loading" /> : <CoverRing items={ring} onFocus={onRingFocus} />}

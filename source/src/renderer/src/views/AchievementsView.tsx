@@ -3,6 +3,7 @@
 // below, every ladder as a card you can open to see all its steps.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
+import { createPortal } from 'react-dom'
 import { useHistory } from '@/lib/history'
 import { useApp } from '@/lib/store'
 import { useQuery } from '@/lib/useQuery'
@@ -401,7 +402,11 @@ export function AchievementsView(): React.JSX.Element {
       ) : (
         <p className="achv__empty">No goal matches that. Try another word or show all.</p>
       )}
-      <AnimatePresence>{openLadder && <AwardSheet key={openLadder.id} l={openLadder} onClose={() => setOpen(null)} />}</AnimatePresence>
+      {/* on the page's top layer: the page itself moves (and would carry a fixed sheet with it) */}
+      {createPortal(
+        <AnimatePresence>{openLadder && <AwardSheet key={openLadder.id} l={openLadder} onClose={() => setOpen(null)} />}</AnimatePresence>,
+        document.body
+      )}
     </div>
   )
 }

@@ -198,6 +198,12 @@ export function NowPlaying(): React.JSX.Element {
             <NpBackdrop art={track.artUrl} />
             <div className="np__bg-shade" />
           </div>
+          {/* the Words look fills the whole window, under the buttons at the top too */}
+          {theme === 'messages' && (
+            <div className="np__words">
+              <WordsLyrics track={track} />
+            </div>
+          )}
 
           <header className="np__top">
             <Glass radius={999} bezel={10} refraction={30} className="np__pill">
@@ -261,11 +267,7 @@ export function NowPlaying(): React.JSX.Element {
                     <motion.div layoutId="np-art" className="np__deck" transition={spring}>
                       <Turntable art={track.artUrl} paused={paused} />
                     </motion.div>
-                  ) : theme === 'messages' ? (
-                    <div className="np__words">
-                      <WordsLyrics track={track} />
-                    </div>
-                  ) : (
+                  ) : theme === 'messages' ? null : (
                     <motion.div layoutId="np-art" className={`np__art ${paused ? 'is-paused' : ''}`} transition={spring}>
                       <SwapArt id={track.id} src={track.artUrl} radius={12} />
                     </motion.div>
