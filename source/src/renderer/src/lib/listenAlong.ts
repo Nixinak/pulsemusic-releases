@@ -25,6 +25,8 @@ interface ListenAlong {
   deviceId: string | null
   /** Short status for the UI ("Playing along", "Catching up…"). */
   status: string
+  /** Your thumbs at this party: song → 1 or -1. */
+  votes: Record<string, number>
 }
 
 export const useListenAlong = create<ListenAlong>(() => ({
@@ -34,7 +36,8 @@ export const useListenAlong = create<ListenAlong>(() => ({
   error: null,
   sync: true,
   deviceId: null,
-  status: ''
+  status: '',
+  votes: {}
 }))
 const set = useListenAlong.setState
 const get = useListenAlong.getState
@@ -55,7 +58,8 @@ export function joinParty(url: string): void {
     error: null,
     sync: true,
     deviceId: get().deviceId ?? usePlayer.getState().localDeviceId,
-    status: 'Connecting…'
+    status: 'Connecting…',
+    votes: get().url === url ? get().votes : {}
   })
   stopDj()
   // while playing along, your own play, skip and seek buttons steer the party for everyone
@@ -102,6 +106,11 @@ async function tick(): Promise<void> {
     return
   }
   if (get().url !== url) return
+  if (st.ended) {
+    leaveParty()
+    useApp.getState().toast('The host ended the party')
+    return
+  }
   const rtt = Date.now() - asked
   set({ state: st, at: Date.now(), error: null })
   if (!get().sync) return
@@ -176,6 +185,27 @@ export async function partyControl(c: PartyControl): Promise<void> {
   } catch (e) {
     useApp.getState().toast(errorText(e), 'error')
   }
+}
+
+/** Thumbs up (1) or down (-1) at the party you joined; the same again takes it back. */
+export async function remoteVote(uri: string, v: 1 | -1): Promise<void> {
+  const url = get().url
+  if (!url) return
+  const was = get().votes[uri] ?? 0
+  const next = was === v ? 0 : v
+  // show it right away, with the score moved by the change
+  set((s) => ({
+    votes: { ...s.votes, [uri]: next },
+    state: s.state ? { ...s.state, queue: s.state.queue.map((q) => (q.uri === uri ? { ...q, score: (q.score ?? 0) - was + next } : q)) } : s.state
+  }))
+  try {
+    await window.pulse.party.remoteVote(url, uri, next, guestName())
+  } catch (e) {
+    set((s) => ({ votes: { ...s.votes, [uri]: was } }))
+    useApp.getState().toast(errorText(e), 'error')
+  }
+  window.clearTimeout(soon)
+  soon = window.setTimeout(() => void tick(), 700)
 }
 
 export async function remoteSearch(q: string): Promise<PartyTrack[]> {

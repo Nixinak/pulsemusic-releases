@@ -115,6 +115,12 @@ export function partyPage(): string {
   .name input:focus { border-color: var(--accent); }
   .name button { width: 100%; height: 50px; border-radius: 999px; border: 0; color: #fff; font: 700 16px var(--ui); background: linear-gradient(100deg, var(--c1), var(--c2) 60%, var(--c3)); box-shadow: 0 10px 30px rgba(176,60,255,.4); cursor: pointer; }
   img { color: transparent; }
+  .over { display: grid; place-items: center; min-height: 60vh; }
+  .over .card { width: min(420px, 100%); padding: 34px 26px; border-radius: 30px; text-align: center; }
+  .over .logo { width: 64px; height: 64px; margin: 0 auto 14px; border-radius: 18px; }
+  .over h1 { margin: 0 0 8px; font: 800 30px/1.05 var(--display); letter-spacing: -.02em; }
+  .over p { margin: 0 0 18px; color: var(--dim); }
+  .over button { width: 100%; height: 50px; border-radius: 999px; border: 0; color: #fff; font: 700 16px var(--ui); background: linear-gradient(100deg, var(--c1), var(--c2) 60%, var(--c3)); cursor: pointer; }
 </style>
 </head>
 <body>
@@ -361,11 +367,34 @@ async function doSearch() {
 }
 
 let lastNow = '';
+// The host ended the party, or it can't be reached for a while: a screen says so instead of a
+// page that silently stops changing.
+let fails = 0, over = false, poll = 0;
+function showOver(ended) {
+  over = true;
+  nowBox = resultsBox = queueBox = queueHead = null;
+  app.replaceChildren();
+  const box = el('div', 'over'); const card = el('div', 'card glass');
+  const lg = el('div', 'logo'); lg.innerHTML = document.querySelector('.logo').innerHTML;
+  card.append(lg, el('h1', '', ended ? 'The party is over' : 'Can’t reach the party'));
+  card.append(el('p', '', ended ? 'The host ended it. Thanks for coming' + (guest ? ', ' + guest : '') + '.' : 'The host’s computer isn’t answering. It may be asleep, or the party ended.'));
+  if (!ended) { const again = el('button', '', 'Try again'); again.onclick = () => { over = false; fails = 0; build(); refresh(); }; card.append(again); }
+  box.append(card); app.append(box);
+  if (ended) clearInterval(poll);
+}
 async function refresh() {
+  let res;
+  try { res = await fetch(base + '/api/state'); } catch (e) { res = null; }
+  if (!res || !res.ok) {
+    // the link stops working once the party's gone for good
+    if (++fails >= 4 && !over) showOver(res && (res.status === 404 || res.status === 410 || res.status === 530));
+    return;
+  }
+  fails = 0;
   try {
-    const res = await fetch(base + '/api/state');
-    if (!res.ok) return;
     const next = await res.json();
+    if (next.ended) { if (!over) showOver(true); return; }
+    if (over) { over = false; build(); }
     const np = next.nowPlaying;
     // redraw the card only when the song or play/pause changed; the bar moves on its own
     const key = np ? np.uri + '|' + np.paused : '';
@@ -374,7 +403,7 @@ async function refresh() {
     renderQueue(); renderResults();
   } catch (e) {}
 }
-build(); refresh(); setInterval(refresh, 3000);
+build(); refresh(); poll = setInterval(refresh, 3000);
 </script>
 </body>
 </html>`

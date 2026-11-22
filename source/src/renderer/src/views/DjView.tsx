@@ -18,15 +18,17 @@ import { AiSetup } from '@/components/AiSetup'
 /** The aura: soft ribbons of light that drift into each other, in the spirit of the new Siri.
  *  No hard edge and no ring. One animation frame loop sets --kick and --lvl from the music and
  *  the DJ's voice; CSS turns them into how big and how bright the light is. */
-function Orb({ status, playing }: { status: string; playing: boolean }): React.JSX.Element {
+function Orb({ status, playing, on }: { status: string; playing: boolean; on: boolean }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
   const reduce = useApp((s) => s.settings.reduceMotion)
-  useBeat(!reduce)
+  // only a running show moves it: with the DJ off it rests, whatever music is playing
+  const live = on && !reduce
+  useBeat(live)
 
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    if (reduce) {
+    if (!live) {
       el.style.setProperty('--kick', '0')
       el.style.setProperty('--lvl', '0')
       return
@@ -46,10 +48,10 @@ function Orb({ status, playing }: { status: string; playing: boolean }): React.J
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [reduce])
+  }, [live])
 
   return (
-    <div ref={ref} className={`aura is-${status} ${playing ? 'is-playing' : ''}`} aria-hidden="true">
+    <div ref={ref} className={`aura is-${status} ${playing ? 'is-playing' : ''} ${on ? 'is-on' : 'is-off'}`} aria-hidden="true">
       <span className="aura__bloom" />
       <span className="aura__light">
         <i className="aura__ribbon aura__ribbon--a" />
@@ -142,7 +144,7 @@ export function DjView(): React.JSX.Element {
         </header>
 
         <div className="djs__center">
-          <Orb status={status} playing={!!trackId && !paused} />
+          <Orb status={status} playing={!!trackId && !paused} on={active || busy} />
           <AnimatePresence mode="wait" initial={false}>
             <motion.p
               key={line || `${active}`}

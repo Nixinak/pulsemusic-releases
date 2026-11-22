@@ -1,8 +1,13 @@
-## Pulse Music 1.7.3
+## Pulse Music 1.7.4
 
-- **Words**: the Messages look is now Words. The lyrics play word by word on black, big and bold, the word being sung lit up, with a little picture next to words like cash or camera. When you leave the mouse alone the controls fade away and only the words are left. Songs without synced lyrics show their title instead.
-- **Pulse DJ**: the ball and its ring are gone. In their place a soft light in Siri's colours, mixed with the song's own, swells with the beat and the DJ's voice; it pulls in and turns quickly while songs are picked. The "Off air" badge is gone and the mood cards are smaller again.
-- **Search**: filters for Songs, Artists, Albums, Playlists and People. The overview shows the top result on its own glowing card next to the five best songs, and a filter shows everything of one kind. The search box no longer keeps your last search on other pages.
-- **Friends**: a new design. What your friends played is a grid of cover cards with who played it, when, and one click to play it, listen along or join their party; the people lists are compact rows.
-- **Home**: the newest release gets a big spotlight, the month card is redone, the DJ moods are one compact row, and the long list of your playlists at the bottom is gone (they're in the sidebar).
-- **Mix maker**: the covers fly around in one clean ring and no longer pass through each other.
+- **Home**: a new row, From people you follow, shows what they're playing now or played today and playlists they made this week, with one click to play or listen along. It only shows up when there's something new. The greeting animates in, with today's listening, friends listening now and the DJ under it.
+- **Playlists you can share**: invite people to add songs to your playlist with an invite link, make any of your playlists public or private, see who added how many songs, and copy any playlist (yours or someone else's) into a new one of your own.
+- **Achievements as real medals**: each award is a struck medal in its rarity's metal (steel, silver, rose gold, gold, a moving rainbow for mythic), shaped by its kind, on the page like Apple's awards. Click one to see it up close and drag to turn it.
+- **Profiles**: yours and everyone else's have a new centred design with big numbers for playlists, followers and following. The visibility setting is a switch and on by default. Cover position is gone.
+- **Your stats**: your number one song shows its artist, your number one artist has its own row with how far up its listeners you are (for example "Top 2% of Riad's listeners"), and Your genres has a new card with the genre's artists.
+- **Words**: the highlight takes the cover's colour, words land with a little bounce and tilt, each line sits a step to the side, and the cover's colours drift behind the words, glowing on the beat.
+- **Pulse DJ**: the light stays still until a show starts.
+- **Party**:
+  - Typing an artist's name on the party page now finds that artist's songs first.
+  - Guests who joined from Pulse can vote too.
+  - When the host ends the party, everyone on the page sees that it's over.

@@ -95,11 +95,7 @@ export function UserView({ id }: { id: string }): React.JSX.Element {
     <div className="profile profile--view">
       <header className="profile__hero">
         <div className="profile__banner bleed">
-          {pulse?.banner ? (
-            <img decoding="async" src={pulse.banner} alt="" style={{ objectPosition: `50% ${pulse.bannerY ?? 50}%` }} />
-          ) : (
-            <div className="profile__banner-fallback" />
-          )}
+          {pulse?.banner ? <img decoding="async" src={pulse.banner} alt="" /> : <div className="profile__banner-fallback" />}
         </div>
         <div className="profile__id">
           <div className="profile__avatar">
@@ -108,9 +104,17 @@ export function UserView({ id }: { id: string }): React.JSX.Element {
           <div className="profile__names">
             <h1 className="profile__name">{name}</h1>
             {pulse?.tagline && <p className="profile__tagline">{pulse.tagline}</p>}
+            {pulse && (
+              <span className="profile__handle">
+                <PulseBadge />
+              </span>
+            )}
             <span className="profile__meta">
-              {pulse && <PulseBadge small />}
-              {known && !known.partial && <span className="muted">{playlists.length ? `${playlists.length} public playlists` : 'No public playlists'}</span>}
+              {known && !known.partial && (
+                <span className="pstat">
+                  <b>{playlists.length}</b> {playlists.length === 1 ? 'playlist' : 'playlists'}
+                </span>
+              )}
               <FollowCounts
                 id={id}
                 followers={maxOf(page?.followers, followsQ.data?.followers.length)}

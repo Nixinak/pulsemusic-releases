@@ -69,6 +69,7 @@ export interface SPlaylist {
 
 export interface SPlaylistItem {
   added_at: string
+  added_by?: { id: string } | null
   /** Renamed from `track` in February 2026. */
   item?: STrack | null
   track?: STrack | null

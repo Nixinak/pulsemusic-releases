@@ -6,6 +6,7 @@ import * as sp from '@/lib/spotify'
 import { playContext, playUris, shufflePlay, togglePlay, usePlayer } from '@/lib/player'
 import { moveItem } from '@/lib/dragReorder'
 import { PlaylistTools, type ToolTab } from '@/components/PlaylistTools'
+import { PlaylistShare } from '@/components/PlaylistShare'
 import { Recommendations } from '@/components/Recommendations'
 import { formatDuration, plural, year, cleanDescription } from '@/lib/format'
 import type { STrack } from '@/lib/types'
@@ -14,7 +15,7 @@ import { ErrorState, MediaCard, Shelf, Skeleton, ArtistLinks, usePagePalette, us
 import { keys, loadAlbum, loadArtistPopular, loadArtistReleases, prefetchAlbum } from '@/lib/loaders'
 import { TrackList } from '@/components/TrackList'
 import { contextMenuFor } from '@/components/menus'
-import { EditIcon, HeartIcon, MoreIcon, PauseIcon, PlayIcon, ShuffleIcon, ToolsIcon, TrashIcon } from '@/components/Icons'
+import { EditIcon, HeartIcon, MoreIcon, PauseIcon, PlayIcon, ShuffleIcon, ToolsIcon, TrashIcon, UserPlusIcon } from '@/components/Icons'
 import { PageHeader } from './PageHeader'
 import { PulseBadge } from '@/components/PulseBadge'
 import { prefetchUser, usePulseUsers } from '@/lib/people'
@@ -128,11 +129,7 @@ export function AlbumView({ id }: { id: string }): React.JSX.Element {
           </>
         }
         actions={
-          <PlayActions
-            contextUri={album.uri}
-            uris={tracks.map((t) => t.uri)}
-            extra={<SaveToggle uri={album.uri} label={['Save album', 'Remove album']} />}
-          />
+          <PlayActions contextUri={album.uri} uris={tracks.map((t) => t.uri)} extra={<SaveToggle uri={album.uri} label={['Save album', 'Remove album']} />} />
         }
       />
       <TrackList tracks={withAlbum} showArt={false} showAlbum={false} numbered onPlay={(i) => void playContext(album.uri, tracks[i].uri)} />
@@ -228,6 +225,7 @@ export function PlaylistView({ id }: { id: string }): React.JSX.Element {
   const navigate = useApp((s) => s.navigate)
   const libPlaylists = useApp((s) => s.playlists)
   const [tools, setTools] = useState<{ open: boolean; tab: ToolTab }>({ open: false, tab: 'clean' })
+  const [sharing, setSharing] = useState(false)
   const [coverOverride, setCoverOverride] = useState<string | null>(null)
   const saving = useRef(Promise.resolve())
   const key = `playlist:${id}`
@@ -305,6 +303,17 @@ export function PlaylistView({ id }: { id: string }): React.JSX.Element {
   const editable = owned || playlist.collaborative
   const total = tracks?.reduce((n, t) => n + t.duration_ms, 0) ?? 0
   const openTools = (tab: ToolTab): void => setTools({ open: true, tab })
+  const copyAsNew = async (): Promise<void> => {
+    try {
+      const uris = (tracks ?? []).map((t) => t.uri).filter((u) => u.startsWith('spotify:track:'))
+      const copy = await sp.duplicatePlaylist(owned ? `${playlist.name} (copy)` : playlist.name, cleanDescription(playlist.description) ?? '', uris)
+      await useApp.getState().refreshPlaylists()
+      toast('Copied into a new playlist of yours')
+      navigate({ name: 'playlist', id: copy.id })
+    } catch (e) {
+      toast(`Couldn’t copy it: ${errorText(e)}`, 'error')
+    }
+  }
 
   const more = (e: React.MouseEvent): void => {
     const r = e.currentTarget.getBoundingClientRect()
@@ -320,10 +329,26 @@ export function PlaylistView({ id }: { id: string }): React.JSX.Element {
         : []),
       ...(owned
         ? [
+            { label: 'Invite people to add songs', onSelect: () => setSharing(true) },
+            {
+              label: playlist.public === false ? 'Make public' : 'Make private',
+              onSelect: async () => {
+                try {
+                  await sp.updatePlaylist(playlist.id, { public: playlist.public === false, ...(playlist.public === false ? { collaborative: false } : {}) })
+                  toast(playlist.public === false ? 'The playlist is public' : 'The playlist is private')
+                  refresh()
+                } catch (e) {
+                  toast(`Couldn’t change that: ${errorText(e)}`, 'error')
+                }
+              }
+            },
+            { label: 'Copy as a new playlist', onSelect: () => void copyAsNew() },
+            { label: '', separator: true },
             { label: 'Edit details', onSelect: () => setModal({ type: 'edit-playlist', playlist }) },
             { label: 'Delete playlist', danger: true, onSelect: () => setModal({ type: 'delete-playlist', playlist }) }
           ]
         : [
+            ...(tracks?.length ? [{ label: 'Copy as a new playlist', onSelect: () => void copyAsNew() }] : []),
             {
               label: 'Remove from library',
               danger: true,
@@ -344,7 +369,7 @@ export function PlaylistView({ id }: { id: string }): React.JSX.Element {
       <PageHeader
         image={image}
         onArtClick={owned ? () => openTools('cover') : undefined}
-        kind={playlist.public === false ? 'Private playlist' : 'Playlist'}
+        kind={playlist.collaborative ? 'Shared playlist' : playlist.public === false ? 'Private playlist' : 'Playlist'}
         title={playlist.name}
         description={cleanDescription(playlist.description)}
         meta={
@@ -374,12 +399,27 @@ export function PlaylistView({ id }: { id: string }): React.JSX.Element {
                   </button>
                 )}
                 {owned && (
-                  <button className="icon-btn icon-btn--lg" aria-label="Edit details" title="Edit details" onClick={() => setModal({ type: 'edit-playlist', playlist })}>
+                  <button className="icon-btn icon-btn--lg" aria-label="Share and collaborate" title="Share and collaborate" onClick={() => setSharing(true)}>
+                    <UserPlusIcon size={20} />
+                  </button>
+                )}
+                {owned && (
+                  <button
+                    className="icon-btn icon-btn--lg"
+                    aria-label="Edit details"
+                    title="Edit details"
+                    onClick={() => setModal({ type: 'edit-playlist', playlist })}
+                  >
                     <EditIcon size={20} />
                   </button>
                 )}
                 {owned && (
-                  <button className="icon-btn icon-btn--lg" aria-label="Delete playlist" title="Delete playlist" onClick={() => setModal({ type: 'delete-playlist', playlist })}>
+                  <button
+                    className="icon-btn icon-btn--lg"
+                    aria-label="Delete playlist"
+                    title="Delete playlist"
+                    onClick={() => setModal({ type: 'delete-playlist', playlist })}
+                  >
                     <TrashIcon size={20} />
                   </button>
                 )}
@@ -423,7 +463,10 @@ export function PlaylistView({ id }: { id: string }): React.JSX.Element {
               d
                 ? {
                     ...d,
-                    entries: [...(d.entries ?? []), { track: t, addedAt: new Date().toISOString(), pos: (d.entries?.length ?? 0) + d.hidden }]
+                    entries: [
+                      ...(d.entries ?? []),
+                      { track: t, addedAt: new Date().toISOString(), pos: (d.entries?.length ?? 0) + d.hidden, addedBy: me?.id ?? null }
+                    ]
                   }
                 : d
             )
@@ -442,6 +485,7 @@ export function PlaylistView({ id }: { id: string }): React.JSX.Element {
           onChanged={refresh}
         />
       )}
+      {owned && <PlaylistShare open={sharing} playlist={playlist} entries={entries} onClose={() => setSharing(false)} onChanged={refresh} />}
     </div>
   )
 }

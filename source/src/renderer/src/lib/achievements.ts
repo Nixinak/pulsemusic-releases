@@ -103,6 +103,21 @@ export function shareText(share: number): string {
   return `Top ${shown}% of Spotify listeners`
 }
 
+/** How far up an artist's listeners you are, from your minutes with them over `days`. A typical
+ *  listener of an artist plays about 40 minutes of them a year and the top 1% about 2,500 (the
+ *  same long-tailed spread as the goals above), scaled to the time span. */
+export function fanShare(minutes: number, days: number): number {
+  const years = Math.max(7, days) / 365
+  return Math.min(0.99, Math.max(1e-5, shareAbove(minutes, [Math.max(0.5, 40 * years), Math.max(8, 2500 * years)])))
+}
+
+/** "Top 0.4%" / "Top 12%". */
+export function topPercent(share: number): string {
+  const pct = share * 100
+  const shown = pct >= 10 ? Math.round(pct) : pct >= 1 ? Math.round(pct * 10) / 10 : Number(pct.toPrecision(2))
+  return `Top ${shown}%`
+}
+
 /* ---------- Goals ---------- */
 
 const fmt = (n: number): string => Math.floor(n).toLocaleString('en-US')

@@ -1,11 +1,15 @@
 // The Words look: the lyrics on black, word by word, the way animated-lyrics videos do it. Each
-// word lands on its own line as it's sung, the word being sung wears a white highlight, and some
-// words bring a small picture (📷 camera, 💵 cash). A new line of the song starts a fresh stack.
+// word lands on its own line as it's sung, the word being sung wears a highlight in the cover's
+// colour and bumps on the kick, and some words bring a small picture (📷 camera, 💵 cash). A new
+// line of the song starts a fresh stack, a step to the side of the last one. Behind the words the
+// cover's colours drift slowly and glow on the beat.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { getLyrics, type Lyrics as LyricsData, type SyncedLine } from '@/lib/lyrics'
 import { livePosition, usePlayer, type PlayerTrack } from '@/lib/player'
 import { Emo } from './Emoji'
+import { readBeat, useBeat } from '@/lib/beat'
+import { useApp } from '@/lib/store'
 
 interface Word {
   i: number
@@ -135,16 +139,22 @@ function toWords(lines: SyncedLine[]): Word[] {
 /** How many words stay on screen. */
 const KEEP = 5
 
+/** Each line of the song sits a little to the side of the last one. */
+const SWAY = ['0em', '-0.7em', '0.55em', '-0.3em', '0.75em']
+/** A slight tilt per word, so the stack looks set by hand. */
+const TILT = [0, -1.6, 1.2, -0.8, 1.8, -1.2, 0.6]
+
 function Token({ w, now, old }: { w: Word; now: boolean; old: boolean }): React.JSX.Element {
   const pic = useMemo(() => pictureOf(w.text), [w.text])
+  const tilt = TILT[w.i % TILT.length]
   return (
     <motion.span
       layout="position"
-      className={`kw ${now ? 'is-now' : ''}`}
-      initial={{ opacity: 0, y: '0.45em', filter: 'blur(8px)' }}
-      animate={{ opacity: old ? 0.38 : 1, y: 0, filter: 'blur(0px)' }}
-      exit={{ opacity: 0, y: '-0.4em', filter: 'blur(6px)', transition: { duration: 0.22 } }}
-      transition={{ type: 'spring', stiffness: 520, damping: 34, mass: 0.6 }}
+      className={`kw ${now ? 'is-now' : ''} ${old ? 'is-old' : ''}`}
+      initial={{ opacity: 0, y: '0.7em', scale: 0.55, rotate: tilt * 5, filter: 'blur(10px)' }}
+      animate={{ opacity: old ? 0.42 : 1, y: 0, x: SWAY[w.line % SWAY.length], scale: now ? 1.06 : 1, rotate: now ? 0 : tilt, filter: 'blur(0px)' }}
+      exit={{ opacity: 0, y: '-0.6em', scale: 0.85, filter: 'blur(8px)', transition: { duration: 0.24 } }}
+      transition={{ type: 'spring', stiffness: 560, damping: 26, mass: 0.6 }}
     >
       {pic.before && (
         <span className="kw__pic">
@@ -161,14 +171,18 @@ function Token({ w, now, old }: { w: Word; now: boolean; old: boolean }): React.
   )
 }
 
-function Live({ lines }: { lines: SyncedLine[] }): React.JSX.Element {
+function Live({ lines, glow }: { lines: SyncedLine[]; glow: React.RefObject<HTMLDivElement | null> }): React.JSX.Element {
   const words = useMemo(() => toWords(lines), [lines])
   const [state, setState] = useState<{ idx: number; singing: boolean }>({ idx: -1, singing: false })
   const last = useRef(state)
   useEffect(() => {
     let raf = 0
+    let kick = 0
     const tick = (): void => {
       raf = requestAnimationFrame(tick)
+      const beat = readBeat()
+      kick += (beat.kick - kick) * (beat.kick > kick ? 0.6 : 0.14)
+      glow.current?.style.setProperty('--kick', kick.toFixed(3))
       const pos = livePosition(usePlayer.getState()) + 40
       let lo = 0
       let hi = words.length - 1
@@ -192,7 +206,7 @@ function Live({ lines }: { lines: SyncedLine[] }): React.JSX.Element {
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [words])
+  }, [words, glow])
 
   const cur = words[state.idx]
   // the last few words; words from the line before are dimmed, and a line after a breath starts
@@ -234,6 +248,10 @@ function Title({ track, note }: { track: PlayerTrack; note: string | null }): Re
 
 export function WordsLyrics({ track }: { track: PlayerTrack }): React.JSX.Element {
   const [data, setData] = useState<LyricsData | null>(null)
+  const root = useRef<HTMLDivElement>(null)
+  const reduce = useApp((s) => s.settings.reduceMotion)
+  const paused = usePlayer((s) => s.paused)
+  useBeat(!reduce && !paused)
   useEffect(() => {
     let alive = true
     setData(null)
@@ -250,9 +268,14 @@ export function WordsLyrics({ track }: { track: PlayerTrack }): React.JSX.Elemen
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [track.id])
   return (
-    <div className="kwords">
+    <div ref={root} className={`kwords ${paused ? 'is-paused' : ''}`}>
+      <div className="kwords__glow" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+      </div>
       {data?.kind === 'synced' ? (
-        <Live key={track.id} lines={data.lines} />
+        <Live key={track.id} lines={data.lines} glow={root} />
       ) : data ? (
         <Title track={track} note={data.kind === 'instrumental' ? 'instrumental' : null} />
       ) : null}

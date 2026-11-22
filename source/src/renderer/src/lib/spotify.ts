@@ -671,6 +671,8 @@ export interface PlaylistEntry {
   addedAt: string | null
   /** Real position in the playlist (local files and removed songs are skipped in `track`). */
   pos: number
+  /** Who added it (collaborative playlists). */
+  addedBy: string | null
 }
 
 /** Playlist songs with the date each was added (for reordering, sorting and cleanup). */
@@ -679,7 +681,7 @@ export const getPlaylistEntries = (id: string): Promise<{ entries: PlaylistEntry
     const entries: PlaylistEntry[] = []
     items.forEach((i, pos) => {
       const t = i.item ?? i.track
-      if (t && t.id) entries.push({ track: t, addedAt: i.added_at ?? null, pos })
+      if (t && t.id) entries.push({ track: t, addedAt: i.added_at ?? null, pos, addedBy: i.added_by?.id ?? null })
     })
     return { entries, hidden: items.length - entries.length }
   })
@@ -720,11 +722,18 @@ export const searchTracks = (q: string, offset: number): Promise<SearchResults> 
 export const createPlaylist = (name: string, description = ''): Promise<SPlaylist> =>
   api('/me/playlists', { method: 'POST', body: { name, description, public: false } })
 
-export const updatePlaylist = (id: string, patch: { name?: string; description?: string }): Promise<void> =>
+export const updatePlaylist = (id: string, patch: { name?: string; description?: string; public?: boolean; collaborative?: boolean }): Promise<void> =>
   api(`/playlists/${id}`, { method: 'PUT', body: patch })
 
 export const addToPlaylist = (id: string, uris: string[], position?: number): Promise<{ snapshot_id: string }> =>
   api(`/playlists/${id}/items`, { method: 'POST', body: { uris, position } })
+
+/** A copy of a playlist in your library, with the same songs in the same order. */
+export async function duplicatePlaylist(name: string, description: string, uris: string[]): Promise<SPlaylist> {
+  const copy = await createPlaylist(name, description)
+  if (uris.length) await addManyToPlaylist(copy.id, uris)
+  return copy
+}
 
 /** Adds any number of songs, 100 per request, in order. */
 export async function addManyToPlaylist(id: string, uris: string[]): Promise<void> {

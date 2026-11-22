@@ -9,7 +9,7 @@ import { useQuery } from '@/lib/useQuery'
 import * as sp from '@/lib/spotify'
 import { playContext, playUris } from '@/lib/player'
 import { prefetchArtist } from '@/lib/loaders'
-import { Cover, MediaCard, Slider, usePagePalette, ShelfRow } from '@/components/common'
+import { Cover, MediaCard, Toggle, usePagePalette, ShelfRow } from '@/components/common'
 import { ProfileLinks, ProfileSong, linkInfo, normaliseLink } from '@/components/ProfileExtras'
 import { BrandIcon } from '@/components/BrandIcons'
 import { Glass } from '@/components/Glass'
@@ -147,14 +147,7 @@ export function ProfileView(): React.JSX.Element {
       <header className="profile__hero">
         <div className="profile__banner bleed">
           {profile.banner ? (
-            <motion.img
-              key={profile.banner.slice(-40)}
-              src={profile.banner}
-              alt=""
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              style={{ objectPosition: `50% ${profile.bannerY ?? 50}%` }}
-            />
+            <motion.img key={profile.banner.slice(-40)} src={profile.banner} alt="" initial={{ opacity: 0 }} animate={{ opacity: 1 }} />
           ) : (
             <div className="profile__banner-fallback" />
           )}
@@ -211,8 +204,8 @@ export function ProfileView(): React.JSX.Element {
               </span>
             )}
             <span className="profile__meta">
-              <span className="muted">
-                {ownCount} {ownCount === 1 ? 'playlist' : 'playlists'}
+              <span className="pstat">
+                <b>{ownCount}</b> {ownCount === 1 ? 'playlist' : 'playlists'}
               </span>
               {me && <FollowCounts id={me.id} followers={followerCount} following={followingCount} />}
             </span>
@@ -223,7 +216,7 @@ export function ProfileView(): React.JSX.Element {
                 <ShareIcon size={16} /> Share card
               </button>
             )}
-            <button className={`btn ${editing ? 'btn--accent' : ''}`} onClick={() => setEditing((e) => !e)}>
+            <button className={`btn ${editing ? 'btn--accent' : 'profile__edit'}`} onClick={() => setEditing((e) => !e)}>
               {editing ? 'Done' : 'Edit profile'}
             </button>
             {me && !editing && (
@@ -242,7 +235,10 @@ export function ProfileView(): React.JSX.Element {
                           () => toast('Couldn’t copy the username', 'error')
                         )
                     },
-                    { label: 'Copy profile link', onSelect: () => void navigator.clipboard.writeText(`https://open.spotify.com/user/${me.id}`).then(() => toast('Link copied')) },
+                    {
+                      label: 'Copy profile link',
+                      onSelect: () => void navigator.clipboard.writeText(`https://open.spotify.com/user/${me.id}`).then(() => toast('Link copied'))
+                    },
                     { label: 'Open in Spotify', onSelect: () => window.pulse.openExternal(`https://open.spotify.com/user/${me.id}`) }
                   ])
                 }}
@@ -300,7 +296,13 @@ export function ProfileView(): React.JSX.Element {
                       setLinkText('')
                     }}
                   >
-                    <input className="field" value={linkText} onChange={(e) => setLinkText(e.target.value)} placeholder="instagram.com/you" spellCheck={false} />
+                    <input
+                      className="field"
+                      value={linkText}
+                      onChange={(e) => setLinkText(e.target.value)}
+                      placeholder="instagram.com/you"
+                      spellCheck={false}
+                    />
                     <button className="btn" disabled={!linkText.trim()}>
                       Add
                     </button>
@@ -308,18 +310,15 @@ export function ProfileView(): React.JSX.Element {
                 )}
               </div>
             </div>
-            {profile.banner && (
-              <div className="peditor__row">
-                <span className="peditor__label">Cover position</span>
-                <Slider className="peditor__slider" value={profile.bannerY ?? 50} max={100} label="Cover position" onCommit={(v) => update({ bannerY: Math.round(v) })} onPreview={(v) => v !== null && update({ bannerY: Math.round(v) })} />
-              </div>
-            )}
             {server && (
               <div className="peditor__row">
                 <span className="peditor__label">Visible</span>
                 <label className="profile__share-toggle">
-                  <input type="checkbox" checked={profile.shared !== false} onChange={(e) => update({ shared: e.target.checked })} />
-                  <span>Other Pulse users can find and see this profile</span>
+                  <span>
+                    <b>{profile.shared !== false ? 'Anyone on Pulse can find you' : 'Only you can see this profile'}</b>
+                    <small>Other Pulse users can find your profile, see what you play and follow you.</small>
+                  </span>
+                  <Toggle on={profile.shared !== false} onChange={(v) => update({ shared: v })} label="Visible to other Pulse users" />
                 </label>
               </div>
             )}
@@ -426,8 +425,15 @@ export function ProfileView(): React.JSX.Element {
                   { label: 'artists', value: month.artistCount.toLocaleString() }
                 ]
               : [],
-            topArtists: (month?.source === 'history' ? month.topArtists : (artists?.items ?? []).map((a) => ({ name: a.name, image: sp.pickImage(a.images, 300) }))).map((a) => ({ name: a.name, image: a.image })),
-            topTracks: (tracks?.items ?? []).map((t) => ({ name: t.name, artist: t.artists.map((a) => a.name).join(', '), image: sp.pickImage(t.album?.images, 300) })),
+            topArtists: (month?.source === 'history'
+              ? month.topArtists
+              : (artists?.items ?? []).map((a) => ({ name: a.name, image: sp.pickImage(a.images, 300) }))
+            ).map((a) => ({ name: a.name, image: a.image })),
+            topTracks: (tracks?.items ?? []).map((t) => ({
+              name: t.name,
+              artist: t.artists.map((a) => a.name).join(', '),
+              image: sp.pickImage(t.album?.images, 300)
+            })),
             favourites: favs.map((f) => ({ title: f.title, items: f.items.map((i) => ({ name: i.name, image: i.image })) }))
           })
         }}
@@ -452,15 +458,7 @@ function useMonthRecap(): Recap | null {
   return r
 }
 
-function Block({
-  block,
-  editing,
-  onPatch
-}: {
-  block: ProfileBlock
-  editing: boolean
-  onPatch: (p: Partial<ProfileBlock>) => void
-}): React.JSX.Element | null {
+function Block({ block, editing, onPatch }: { block: ProfileBlock; editing: boolean; onPatch: (p: Partial<ProfileBlock>) => void }): React.JSX.Element | null {
   switch (block.type) {
     case 'text':
       return editing ? (
@@ -484,7 +482,10 @@ function Block({
               onClick={async () => {
                 // crop the picture again (from the one saved in the block)
                 const blob = await fetch(block.src).then((r) => r.blob())
-                const src = await imageFileToDataUrl(new File([blob], 'image', { type: blob.type || 'image/jpeg' }), 1400, null, { title: 'Crop image', shapes: true })
+                const src = await imageFileToDataUrl(new File([blob], 'image', { type: blob.type || 'image/jpeg' }), 1400, null, {
+                  title: 'Crop image',
+                  shapes: true
+                })
                 if (src) onPatch({ src })
               }}
             >
@@ -492,7 +493,12 @@ function Block({
             </button>
           )}
           {editing ? (
-            <input className="pblock__caption-input" value={block.caption} placeholder="Caption (optional)" onChange={(e) => onPatch({ caption: e.target.value })} />
+            <input
+              className="pblock__caption-input"
+              value={block.caption}
+              placeholder="Caption (optional)"
+              onChange={(e) => onPatch({ caption: e.target.value })}
+            />
           ) : (
             block.caption && <figcaption>{block.caption}</figcaption>
           )}
@@ -653,7 +659,10 @@ function FavoritesBlock({
 function FavoritePicker({ kind, onPick, onClose }: { kind: FavoriteKind; onPick: (it: FavoriteItem) => void; onClose: () => void }): React.JSX.Element {
   const [q, setQ] = useState('')
   const [items, setItems] = useState<FavoriteItem[]>([])
-  const top = useQuery<{ items: unknown[] }>(kind === 'artist' ? 'home:artists' : 'home:top', kind === 'artist' ? () => sp.getTopArtists() : () => sp.getTopTracks())
+  const top = useQuery<{ items: unknown[] }>(
+    kind === 'artist' ? 'home:artists' : 'home:top',
+    kind === 'artist' ? () => sp.getTopArtists() : () => sp.getTopTracks()
+  )
   const suggestions = useMemo<FavoriteItem[]>(() => {
     const d = top.data?.items ?? []
     if (kind === 'artist')
@@ -669,9 +678,21 @@ function FavoritePicker({ kind, onPick, onClose }: { kind: FavoriteKind; onPick:
       const seen = new Set<string>()
       return tracks
         .filter((t) => t.album && !seen.has(t.album.id) && seen.add(t.album.id))
-        .map((t) => ({ id: t.album!.id, uri: t.album!.uri, name: t.album!.name, subtitle: t.artists[0]?.name ?? '', image: sp.pickImage(t.album!.images, 300) }))
+        .map((t) => ({
+          id: t.album!.id,
+          uri: t.album!.uri,
+          name: t.album!.name,
+          subtitle: t.artists[0]?.name ?? '',
+          image: sp.pickImage(t.album!.images, 300)
+        }))
     }
-    return tracks.map((t) => ({ id: t.id, uri: t.uri, name: t.name, subtitle: t.artists.map((a) => a.name).join(', '), image: sp.pickImage(t.album?.images, 300) }))
+    return tracks.map((t) => ({
+      id: t.id,
+      uri: t.uri,
+      name: t.name,
+      subtitle: t.artists.map((a) => a.name).join(', '),
+      image: sp.pickImage(t.album?.images, 300)
+    }))
   }, [top.data, kind])
 
   useEffect(() => {
@@ -724,7 +745,12 @@ function FavoritePicker({ kind, onPick, onClose }: { kind: FavoriteKind; onPick:
           <h2 className="tools__title">Add a favourite {KIND_LABEL[kind]}</h2>
           <label className="search-pill fav-search__input">
             <SearchIcon size={18} />
-            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search for an ${kind === 'track' ? 'song' : kind}`.replace('an song', 'a song')} />
+            <input
+              autoFocus
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={`Search for an ${kind === 'track' ? 'song' : kind}`.replace('an song', 'a song')}
+            />
           </label>
           <div className="fav-search__list">
             {list.map((it) => (
@@ -774,7 +800,15 @@ function TopTracksBlock(): React.JSX.Element {
   return (
     <>
       <h2 className="pblock__heading">Top songs this month</h2>
-      <TrackList tracks={tracks} onPlay={(i) => void playUris(tracks.map((t) => t.uri), tracks[i].uri)} />
+      <TrackList
+        tracks={tracks}
+        onPlay={(i) =>
+          void playUris(
+            tracks.map((t) => t.uri),
+            tracks[i].uri
+          )
+        }
+      />
     </>
   )
 }

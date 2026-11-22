@@ -85,6 +85,7 @@ const api: PulseApi = {
     remoteSearch: (url, q) => ipcRenderer.invoke('party:remote-search', url, q),
     remoteAdd: (url, uri, guest) => ipcRenderer.invoke('party:remote-add', url, uri, guest),
     remoteControl: (url, control, guest) => ipcRenderer.invoke('party:remote-control', url, control, guest),
+    remoteVote: (url, uri, v, guest) => ipcRenderer.invoke('party:remote-vote', url, uri, v, guest),
     onControl: (cb) => listen('party:control', cb)
   },
   recs: {
@@ -99,6 +100,7 @@ const api: PulseApi = {
     friends: () => ipcRenderer.invoke('spotify-account:friends'),
     lyrics: (id) => ipcRenderer.invoke('spotify-account:lyrics', id),
     analysis: (id) => ipcRenderer.invoke('spotify-account:analysis', id),
+    playlistInvite: (id) => ipcRenderer.invoke('spotify-account:playlist-invite', id),
     api: (method, url, body) => ipcRenderer.invoke('spotify-account:api', method, url, body)
   },
   lyrics: {

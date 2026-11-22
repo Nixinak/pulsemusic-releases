@@ -14,6 +14,7 @@ import { FocusImg } from '@/components/FocusImg'
 import { Genres } from '@/components/Genres'
 import { FunFacts } from '@/components/FunFacts'
 import { Achievements, AchievementsChip } from '@/components/Achievements'
+import { fanShare, topPercent } from '@/lib/achievements'
 import { formatMinutes } from '@/lib/recap'
 import { useQuery } from '@/lib/useQuery'
 import * as sp from '@/lib/spotify'
@@ -165,6 +166,23 @@ export function StatsView(): React.JSX.Element {
     }
   }, [top])
 
+  // How far up the top artist's listeners you are: your minutes with them over the chosen time.
+  const fan = useMemo(() => {
+    if (!hero) return null
+    const from = range === 'week' ? Date.now() - 7 * 86_400_000 : range === 'year' ? startOfYear() : 0
+    let minutes = hero.minutes
+    if (minutes === undefined) {
+      const st = computeStats(plays, from)
+      const key = hero.name.toLowerCase()
+      const hit = st.artists.find((a) => a.item.id === hero.id || a.item.name.toLowerCase() === key)
+      minutes = hit ? Math.round(hit.ms / 60_000) : 0
+    }
+    if (!minutes) return null
+    const first = range === 'all' ? Math.min(...plays.map((p) => p.at), Date.now()) : from
+    const days = Math.max(7, (Date.now() - first) / 86_400_000)
+    return { minutes, text: topPercent(fanShare(minutes, days)) }
+  }, [hero, plays, range])
+
   // Little discoveries in the history for the chosen time (streaks, repeats, sessions…).
   const fun = useMemo(() => funFacts(plays, range === 'week' ? Date.now() - 7 * 86_400_000 : range === 'year' ? startOfYear() : 0), [plays, range])
 
@@ -214,9 +232,30 @@ export function StatsView(): React.JSX.Element {
             </button>
             <div className="replay__numbers">
               <dl>
+                {hero && (
+                  <div>
+                    <dt>
+                      Your number one artist
+                      {fan && (
+                        <small>
+                          {fan.text} of {hero.name}’s listeners
+                        </small>
+                      )}
+                    </dt>
+                    <dd className="replay__pair">
+                      <b>{hero.name}</b>
+                      {fan && <small>{formatMinutes(fan.minutes)}</small>}
+                    </dd>
+                  </div>
+                )}
                 <div>
                   <dt>Your number one song</dt>
-                  <dd className="replay__song">{top[0]?.name ?? '–'}</dd>
+                  <dd className="replay__pair">
+                    <b>
+                      <Emo>{top[0]?.name ?? '–'}</Emo>
+                    </b>
+                    {top[0] && <small>{top[0].artists.map((a) => a.name).join(', ')}</small>}
+                  </dd>
                 </div>
                 {facts && (
                   <>

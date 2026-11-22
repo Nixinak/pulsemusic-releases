@@ -8,7 +8,7 @@ import { useQuery } from '@/lib/useQuery'
 import QRCode from 'qrcode'
 import { CoverCarousel } from '@/components/CoverWalls'
 import * as sp from '@/lib/spotify'
-import { joinParty, leaveParty, partyControl, remoteAdd, remoteSearch, setListenDevice, setSync, useListenAlong } from '@/lib/listenAlong'
+import { joinParty, leaveParty, partyControl, remoteAdd, remoteSearch, remoteVote, setListenDevice, setSync, useListenAlong } from '@/lib/listenAlong'
 import type { PartyTrack } from '@shared/types'
 import { Cover, usePagePalette } from '@/components/common'
 import { Glass } from '@/components/Glass'
@@ -158,6 +158,7 @@ function GuestParty(): React.JSX.Element {
                   <span className="qrow__artist">{t.artists}</span>
                 </span>
                 {t.addedBy && <span className="party__by">{t.addedBy}</span>}
+                <GuestVotes uri={t.uri} score={t.score ?? 0} />
                 <button className="qrow__x" aria-label={`Remove ${t.name} from the queue`} onClick={() => void partyControl({ action: 'remove', uri: t.uri })}>
                   <CloseIcon size={14} />
                 </button>
@@ -189,17 +190,33 @@ function LinkQr({ url }: { url: string }): React.JSX.Element {
   return <div className="pqr">{src ? <img decoding="async" src={src} alt="QR code of the party link" /> : <span className="cmd__spin" />}</div>
 }
 
+/** Your thumbs at a party you joined. */
+function GuestVotes({ uri, score }: { uri: string; score: number }): React.JSX.Element {
+  const mine = useListenAlong((s) => s.votes[uri] ?? 0)
+  return (
+    <span className="votes">
+      <button className={`votes__btn ${mine > 0 ? 'is-up' : ''}`} aria-label="Thumbs up" aria-pressed={mine > 0} onClick={() => void remoteVote(uri, 1)}>
+        👍
+      </button>
+      <b className={score > 0 ? 'is-up' : score < 0 ? 'is-down' : ''}>{score > 0 ? `+${score}` : score}</b>
+      <button className={`votes__btn ${mine < 0 ? 'is-down' : ''}`} aria-label="Thumbs down" aria-pressed={mine < 0} onClick={() => void remoteVote(uri, -1)}>
+        👎
+      </button>
+    </span>
+  )
+}
+
 /** Thumbs up and down on a queued song (guests vote from their phones too); the score between. */
 function Votes({ uri }: { uri: string }): React.JSX.Element {
   const score = useParty((s) => s.scores[uri] ?? 0)
   const mine = useParty((s) => s.mine[uri] ?? 0)
   return (
     <span className="votes" onDoubleClick={(e) => e.stopPropagation()}>
-      <button className={`votes__btn ${mine > 0 ? 'is-up' : ''}`} aria-label="Thumbs up" onClick={() => hostVote(uri, 1)}>
+      <button className={`votes__btn ${mine > 0 ? 'is-up' : ''}`} aria-label="Thumbs up" aria-pressed={mine > 0} onClick={() => hostVote(uri, 1)}>
         👍
       </button>
       <b className={score > 0 ? 'is-up' : score < 0 ? 'is-down' : ''}>{score > 0 ? `+${score}` : score}</b>
-      <button className={`votes__btn ${mine < 0 ? 'is-down' : ''}`} aria-label="Thumbs down" onClick={() => hostVote(uri, -1)}>
+      <button className={`votes__btn ${mine < 0 ? 'is-down' : ''}`} aria-label="Thumbs down" aria-pressed={mine < 0} onClick={() => hostVote(uri, -1)}>
         👎
       </button>
     </span>

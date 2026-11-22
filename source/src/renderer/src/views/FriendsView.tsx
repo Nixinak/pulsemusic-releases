@@ -7,7 +7,7 @@ import { useApp } from '@/lib/store'
 import { listenWith, markFollowersSeen, stopListeningWith, useFriends, useListenWith, watchFriendsClosely } from '@/lib/friends'
 import { joinParty } from '@/lib/listenAlong'
 import { prefetchUser, pulseServerOn } from '@/lib/people'
-import type { NowPlaying, PulseSummary } from '@shared/types'
+import type { NowPlaying, PulseSummary, SpotifyFriend } from '@shared/types'
 import { Cover, Skeleton } from '@/components/common'
 import { PulseBadge } from '@/components/PulseBadge'
 import { FollowCounts } from './FollowsView'
@@ -17,7 +17,7 @@ import { connectSpotifyFriends, useSpotifyFriends, useSpotifyFriendsLive, whenPl
 import { motion } from 'motion/react'
 
 /** One person in the feed: whoever they are, wherever they listen. */
-interface Activity {
+export interface Activity {
   id: string
   name: string
   image: string | null
@@ -45,8 +45,73 @@ function playActivity(a: Activity): void {
   else void playUris([a.track.uri])
 }
 
+/** One feed of the people you follow: Spotify's Friend Activity and Pulse's live plays, one
+ *  entry per person, whoever is listening right now first. */
+export function useFriendsFeed(spotify: SpotifyFriend[] | null, following: PulseSummary[], now: Record<string, NowPlaying | null | undefined>): Activity[] {
+  // one feed: Spotify's Friend Activity and Pulse's live plays, one entry per person
+  return useMemo(() => {
+    const pulseUsers = new Map(following.map((u) => [u.id, u]))
+    const byId = new Map<string, Activity>()
+    for (const f of spotify ?? []) {
+      const u = pulseUsers.get(f.id) ?? null
+      byId.set(f.id, {
+        id: f.id,
+        name: u?.displayName || f.name,
+        image: f.image ?? u?.thumb ?? null,
+        pulse: !!u && u.pulse !== false,
+        user: u,
+        at: f.at,
+        now: f.playing === true || whenPlayed(f.at).now,
+        paused: false,
+        party: null,
+        track: {
+          uri: f.track.uri,
+          name: f.track.name,
+          artist: f.track.artist.name,
+          artistId: f.track.artist.id || null,
+          albumId: f.track.album.id || null,
+          image: f.track.image,
+          context: f.track.context
+        }
+      })
+    }
+    for (const u of following) {
+      const n = now[u.id]
+      if (!n?.track) continue
+      const was = byId.get(u.id)
+      const live = !n.paused
+      // Pulse knows it live; it wins over an older Spotify entry
+      if (was && was.at > n.at && !live) {
+        was.pulse = true
+        continue
+      }
+      byId.set(u.id, {
+        id: u.id,
+        name: u.displayName,
+        image: u.thumb ?? was?.image ?? null,
+        pulse: true,
+        user: u,
+        at: n.at || Date.now(),
+        now: live,
+        paused: n.paused,
+        party: n.party,
+        track: {
+          uri: n.track.uri,
+          name: n.track.name,
+          artist: n.track.artists,
+          artistId: null,
+          albumId: null,
+          image: n.track.image,
+          context: null
+        }
+      })
+    }
+    return [...byId.values()].sort((a, b) => Number(b.now) - Number(a.now) || b.at - a.at)
+  }, [spotify, following, now])
+}
+
 /** One friend: the cover of what they play, their face on its corner, the song, and when. */
-function FriendCard({ a, i }: { a: Activity; i: number }): React.JSX.Element {
+export function FriendCard({ a, i }: { a: Activity; i: number }): React.JSX.Element {
   const navigate = useApp((s) => s.navigate)
   const listening = useListenWith((s) => s.with?.id === a.id)
   const ctx = a.track.context?.name && !/^a (playlist|album)$/i.test(a.track.context.name) ? a.track.context.name : null
@@ -189,66 +254,7 @@ export function FriendsView(): React.JSX.Element {
   }, [loaded, incoming])
   const following = useMemo(() => [...friends, ...outgoing], [friends, outgoing])
 
-  // one feed: Spotify's Friend Activity and Pulse's live plays, one entry per person
-  const feed = useMemo(() => {
-    const pulseUsers = new Map(following.map((u) => [u.id, u]))
-    const byId = new Map<string, Activity>()
-    for (const f of spotify ?? []) {
-      const u = pulseUsers.get(f.id) ?? null
-      byId.set(f.id, {
-        id: f.id,
-        name: u?.displayName || f.name,
-        image: f.image ?? u?.thumb ?? null,
-        pulse: !!u && u.pulse !== false,
-        user: u,
-        at: f.at,
-        now: f.playing === true || whenPlayed(f.at).now,
-        paused: false,
-        party: null,
-        track: {
-          uri: f.track.uri,
-          name: f.track.name,
-          artist: f.track.artist.name,
-          artistId: f.track.artist.id || null,
-          albumId: f.track.album.id || null,
-          image: f.track.image,
-          context: f.track.context
-        }
-      })
-    }
-    for (const u of following) {
-      const n = now[u.id]
-      if (!n?.track) continue
-      const was = byId.get(u.id)
-      const live = !n.paused
-      // Pulse knows it live; it wins over an older Spotify entry
-      if (was && was.at > n.at && !live) {
-        was.pulse = true
-        continue
-      }
-      byId.set(u.id, {
-        id: u.id,
-        name: u.displayName,
-        image: u.thumb ?? was?.image ?? null,
-        pulse: true,
-        user: u,
-        at: n.at || Date.now(),
-        now: live,
-        paused: n.paused,
-        party: n.party,
-        track: {
-          uri: n.track.uri,
-          name: n.track.name,
-          artist: n.track.artists,
-          artistId: null,
-          albumId: null,
-          image: n.track.image,
-          context: null
-        }
-      })
-    }
-    return [...byId.values()].sort((a, b) => Number(b.now) - Number(a.now) || b.at - a.at)
-  }, [spotify, following, now])
+  const feed = useFriendsFeed(spotify, following, now)
   const live = feed.filter((a) => a.now)
   const recent = feed.filter((a) => !a.now)
   const people = following.filter((u) => u.pulse !== false)

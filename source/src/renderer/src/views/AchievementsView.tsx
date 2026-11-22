@@ -1,7 +1,7 @@
 // Achievements: 1,000 goals in ladders, each with how rare it is among Spotify listeners.
 // The top shows your rarest one and how your earned goals spread across the six rarities;
 // below, every ladder as a card you can open to see all its steps.
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useHistory } from '@/lib/history'
 import { useApp } from '@/lib/store'
@@ -60,31 +60,54 @@ export function useBoard(): Board | null {
 
 const fmt = (n: number): string => Math.floor(n).toLocaleString('en-US')
 
-/** The round badge: the icon (or an artist's picture) in a ring of its rarity. */
+export type MedalShape = 'circle' | 'hex' | 'oct' | 'square' | 'shield' | 'burst'
+
+/** Each kind of goal has its own medal shape, the way Apple's awards do. */
+export const SHAPE_OF: Record<Category, MedalShape> = {
+  time: 'circle',
+  variety: 'hex',
+  devotion: 'oct',
+  habits: 'square',
+  library: 'shield',
+  artists: 'circle',
+  moments: 'burst'
+}
+
+/** A medal: a metal rim in its rarity's metal, a groove, then an enamel face with the icon (or the
+ *  artist's picture) and a shine across it. Not earned yet: a flat grey blank. */
 export function Medal({
   icon,
   art,
   rarity,
   size = 56,
-  locked = false
+  locked = false,
+  shape = 'circle'
 }: {
   icon: string
   art?: string | null
   rarity: Rarity | null
   size?: number
   locked?: boolean
+  shape?: MedalShape
 }): React.JSX.Element {
   return (
-    <span className={`medal ${rarity ? `is-${rarity}` : 'is-none'} ${locked ? 'is-locked' : ''}`} style={{ width: size, height: size }} aria-hidden="true">
+    <span
+      className={`medal medal--${shape} ${rarity ? `is-${rarity}` : 'is-none'} ${locked ? 'is-locked' : ''}`}
+      style={{ width: size, height: size }}
+      aria-hidden="true"
+    >
+      <span className="medal__rim" />
+      <span className="medal__groove" />
       <span className="medal__face">
         {art ? (
           <img src={art} alt="" draggable={false} />
         ) : (
-          <span className="medal__emo" style={{ fontSize: Math.round(size * 0.44) }}>
+          <span className="medal__emo" style={{ fontSize: Math.round(size * 0.4) }}>
             <Emo>{icon}</Emo>
           </span>
         )}
       </span>
+      <span className="medal__shine" />
     </span>
   )
 }
@@ -126,7 +149,13 @@ export function Showcase({ board, compact = false }: { board: Board; compact?: b
     <section className={`showcase ${compact ? 'showcase--compact' : ''} ${r ? `is-${r.tier.rarity}` : ''}`}>
       <div className="showcase__glow" aria-hidden="true" />
       <div className="showcase__main">
-        <Medal icon={r?.ladder.icon ?? '🏆'} art={r?.ladder.art} rarity={r?.tier.rarity ?? null} size={compact ? 76 : 112} />
+        <Medal
+          icon={r?.ladder.icon ?? '🏆'}
+          art={r?.ladder.art}
+          rarity={r?.tier.rarity ?? null}
+          size={compact ? 84 : 124}
+          shape={r ? SHAPE_OF[r.ladder.cat] : 'circle'}
+        />
         <div className="showcase__text">
           {r ? (
             <>
@@ -159,61 +188,106 @@ export function Showcase({ board, compact = false }: { board: Board; compact?: b
   )
 }
 
-function LadderCard({ l, open, onToggle }: { l: Ladder; open: boolean; onToggle: () => void }): React.JSX.Element {
+/** An award in the grid: the medal (it tilts toward the pointer), its name and how far along. */
+function AwardTile({ l, onOpen }: { l: Ladder; onOpen: () => void }): React.JSX.Element {
+  const best = l.reached ? l.tiers[l.reached - 1] : null
+  const single = l.tiers.length === 1
+  const tilt = (e: React.PointerEvent<HTMLButtonElement>): void => {
+    const r = e.currentTarget.getBoundingClientRect()
+    e.currentTarget.style.setProperty('--rx', `${(((e.clientY - r.top) / r.height - 0.5) * -18).toFixed(1)}deg`)
+    e.currentTarget.style.setProperty('--ry', `${(((e.clientX - r.left) / r.width - 0.5) * 22).toFixed(1)}deg`)
+  }
+  const reset = (e: React.PointerEvent<HTMLButtonElement>): void => {
+    e.currentTarget.style.setProperty('--rx', '0deg')
+    e.currentTarget.style.setProperty('--ry', '0deg')
+  }
+  return (
+    <motion.li layout="position" className={`award ${best ? `is-${best.rarity}` : 'is-none'}`}>
+      <button className="award__btn" onClick={onOpen} onPointerMove={tilt} onPointerLeave={reset}>
+        <span className="award__medal">
+          <Medal icon={l.icon} art={l.art} rarity={best?.rarity ?? null} locked={!best} size={104} shape={SHAPE_OF[l.cat]} />
+        </span>
+        <b className="award__title">{l.title}</b>
+        <span className="award__sub">{single ? (best ? RARITY_NAME[best.rarity] : 'Not yet') : l.next ? `${l.reached} of ${l.tiers.length}` : 'All done'}</span>
+        {!single && l.next && (
+          <span className={`award__bar is-${l.next.rarity}`}>
+            <i style={{ width: `${Math.round(l.progress * 100)}%` }} />
+          </span>
+        )}
+      </button>
+    </motion.li>
+  )
+}
+
+/** One award up close: the medal large (drag it to turn it, like holding it), what it asks, and
+ *  every step with how rare it is. */
+function AwardSheet({ l, onClose }: { l: Ladder; onClose: () => void }): React.JSX.Element {
   const best = l.reached ? l.tiers[l.reached - 1] : null
   const single = l.tiers.length === 1
   const target = l.next ?? l.tiers[l.tiers.length - 1]
+  const [turn, setTurn] = useState(0)
+  const drag = useRef<{ x: number; at: number } | null>(null)
+  useEffect(() => {
+    const key = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  }, [onClose])
   return (
-    <motion.li layout="position" className={`lad ${open ? 'is-open' : ''} ${best ? `is-${best.rarity}` : 'is-none'} ${single ? 'lad--moment' : ''}`}>
-      <button className="lad__head" onClick={onToggle} aria-expanded={open}>
-        <Medal icon={l.icon} art={l.art} rarity={best?.rarity ?? null} locked={!best} size={single ? 48 : 56} />
-        <span className="lad__text">
-          <span className="lad__title">
-            <b>{l.title}</b>
-            {!single && (
-              <span className="lad__steps">
-                {l.reached} of {l.tiers.length}
-              </span>
-            )}
-          </span>
-          <span className="lad__ask">{l.next ? l.ask(l.next.goal) : `${l.ask(target.goal)}. All done`}</span>
-          {!single && l.next && (
-            <span className="lad__bar">
-              <i className={`is-${l.next.rarity}`} style={{ width: `${Math.round(l.progress * 100)}%` }} />
-            </span>
-          )}
-          <span className="lad__meta">
-            {single ? (
-              <span className={`rarity is-${target.rarity}`}>
-                {RARITY_NAME[target.rarity]}, {shareText(target.share).replace(/^Top/, 'top')}
-              </span>
-            ) : l.next ? (
-              <>
-                {fmt(l.value)} / {fmt(l.next.goal)}
-                <span className={`rarity is-${l.next.rarity}`}>next is {RARITY_NAME[l.next.rarity].toLowerCase()}</span>
-              </>
-            ) : (
-              <span className={`rarity is-${target.rarity}`}>Every step reached</span>
-            )}
-          </span>
-        </span>
-      </button>
-      {!single && (
-        <ol className="lad__pips" aria-hidden="true">
-          {l.tiers.map((t) => (
-            <li key={t.key} className={`is-${t.rarity} ${t.done ? 'is-done' : ''}`} />
-          ))}
-        </ol>
-      )}
-      <AnimatePresence initial={false}>
-        {open && !single && (
-          <motion.ol
-            className="lad__tiers"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 320, damping: 34 }}
+    <motion.div className="award-sheet" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+      <motion.div
+        className={`award-sheet__card ${best ? `is-${best.rarity}` : 'is-none'}`}
+        role="dialog"
+        aria-label={l.title}
+        initial={{ y: 30, scale: 0.96 }}
+        animate={{ y: 0, scale: 1 }}
+        exit={{ y: 20, scale: 0.97 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button className="award-sheet__close icon-btn" aria-label="Close" onClick={onClose}>
+          ×
+        </button>
+        <div
+          className="award-sheet__stage"
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture(e.pointerId)
+            drag.current = { x: e.clientX, at: turn }
+          }}
+          onPointerMove={(e) => drag.current && setTurn(drag.current.at + (e.clientX - drag.current.x) * 0.8)}
+          onPointerUp={() => {
+            drag.current = null
+            setTurn((t) => Math.round(t / 360) * 360)
+          }}
+        >
+          <motion.span
+            className="award-sheet__medal"
+            initial={{ rotateY: -540, scale: 0.6 }}
+            animate={{ rotateY: turn, scale: 1 }}
+            transition={drag.current ? { duration: 0 } : { type: 'spring', stiffness: 60, damping: 14 }}
           >
+            <Medal icon={l.icon} art={l.art} rarity={best?.rarity ?? null} locked={!best} size={210} shape={SHAPE_OF[l.cat]} />
+          </motion.span>
+        </div>
+        <h2>{l.title}</h2>
+        <p className="award-sheet__ask">{l.next ? l.ask(l.next.goal) : `${l.ask(target.goal)}. All done.`}</p>
+        <span className={`rarity is-${target.rarity}`}>
+          {l.next && !single ? `Next is ${RARITY_NAME[target.rarity].toLowerCase()}, ` : `${RARITY_NAME[target.rarity]}, `}
+          {shareText(target.share).replace(/^Top/, 'top')}
+        </span>
+        {!single && l.next && (
+          <div className="award-sheet__progress">
+            <span className={`award__bar is-${l.next.rarity}`}>
+              <i style={{ width: `${Math.round(l.progress * 100)}%` }} />
+            </span>
+            <small>
+              {fmt(l.value)} / {fmt(l.next.goal)}
+            </small>
+          </div>
+        )}
+        {!single && (
+          <ol className="award-sheet__tiers">
             {l.tiers.map((t, i) => (
               <li key={t.key} className={`tier is-${t.rarity} ${t.done ? 'is-done' : ''}`}>
                 <span className="tier__n">{i + 1}</span>
@@ -222,10 +296,10 @@ function LadderCard({ l, open, onToggle }: { l: Ladder; open: boolean; onToggle:
                 <span className="tier__share">{shareText(t.share).replace(' of Spotify listeners', '')}</span>
               </li>
             ))}
-          </motion.ol>
+          </ol>
         )}
-      </AnimatePresence>
-    </motion.li>
+      </motion.div>
+    </motion.div>
   )
 }
 
@@ -262,6 +336,7 @@ export function AchievementsView(): React.JSX.Element {
       )
   }, [board, cat, show, sort, query])
 
+  const openLadder = open ? (board?.ladders.find((l) => l.id === open) ?? null) : null
   if (!board) return <div className="achv achv--loading" />
 
   return (
@@ -320,12 +395,13 @@ export function AchievementsView(): React.JSX.Element {
       {list.length ? (
         <ul className="achv__grid">
           {list.map((l) => (
-            <LadderCard key={l.id} l={l} open={open === l.id} onToggle={() => setOpen((o) => (o === l.id ? null : l.id))} />
+            <AwardTile key={l.id} l={l} onOpen={() => setOpen(l.id)} />
           ))}
         </ul>
       ) : (
         <p className="achv__empty">No goal matches that. Try another word or show all.</p>
       )}
+      <AnimatePresence>{openLadder && <AwardSheet key={openLadder.id} l={openLadder} onClose={() => setOpen(null)} />}</AnimatePresence>
     </div>
   )
 }

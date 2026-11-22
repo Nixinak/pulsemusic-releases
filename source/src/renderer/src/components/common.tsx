@@ -34,15 +34,7 @@ export function Cover({
   return (
     <div className={`cover ${className}`} style={style}>
       {src ? (
-        <img
-          src={src}
-          alt={alt}
-          loading="lazy"
-          decoding="async"
-          draggable={false}
-          onLoad={() => setLoaded(true)}
-          className={loaded ? 'is-loaded' : ''}
-        />
+        <img src={src} alt={alt} loading="lazy" decoding="async" draggable={false} onLoad={() => setLoaded(true)} className={loaded ? 'is-loaded' : ''} />
       ) : (
         <span className="cover__empty">
           <NoteIcon size={22} />
@@ -194,15 +186,7 @@ export function EqBars({ playing }: { playing: boolean }): React.JSX.Element {
   )
 }
 
-export function Shelf({
-  title,
-  action,
-  children
-}: {
-  title: string
-  action?: ReactNode
-  children: ReactNode
-}): React.JSX.Element {
+export function Shelf({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }): React.JSX.Element {
   return (
     <section className="shelf">
       <header className="shelf__head">
@@ -392,13 +376,7 @@ export function ErrorState({ text, onRetry }: { text: string; onRetry?: () => vo
 
 let linkDwell = 0
 
-export function ArtistLinks({
-  artists,
-  onOpen
-}: {
-  artists: { id: string; name: string }[]
-  onOpen: (id: string) => void
-}): React.JSX.Element {
+export function ArtistLinks({ artists, onOpen }: { artists: { id: string; name: string }[]; onOpen: (id: string) => void }): React.JSX.Element {
   return (
     <>
       {artists.map((a, i) => (
@@ -516,5 +494,14 @@ export function SwapText({ id, children, className = '' }: { id: string; childre
         {children}
       </motion.div>
     </AnimatePresence>
+  )
+}
+
+/** An on/off switch. */
+export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }): React.JSX.Element {
+  return (
+    <button type="button" role="switch" aria-checked={on} aria-label={label} className={`toggle ${on ? 'is-on' : ''}`} onClick={() => onChange(!on)}>
+      <motion.span className="toggle__knob" layout transition={{ type: 'spring', stiffness: 600, damping: 32 }} />
+    </button>
   )
 }

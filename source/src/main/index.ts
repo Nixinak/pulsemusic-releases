@@ -57,6 +57,7 @@ import {
   spotifyAccountStatus,
   spotifyAnalysis,
   spotifyWebApi,
+  spotifyPlaylistInvite,
   spotifyFriends,
   spotifyLyrics
 } from './spotifyAccount'
@@ -507,7 +508,7 @@ function registerIpc(): void {
   // Big downloads (the DJ's brain and voice, the party helper) are kept.
   ipcMain.handle('discord:status', () => discordStatus())
   ipcMain.handle('app:reset', async () => {
-    stopParty()
+    stopParty(true)
     logout()
     const ud = app.getPath('userData')
     for (const f of ['auth.bin', 'settings.json', 'profile.json', 'data']) {
@@ -606,6 +607,13 @@ function registerIpc(): void {
       })
     })
   )
+  ipcMain.handle('party:remote-vote', (_e, url: string, uri: string, v: number, guest: string) =>
+    remote(url, 'api/vote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uri: String(uri), v: Math.max(-1, Math.min(1, Number(v) || 0)), guest: String(guest).slice(0, 24) })
+    })
+  )
   ipcMain.on('party:queue', (_e, q) => {
     if (!Array.isArray(q)) return
     setPartyQueue(q)
@@ -632,6 +640,7 @@ function registerIpc(): void {
   ipcMain.handle('spotify-account:api', (_e, method: unknown, url: unknown, body: unknown) =>
     typeof method === 'string' && typeof url === 'string' ? spotifyWebApi(method, url, typeof body === 'string' ? body : undefined).catch(() => null) : null
   )
+  ipcMain.handle('spotify-account:playlist-invite', (_e, id: unknown) => (typeof id === 'string' ? spotifyPlaylistInvite(id).catch(() => null) : null))
   ipcMain.handle('spotify-account:analysis', (_e, id: unknown) => (typeof id === 'string' ? spotifyAnalysis(id).catch(() => null) : null))
   ipcMain.handle('spotify-account:lyrics', (_e, id: unknown) => (typeof id === 'string' ? spotifyLyrics(id).catch(() => null) : null))
   ipcMain.handle('lyrics:lrclib', (_e, q) => fetchLrclib(q))
@@ -753,7 +762,7 @@ app.on('window-all-closed', () => app.quit())
 
 app.on('before-quit', () => {
   quitting = true
-  stopParty()
+  stopParty(true)
   stopEngine()
   setDiscordEnabled(false)
   tray?.destroy()

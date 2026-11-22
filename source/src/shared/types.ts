@@ -226,6 +226,7 @@ export const EMPTY_PROFILE: Profile = {
   bio: '',
   palette: 'auto',
   customColors: ['#ff4f8b', '#b03cff', '#4a5cff', '#2ad1c9'],
+  shared: true,
   blocks: [
     { id: 'b-artists', type: 'top-artists' },
     { id: 'b-tracks', type: 'top-tracks' }
@@ -617,6 +618,8 @@ export interface PartyState {
     durationMs?: number
   } | null
   queue: PartyQueueItem[]
+  /** The host ended the party (the page stays up a little while to say so). */
+  ended?: boolean
 }
 
 export interface AiSetupProgress {
@@ -740,6 +743,8 @@ export interface PulseApi {
     remoteSearch(url: string, q: string): Promise<{ tracks: PartyTrack[] }>
     remoteAdd(url: string, uri: string, guest: string): Promise<{ ok: boolean }>
     remoteControl(url: string, control: PartyControl, guest: string): Promise<{ ok: boolean }>
+    /** Your thumbs up (1), down (-1) or neither (0) at a party you joined. */
+    remoteVote(url: string, uri: string, v: number, guest: string): Promise<{ ok: boolean; score?: number }>
     /** The app's queue, shown on the guests' page. */
     setQueue(q: PartyQueueItem[]): void
     /** The host's own thumbs up (1), down (-1) or neither (0) for a queued song. */
@@ -767,6 +772,8 @@ export interface PulseApi {
     lyrics(trackId: string): Promise<SpotifyLyrics | null>
     /** Spotify's analysis of a song: beat times and per-slice [start, loudness max, loudness start, time of max, 12 pitches, 12 timbre]. */
     analysis(trackId: string): Promise<SongAnalysis | null>
+    /** An invite link that lets someone add songs to your collaborative playlist (null if Spotify said no). */
+    playlistInvite(playlistId: string): Promise<string | null>
     /** A Web API call sent with the web player's token (it doesn't count against Pulse's own
      *  quota); null when not signed in or the request couldn't be made. */
     api(method: string, url: string, body?: string): Promise<{ status: number; body: string; retryAfter: number } | null>

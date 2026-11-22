@@ -2,6 +2,16 @@
 // list on the right, each with the artists who bring it.
 import { useMemo } from 'react'
 import { GENRE_ARTISTS, useGenres, type GenreArtist } from '@/lib/genres'
+import { useArtistPicture } from '@/lib/imageFill'
+import { FocusImg } from './FocusImg'
+
+/** One artist's picture, looked up by name when the history has none. */
+function Face({ a, big = false }: { a: GenreArtist | undefined; big?: boolean }): React.JSX.Element | null {
+  const src = useArtistPicture(a?.name, a?.id, null)
+  if (!a || !src) return null
+  if (big) return <FocusImg src={src} />
+  return <span className="genres__face" title={a.name} style={{ backgroundImage: `url("${src}")` }} />
+}
 
 const pct = (x: number): string => `${Math.max(1, Math.round(x * 100))}%`
 
@@ -13,6 +23,8 @@ export function Genres({ artists }: { artists: GenreArtist[] }): React.JSX.Eleme
   if (!rows.length && !pending) return null
   const top = rows[0]
   const max = rest[0]?.share ?? 1
+  const byName = new Map(artists.map((a) => [a.name.toLowerCase(), a]))
+  const topArtists = (top?.artists ?? []).slice(0, 4).map((n) => byName.get(n.toLowerCase()) ?? { id: '', name: n, weight: 0 })
   return (
     <section className="genres" aria-busy={pending > 0}>
       <header className="stats__colhead">
@@ -27,9 +39,20 @@ export function Genres({ artists }: { artists: GenreArtist[] }): React.JSX.Eleme
       {top && pending === 0 ? (
         <div className="genres__body">
           <div className="genres__top">
-            <span className="genres__share">{pct(top.share)}</span>
+            <span className="genres__photo" aria-hidden="true">
+              <Face a={topArtists[0]} big />
+            </span>
+            <span className="genres__faces" aria-hidden="true">
+              {topArtists.map((a) => (
+                <Face key={a.name} a={a} />
+              ))}
+            </span>
+            <span className="genres__label">Your top genre</span>
             <b className="genres__name">{top.genre}</b>
-            <span className="genres__who">{top.artists.slice(0, 3).join(', ')}</span>
+            <span className="genres__foot">
+              <span className="genres__share">{pct(top.share)}</span>
+              <span className="genres__who">of your listening, mostly {top.artists.slice(0, 3).join(', ')}</span>
+            </span>
           </div>
           <ol className="genres__list">
             {rest.map((r, i) => (

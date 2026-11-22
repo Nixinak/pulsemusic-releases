@@ -4,6 +4,7 @@ import { previewVoice, testDj } from '@/lib/dj'
 import { connectSpotifyFriends, disconnectSpotifyFriends, refreshSpotifyFriends, useSpotifyFriends } from '@/lib/spotifyFriends'
 import { motion } from 'motion/react'
 import { importSpotifyExport, useHistory } from '@/lib/history'
+import { Toggle } from '@/components/common'
 import { useApp } from '@/lib/store'
 import { usePlayer } from '@/lib/player'
 import { pickImage } from '@/lib/spotify'
@@ -46,14 +47,6 @@ function Segmented<T extends string>({
         </button>
       ))}
     </Glass>
-  )
-}
-
-function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }): React.JSX.Element {
-  return (
-    <button role="switch" aria-checked={on} aria-label={label} className={`toggle ${on ? 'is-on' : ''}`} onClick={() => onChange(!on)}>
-      <motion.span className="toggle__knob" layout transition={{ type: 'spring', stiffness: 600, damping: 32 }} />
-    </button>
   )
 }
 

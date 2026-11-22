@@ -26,6 +26,9 @@ let linkMessage = ''
 let host: WebContents | null = null
 let nowPlaying: PlaybackSnapshot | null = null
 let queue: PartyQueueItem[] = []
+/** When the host ended the party: the page stays up a little while to tell the guests. */
+let endedAt = 0
+let closeTimer: ReturnType<typeof setTimeout> | null = null
 /** Songs that came from a search here: only these can be added (by uri). */
 const known = new Map<string, PartyTrack>()
 const searchCache = new Map<string, { at: number; tracks: PartyTrack[] }>()
@@ -111,35 +114,63 @@ async function search(q: string): Promise<PartyTrack[]> {
   partySearches.push(Date.now())
   const token = await getAccessToken()
   if (!token) return []
-  const u = new URL('https://api.spotify.com/v1/search')
-  u.searchParams.set('q', q)
-  u.searchParams.set('type', 'track')
-  u.searchParams.set('limit', '10')
-  const res = await fetch(u, {
-    headers: { Authorization: `Bearer ${token}` },
-    signal: AbortSignal.timeout(8000)
-  })
-  if (res.status === 429) {
-    const after = Number(res.headers.get('retry-after') ?? '') || 60
-    partyBlockedUntil = Date.now() + after * 1000
-    throw new Error('busy')
-  }
-  if (!res.ok) throw new Error(`search ${res.status}`)
-  const j = (await res.json()) as {
-    tracks?: {
-      items?: ({
-        id: string
-        uri: string
-        name: string
-        duration_ms: number
-        explicit: boolean
-        artists: { name: string }[]
-        album?: { images?: { url: string; width: number | null }[] }
-      } | null)[]
+  const ask = async (query: string, type: string, limit: number): Promise<SearchAnswer> => {
+    const u = new URL('https://api.spotify.com/v1/search')
+    u.searchParams.set('q', query)
+    u.searchParams.set('type', type)
+    u.searchParams.set('limit', String(limit))
+    const res = await fetch(u, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(8000)
+    })
+    if (res.status === 429) {
+      const after = Number(res.headers.get('retry-after') ?? '') || 60
+      partyBlockedUntil = Date.now() + after * 1000
+      throw new Error('busy')
     }
+    if (!res.ok) throw new Error(`search ${res.status}`)
+    return (await res.json()) as SearchAnswer
   }
+  // Spotify's song search matches words anywhere ("riad" finds "Road Trips"), so artists are
+  // looked up with it: when the words are an artist's name, that artist's songs come first.
+  const first = await ask(q, 'track,artist', 10)
+  const norm = (x: string): string =>
+    x
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+  const artist = (first.artists?.items ?? []).find((a) => a && norm(a.name) === norm(q))
+  let byArtist: SearchAnswer['tracks'] = undefined
+  if (artist && partySearches.length < 6) {
+    partySearches.push(Date.now())
+    byArtist = (await ask(`artist:"${artist.name}"`, 'track', 10).catch(() => null))?.tracks
+  }
+  const j = { tracks: { items: [...(byArtist?.items ?? []), ...(first.tracks?.items ?? [])] } }
+  return finish(key, j)
+}
+
+interface SearchAnswer {
+  artists?: { items?: ({ id: string; name: string } | null)[] }
+  tracks?: {
+    items?: ({
+      id: string
+      uri: string
+      name: string
+      duration_ms: number
+      explicit: boolean
+      artists: { name: string }[]
+      album?: { images?: { url: string; width: number | null }[] }
+    } | null)[]
+  }
+}
+
+function finish(key: string, j: SearchAnswer): PartyTrack[] {
+  const seen = new Set<string>()
   const tracks: PartyTrack[] = (j.tracks?.items ?? [])
-    .filter((t): t is NonNullable<typeof t> => !!t?.id)
+    .filter((t): t is NonNullable<typeof t> => !!t?.id && !seen.has(t.id) && !!seen.add(t.id))
+    .slice(0, 16)
     .map((t) => {
       const imgs = [...(t.album?.images ?? [])].sort((a, b) => (a.width ?? 0) - (b.width ?? 0))
       return {
@@ -193,6 +224,10 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   if (parts[0] !== 'p' || parts[1] !== code) return send(res, 404, 'Not found', 'text/plain')
   const route = parts.slice(2).join('/')
   if (route === '' && req.method === 'GET') return send(res, 200, partyPage(), 'text/html')
+  if (endedAt) {
+    if (route === 'api/state') return send(res, 200, { nowPlaying: null, queue: [], ended: true } satisfies PartyState)
+    return send(res, 410, { error: 'The party has ended.' })
+  }
   if (route === 'api/state' && req.method === 'GET') {
     const state: PartyState = {
       nowPlaying: nowPlaying?.hasTrack
@@ -309,7 +344,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
 }
 
 export const partyInfo = (): PartyInfo | null =>
-  server
+  server && !endedAt
     ? {
         url: publicUrl ?? url,
         lanUrl: url,
@@ -347,6 +382,8 @@ async function goOnline(): Promise<void> {
 }
 
 export async function startParty(sender: WebContents): Promise<PartyInfo> {
+  // a party that just ended is still saying goodbye: close it for good first
+  if (endedAt) closeParty()
   host = sender
   if (server) return partyInfo()!
   code = randomBytes(4).toString('hex')
@@ -370,7 +407,23 @@ export async function startParty(sender: WebContents): Promise<PartyInfo> {
   throw new Error('Could not start the party: all ports are busy.')
 }
 
-export function stopParty(): void {
+/** Ends the party: guests are told it's over (the page and its link stay up for a minute and a
+ *  half to say so), then everything closes. */
+export function stopParty(now = false): void {
+  if (now) return closeParty()
+  if (!server || endedAt) return
+  endedAt = Date.now()
+  queue = []
+  nowPlaying = null
+  votes.clear()
+  if (closeTimer) clearTimeout(closeTimer)
+  closeTimer = setTimeout(closeParty, 90_000)
+}
+
+function closeParty(): void {
+  if (closeTimer) clearTimeout(closeTimer)
+  closeTimer = null
+  endedAt = 0
   stopTunnel()
   publicUrl = null
   server?.close()
@@ -400,7 +453,7 @@ export function setPartyQueue(q: PartyQueueItem[]): void {
 export function partySummary(): { on: boolean; guests: number } {
   // songs autoplay lined up aren't from a guest
   return {
-    on: !!server,
+    on: !!server && !endedAt,
     guests: new Set(queue.map((q) => q.addedBy).filter((g) => g && g !== 'Autoplay')).size
   }
 }

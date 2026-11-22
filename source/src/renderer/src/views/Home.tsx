@@ -6,16 +6,20 @@ import { Emo } from '@/components/Emoji'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { homePalette, setPagePalette } from '@/lib/colors'
 import { useApp } from '@/lib/store'
+import { useFriends } from '@/lib/friends'
+import { computeStats, useHistory } from '@/lib/history'
+import { formatMinutes } from '@/lib/recap'
+import { SparkleIcon } from '@/components/Icons'
+import { motion } from 'motion/react'
 import { useQuery } from '@/lib/useQuery'
 import * as sp from '@/lib/spotify'
 import { prefetchAlbum, prefetchArtist } from '@/lib/loaders'
 import { playContext, playUris, usePlayer } from '@/lib/player'
 import { greeting } from '@/lib/format'
-import { useFriends } from '@/lib/friends'
-import { prefetchUser } from '@/lib/people'
 import { FRESH } from '@/lib/djIntent'
 import { Cover, EqBars, MediaCard, Shelf, Skeleton, usePagePalette } from '@/components/common'
 import { CoverRing, type RingItem } from '@/components/CoverRing'
+import { FollowingFeed } from './HomeFeed'
 import { MadeForYou, YearBanner, MonthCard, MoodRow, NewReleases, QuickTiles, RecentlyPlayed, SavedAlbums, YourMixes } from './HomeExtras'
 import { contextMenuFor } from '@/components/menus'
 import type { SAlbumRef, SArtist, STrack } from '@/lib/types'
@@ -51,40 +55,46 @@ const ago = (date?: string): string => {
   return new Date(date).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
 }
 
-function FriendsNow(): React.JSX.Element | null {
-  const { friends, outgoing, now } = useFriends()
+/** Under the greeting: how today has gone so far, in a few lively words, and a way in. */
+function TodayLine(): React.JSX.Element | null {
+  const plays = useHistory((s) => s.plays)
+  const loaded = useHistory((s) => s.loaded)
   const navigate = useApp((s) => s.navigate)
-  const list = [...friends, ...outgoing].filter((u) => now[u.id]?.track && !now[u.id]?.paused).slice(0, 8)
-  if (!list.length) return null
+  const { friends, outgoing, now } = useFriends()
+  const today = useMemo(() => {
+    const st = computeStats(plays, new Date(new Date().toDateString()).getTime())
+    return { minutes: Math.round(st.ms / 60_000), songs: st.plays, artist: st.artists[0]?.item.name ?? null }
+  }, [plays])
+  const live = [...friends, ...outgoing].filter((u) => now[u.id]?.track && !now[u.id]?.paused).length
+  if (!loaded) return <p className="home__today" aria-hidden="true" />
   return (
-    <Shelf
-      title="Friends listening now"
-      action={
-        <button className="shelf__more" onClick={() => navigate({ name: 'friends' })}>
-          Friends
-        </button>
-      }
-    >
-      {list.map((u) => {
-        const t = now[u.id]!.track!
-        return (
-          <button key={u.id} className="fnow" onClick={() => navigate({ name: 'user', id: u.id })} onMouseEnter={() => prefetchUser(u.id)}>
-            <span className="fnow__art">
-              <Cover src={t.image} radius={14} />
-              <span className="fnow__face">
-                <Cover src={u.thumb} round size={34} />
-              </span>
+    <p className="home__today">
+      {today.minutes > 0 ? (
+        <>
+          <span className="home__pill">
+            <b>{formatMinutes(today.minutes)}</b> today
+          </span>
+          <span className="home__pill">
+            <b>{today.songs}</b> {today.songs === 1 ? 'song' : 'songs'}
+          </span>
+          {today.artist && (
+            <span className="home__pill">
+              mostly <b>{today.artist}</b>
             </span>
-            <b>
-              <Emo>{t.name}</Emo>
-            </b>
-            <small>
-              {u.displayName} · {t.artists}
-            </small>
-          </button>
-        )
-      })}
-    </Shelf>
+          )}
+        </>
+      ) : (
+        <span className="home__pill">Nothing played yet today</span>
+      )}
+      {live > 0 && (
+        <button className="home__pill home__pill--live" onClick={() => navigate({ name: 'friends' })}>
+          <i /> {live} {live === 1 ? 'friend' : 'friends'} listening
+        </button>
+      )}
+      <button className="home__pill home__pill--dj" onClick={() => navigate({ name: 'dj' })}>
+        <SparkleIcon size={14} /> Ask the DJ
+      </button>
+    </p>
   )
 }
 
@@ -176,10 +186,21 @@ export function Home(): React.JSX.Element {
   return (
     <div className="home">
       <section className="home__hero">
-        <h1 className="home__hello">
-          {greeting()}
-          {name ? `, ${name}` : ''}
+        <h1 className="home__hello" aria-label={`${greeting()}${name ? `, ${name}` : ''}`}>
+          {`${greeting()}${name ? `, ${name}` : ''}`.split(' ').map((w, i) => (
+            <motion.span
+              key={i}
+              aria-hidden="true"
+              className="home__word"
+              initial={{ opacity: 0, y: '0.4em', filter: 'blur(10px)' }}
+              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+              transition={{ delay: 0.08 * i, type: 'spring', stiffness: 260, damping: 26 }}
+            >
+              {w}{' '}
+            </motion.span>
+          ))}
         </h1>
+        <TodayLine />
       </section>
 
       {recent.loading && !recent.data ? <div className="ring ring--loading" /> : <CoverRing items={ring} onFocus={onRingFocus} />}
@@ -188,7 +209,7 @@ export function Home(): React.JSX.Element {
 
       <QuickTiles recent={recent.data?.items ?? []} />
 
-      <FriendsNow />
+      <FollowingFeed />
 
       <MadeForYou
         fallback={

@@ -149,6 +149,21 @@ export async function spotifyWebApi(method: string, url: string, body?: string):
   return null
 }
 
+/* ---------- Collaborative playlists: invite links ----------
+ * Spotify lets people add songs to someone's collaborative playlist only after they open an
+ * invite link from its owner. The web player makes that link with a permission grant; this asks
+ * for one that's good for a week and returns the link, or null when Spotify says no. */
+export async function spotifyPlaylistInvite(playlistId: string): Promise<string | null> {
+  if (!/^[A-Za-z0-9]{22}$/.test(playlistId)) return null
+  const j = await webGet<Json>(
+    `https://spclient.wg.spotify.com/playlist-permission/v1/playlist/${playlistId}/permission-grant`,
+    {},
+    { permissionLevel: 'CONTRIBUTOR', ttl: '604800s' }
+  )
+  const token = (j?.token ?? (j?.permissionGrant as Json | undefined)?.token) as string | undefined
+  return typeof token === 'string' && token ? `https://open.spotify.com/playlist/${playlistId}?pt=${encodeURIComponent(token)}` : null
+}
+
 /* ---------- Signing in ---------- */
 
 let loginWin: BrowserWindow | null = null
