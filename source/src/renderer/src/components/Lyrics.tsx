@@ -116,7 +116,7 @@ function useShare(track: PlayerTrack): {
   }
 }
 
-const NO_LYRICS = [
+export const NO_LYRICS = [
   'No lyrics for this one. Freestyle it.',
   'The words are a secret. Hum along.',
   'Nobody wrote these lyrics down yet.',
@@ -126,10 +126,10 @@ const NO_LYRICS = [
   'This one’s lyrics are off the record.',
   'No lyrics here. Just vibes.'
 ]
-const INSTRUMENTAL = ['No words, just music.', 'Instrumental. Let it talk.', 'Nothing to sing here. Close your eyes.']
+export const INSTRUMENTAL = ['No words, just music.', 'Instrumental. Let it talk.', 'Nothing to sing here. Close your eyes.']
 
 /** The same line for the same song every time, a different one from song to song. */
-function pickLine(lines: string[], id: string): string {
+export function pickLine(lines: string[], id: string): string {
   let h = 0
   for (const c of id) h = (h * 31 + c.charCodeAt(0)) | 0
   return lines[Math.abs(h) % lines.length]
@@ -180,13 +180,7 @@ export function Lyrics({ track }: { track: PlayerTrack }): React.JSX.Element {
   return <SyncedLyrics track={track} lines={data.lines} source={data.source} />
 }
 
-function PlainLyrics({
-  track,
-  data
-}: {
-  track: PlayerTrack
-  data: Extract<LyricsData, { kind: 'plain' }>
-}): React.JSX.Element {
+function PlainLyrics({ track, data }: { track: PlayerTrack; data: Extract<LyricsData, { kind: 'plain' }> }): React.JSX.Element {
   const share = useShare(track)
   const scroller = useRef<HTMLDivElement>(null)
   const selecting = share.selecting
@@ -407,47 +401,47 @@ function SyncedLyrics({ track, lines, source }: { track: PlayerTrack; lines: Syn
     <div className={`lyrics ${wordMode ? 'lyrics--words' : ''} ${share.selecting ? 'is-selecting' : ''}`}>
       <div className="lyrics__scroll lyrics__scroll--glide" data-own-scroll ref={scroller} onWheel={onUserScroll}>
         <div className="lyrics__track" ref={glide}>
-        <div className="lyrics__pad" />
-        {lines.map((l, i) => {
-          const d = i - active
-          const state = d === 0 ? 'is-active' : d < 0 ? 'is-past' : 'is-future'
-          const blur = Math.min(Math.abs(d), 4)
-          const picked = share.selected.has(i)
-          return (
-            <button
-              key={i}
-              ref={(n) => {
-                lineRefs.current[i] = n
-              }}
-              className={`lyrics__line ${state} ${l.text ? '' : 'lyrics__line--break'} ${picked ? 'is-picked' : ''}`}
-              style={{ '--blur': `${d === 0 || share.selecting ? 0 : 0.6 + blur * 0.5}px` } as React.CSSProperties}
-              onClick={() => {
-                if (share.selecting) {
-                  if (l.text) share.toggle(i)
-                  return
-                }
-                userScrollUntil.current = 0
-                void seekTo(l.timeMs)
-              }}
-            >
-              {l.text ? (
-                d === 0 && wordMode && !share.selecting ? (
-                  <WordLine line={l} nextStart={lines[i + 1]?.timeMs} />
+          <div className="lyrics__pad" />
+          {lines.map((l, i) => {
+            const d = i - active
+            const state = d === 0 ? 'is-active' : d < 0 ? 'is-past' : 'is-future'
+            const blur = Math.min(Math.abs(d), 4)
+            const picked = share.selected.has(i)
+            return (
+              <button
+                key={i}
+                ref={(n) => {
+                  lineRefs.current[i] = n
+                }}
+                className={`lyrics__line ${state} ${l.text ? '' : 'lyrics__line--break'} ${picked ? 'is-picked' : ''}`}
+                style={{ '--blur': `${d === 0 || share.selecting ? 0 : 0.6 + blur * 0.5}px` } as React.CSSProperties}
+                onClick={() => {
+                  if (share.selecting) {
+                    if (l.text) share.toggle(i)
+                    return
+                  }
+                  userScrollUntil.current = 0
+                  void seekTo(l.timeMs)
+                }}
+              >
+                {l.text ? (
+                  d === 0 && wordMode && !share.selecting ? (
+                    <WordLine line={l} nextStart={lines[i + 1]?.timeMs} />
+                  ) : (
+                    l.text
+                  )
                 ) : (
-                  l.text
-                )
-              ) : (
-                <span className="lyrics__dots" aria-label="Instrumental break">
-                  <i />
-                  <i />
-                  <i />
-                </span>
-              )}
-            </button>
-          )
-        })}
-        <div className="lyrics__pad lyrics__pad--end" />
-        <footer className="lyrics__source">Synced lyrics from {source}</footer>
+                  <span className="lyrics__dots" aria-label="Instrumental break">
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                )}
+              </button>
+            )
+          })}
+          <div className="lyrics__pad lyrics__pad--end" />
+          <footer className="lyrics__source">Synced lyrics from {source}</footer>
         </div>
       </div>
       {share.bar(lines.map((l) => l.text))}

@@ -1,5 +1,5 @@
-// Now Playing looks: the big cover (the usual one), a turntable, a poster, a visualizer and a
-// lock screen, plus the menu at the
+// Now Playing looks: the big cover (the usual one), a turntable, a poster, a visualizer, a
+// lock screen and the lyrics as text messages, plus the menu at the
 // right edge of the screen that switches between them (three lines) and turns real full screen
 // on and off. The menu shows when the pointer comes near the right edge.
 import { useEffect, useRef, useState } from 'react'
@@ -24,7 +24,8 @@ export const NP_THEMES: { id: NpTheme; label: string; hint: string }[] = [
     id: 'lock',
     label: 'Lock screen',
     hint: 'The cover as wallpaper, with the time'
-  }
+  },
+  { id: 'messages', label: 'Messages', hint: 'The lyrics arrive as text messages' }
 ]
 
 /* ---------- The lock screen ---------- */
@@ -120,6 +121,13 @@ function ThemePreview({ id }: { id: NpTheme }): React.JSX.Element {
         <>
           <i className="npm__pv-text" />
           <i className="npm__pv-disc" />
+        </>
+      )}
+      {id === 'messages' && (
+        <>
+          <i className="npm__pv-msg npm__pv-msg--in" />
+          <i className="npm__pv-msg npm__pv-msg--out" />
+          <i className="npm__pv-msg npm__pv-msg--in2" />
         </>
       )}
       {id === 'lock' && (

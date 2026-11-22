@@ -18,6 +18,7 @@ import { useTransition } from '@/lib/transition'
 import type { NpPanel } from '@/lib/store'
 import type { NpTheme } from '@shared/types'
 import { LockClock, LockWall, NpEdgeMenu } from './NpThemes'
+import { MessagesChat } from './NpMessages'
 import { Turntable } from './NpDevices'
 import { Poster, PulseRing } from './NpExtras'
 import { useNpSounds } from '@/lib/npSounds'
@@ -83,6 +84,8 @@ export function NowPlaying(): React.JSX.Element {
   // "Album cover" is the base look ("Classic" was folded into it)
   const savedTheme = useApp((s) => s.settings.npTheme)
   const theme: NpTheme = !savedTheme || savedTheme === 'classic' || savedTheme === 'cd' || savedTheme === 'cassette' ? 'cover' : savedTheme
+  // In the Messages look the chat is the lyrics, so the Lyrics tab doesn't open a second copy beside it.
+  const side = theme === 'messages' && panel === 'lyrics' ? 'none' : panel
   const wantFull = useApp((s) => !!s.settings.npFullscreen)
   const updateSettings = useApp((s) => s.updateSettings)
   const scratch = useApp((s) => s.settings.npScratch) ?? true
@@ -155,7 +158,7 @@ export function NowPlaying(): React.JSX.Element {
     <AnimatePresence>
       {open && track && (
         <motion.div
-          className={`np np--${theme} ${panel !== 'none' ? 'np--panel' : ''}`}
+          className={`np np--${theme} ${side !== 'none' ? 'np--panel' : ''}`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0, transition: { duration: 0.28 } }}
@@ -208,7 +211,7 @@ export function NowPlaying(): React.JSX.Element {
           <AnimatePresence mode="wait" initial={false}>
             <LayoutGroup id={theme} key={theme}>
               <motion.div
-                className={`np__body ${panel === 'none' ? 'np__body--solo' : ''}`}
+                className={`np__body ${side === 'none' ? 'np__body--solo' : ''}`}
                 initial={{ opacity: 0, scale: 0.965, filter: 'blur(14px)' }}
                 animate={{
                   opacity: 1,
@@ -239,6 +242,10 @@ export function NowPlaying(): React.JSX.Element {
                         album={track.album.name}
                         durationMs={track.durationMs}
                       />
+                    </motion.div>
+                  ) : theme === 'messages' ? (
+                    <motion.div layoutId="np-art" className="np__chat" transition={spring}>
+                      <MessagesChat track={track} />
                     </motion.div>
                   ) : theme === 'pulse' ? (
                     <motion.div layoutId="np-art" className="np__deck" transition={spring}>
@@ -290,7 +297,7 @@ export function NowPlaying(): React.JSX.Element {
                 {/* popLayout takes the leaving panel out of the layout at once, so the cover
                 glides to the centre while the panel fades, instead of jumping afterwards. */}
                 <AnimatePresence mode="popLayout">
-                  {panel !== 'none' && (
+                  {side !== 'none' && (
                     <motion.section
                       key={showStage ? 'stage' : panel}
                       className="np__right"

@@ -88,7 +88,7 @@ export const GLOBAL_KEYS: Record<GlobalAction, string> = {
 }
 
 /** 'classic' is old: it shows as 'cover' now. */
-export type NpTheme = 'classic' | 'cover' | 'vinyl' | 'cd' | 'cassette' | 'poster' | 'pulse' | 'lock'
+export type NpTheme = 'classic' | 'cover' | 'vinyl' | 'cd' | 'cassette' | 'poster' | 'pulse' | 'lock' | 'messages'
 
 export type DjVoiceId = 'af_heart' | 'af_bella' | 'bf_emma' | 'am_michael' | 'am_fenrir' | 'bm_george'
 
