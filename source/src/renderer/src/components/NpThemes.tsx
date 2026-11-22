@@ -1,5 +1,5 @@
-// Now Playing looks: the big cover (the usual one), a turntable and the lyrics as text
-// messages, plus the menu at the right edge of the screen that switches between them and turns
+// Now Playing looks: the big cover (the usual one), a turntable and the lyrics word by word on
+// black, plus the menu at the right edge of the screen that switches between them and turns
 // real full screen on and off. The menu shows when the pointer comes near the right edge.
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -9,7 +9,7 @@ import { Glass } from './Glass'
 export const NP_THEMES: { id: NpTheme; label: string; hint: string }[] = [
   { id: 'cover', label: 'Cover', hint: 'The cover, big and centre stage' },
   { id: 'vinyl', label: 'Vinyl', hint: 'A turntable spinning the record' },
-  { id: 'messages', label: 'Messages', hint: 'The lyrics arrive as text messages' }
+  { id: 'messages', label: 'Words', hint: 'The lyrics word by word, on black' }
 ]
 
 /* ---------- The menu at the edge ---------- */
@@ -45,12 +45,11 @@ function ThemePreview({ id, art }: { id: NpTheme; art: string | null }): React.J
         </>
       )}
       {id === 'messages' && (
-        <>
-          <i className="npv__b npv__b--in" style={{ width: '58%' }} />
-          <i className="npv__b npv__b--out" style={{ width: '50%' }} />
-          <i className="npv__b npv__b--in" style={{ width: '70%' }} />
-          <i className="npv__b npv__b--out npv__b--last" style={{ width: '36%' }} />
-        </>
+        <span className="npv__words">
+          <i>pullin'</i>
+          <i>out</i>
+          <i className="is-now">cash</i>
+        </span>
       )}
     </span>
   )

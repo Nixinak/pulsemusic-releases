@@ -117,8 +117,12 @@ export function Home(): React.JSX.Element {
   const artists = useQuery('home:artists', sp.getTopArtists)
   // more of your songs for the mixes (6 months, 50)
   const mixTracks = useQuery('stats:tracks50:medium_term', () => sp.getTopTracks('medium_term', 50))
-  const fresh = useQuery(`stats:fresh:${(artists.data?.items ?? []).map((a) => a.id).slice(0, 8).join()}`, () =>
-    artists.data ? freshReleases(artists.data.items) : Promise.resolve([] as SAlbumRef[])
+  const fresh = useQuery(
+    `stats:fresh:${(artists.data?.items ?? [])
+      .map((a) => a.id)
+      .slice(0, 8)
+      .join()}`,
+    () => (artists.data ? freshReleases(artists.data.items) : Promise.resolve([] as SAlbumRef[]))
   )
   const currentId = usePlayer((s) => s.track?.id)
   const paused = usePlayer((s) => s.paused)
@@ -187,7 +191,12 @@ export function Home(): React.JSX.Element {
       <FriendsNow />
 
       <MadeForYou
-        fallback={<YourMixes artists={artists.data?.items ?? []} tracks={[...topTracks, ...(mixTracks.data?.items ?? [])].filter((t, i, l) => t?.id && l.findIndex((x) => x.id === t.id) === i)} />}
+        fallback={
+          <YourMixes
+            artists={artists.data?.items ?? []}
+            tracks={[...topTracks, ...(mixTracks.data?.items ?? [])].filter((t, i, l) => t?.id && l.findIndex((x) => x.id === t.id) === i)}
+          />
+        }
       />
 
       {topTracks.length > 0 && (
@@ -250,33 +259,7 @@ export function Home(): React.JSX.Element {
         </Shelf>
       )}
 
-      {playlists.length > 0 ? (
-        <Shelf
-          title="Your playlists"
-          action={
-            <button className="shelf__more" onClick={() => navigate({ name: 'library', tab: 'playlists' })}>
-              Show all
-            </button>
-          }
-        >
-          {playlists.slice(0, 14).map((p) => (
-            <MediaCard
-              key={p.id}
-              image={sp.pickImage(p.images, 300)}
-              title={p.name}
-              subtitle={p.owner.id === me?.id ? sp.playlistSongs(p) : `By ${p.owner.display_name ?? 'Spotify'}`}
-              onOpen={() => navigate({ name: 'playlist', id: p.id })}
-              onPlay={() => void playContext(p.uri)}
-              onContextMenu={(e) => {
-                e.preventDefault()
-                openMenu(e.clientX, e.clientY, contextMenuFor('playlist', p.uri, p.name))
-              }}
-            />
-          ))}
-        </Shelf>
-      ) : (
-        recent.loading && <Skeleton rows={3} />
-      )}
+      {!playlists.length && recent.loading && <Skeleton rows={3} />}
 
       <SavedAlbums />
     </div>

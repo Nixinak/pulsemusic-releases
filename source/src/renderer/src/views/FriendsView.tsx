@@ -45,146 +45,84 @@ function playActivity(a: Activity): void {
   else void playUris([a.track.uri])
 }
 
-/** A tall card for someone listening right now: the cover, their face on it, the song. */
-function NowCardBig({ a, i }: { a: Activity; i: number }): React.JSX.Element {
+/** One friend: the cover of what they play, their face on its corner, the song, and when. */
+function FriendCard({ a, i }: { a: Activity; i: number }): React.JSX.Element {
   const navigate = useApp((s) => s.navigate)
   const listening = useListenWith((s) => s.with?.id === a.id)
+  const ctx = a.track.context?.name && !/^a (playlist|album)$/i.test(a.track.context.name) ? a.track.context.name : null
   return (
     <motion.article
-      className={`fzl ${listening ? 'is-on' : ''}`}
-      initial={{ opacity: 0, y: 18 }}
+      className={`fzc ${a.now ? 'is-live' : ''} ${listening ? 'is-on' : ''}`}
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: i * 0.05, type: 'spring', stiffness: 260, damping: 26 }}
+      transition={{ delay: Math.min(i, 10) * 0.04, type: 'spring', stiffness: 260, damping: 28 }}
     >
-      <span className="fzl__bg" aria-hidden="true">
-        {a.track.image && <img src={a.track.image} alt="" draggable={false} />}
-      </span>
-      <div className="fzl__stage">
-        <button className="fzl__art" aria-label={`Play ${a.track.name}`} onClick={() => playActivity(a)}>
-          <Cover src={a.track.image} radius={18} />
-          <span className="fzl__play" aria-hidden="true">
-            <PlayIcon size={26} />
-          </span>
-        </button>
-        <button className="fzl__pic" aria-label={a.name} onClick={() => navigate({ name: 'user', id: a.id })} onMouseEnter={() => prefetchUser(a.id)}>
-          <Cover src={a.image} round size={58} />
-        </button>
-      </div>
-      <div className="fzl__body">
-        <span className="fzl__name">
-          <button onClick={() => navigate({ name: 'user', id: a.id })}>{a.name}</button>
-          {a.pulse && <PulseBadge small />}
-          <span className="fz-eq" aria-label="Listening now">
-            <i />
-            <i />
-            <i />
-          </span>
+      <button className="fzc__art" aria-label={`Play ${a.track.name}`} onClick={() => playActivity(a)}>
+        {a.track.image ? <img src={a.track.image} alt="" draggable={false} /> : <i className="fzc__blank" />}
+        <span className="fzc__when">
+          {a.now ? (
+            <>
+              <span className="fz-eq" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </span>
+              Live
+            </>
+          ) : (
+            rowTime(a.at)
+          )}
         </span>
-        <button className="fzl__song" onClick={() => a.track.albumId && navigate({ name: 'album', id: a.track.albumId })}>
-          {a.track.name}
-        </button>
-        <span className="fzl__by">
-          <button onClick={() => a.track.artistId && navigate({ name: 'artist', id: a.track.artistId })}>{a.track.artist}</button>
-          {a.track.context?.name && <small>from {a.track.context.name}</small>}
+        <span className="fzc__play" aria-hidden="true">
+          <PlayIcon size={24} />
         </span>
-        {(a.pulse || a.party) && (
-          <div className="fzl__actions">
-            {a.pulse && (
-              <button className={`btn btn--sm ${listening ? 'btn--accent' : ''}`} onClick={() => (listening ? stopListeningWith() : listenWith(a.id, a.name))}>
-                <HeadphonesIcon size={16} />
-                {listening ? 'Stop' : 'Listen along'}
-              </button>
-            )}
-            {a.party && (
-              <button className="btn btn--sm" onClick={() => joinParty(a.party!)}>
-                Join party
-              </button>
-            )}
-          </div>
-        )}
+      </button>
+      <div className="fzc__body">
+        <button className="fzc__pic" aria-label={a.name} onClick={() => navigate({ name: 'user', id: a.id })} onMouseEnter={() => prefetchUser(a.id)}>
+          <Cover src={a.image} round size={44} />
+        </button>
+        <div className="fzc__text">
+          <span className="fzc__name">
+            <button onClick={() => navigate({ name: 'user', id: a.id })}>{a.name}</button>
+            {a.pulse && <PulseBadge small />}
+          </span>
+          <button className="fzc__song" onClick={() => a.track.albumId && navigate({ name: 'album', id: a.track.albumId })}>
+            {a.track.name}
+          </button>
+          <span className="fzc__by">
+            <button onClick={() => a.track.artistId && navigate({ name: 'artist', id: a.track.artistId })}>{a.track.artist}</button>
+            {ctx && <small>{ctx}</small>}
+          </span>
+        </div>
       </div>
+      {(a.pulse || a.party) && a.now && (
+        <div className="fzc__actions">
+          {a.pulse && (
+            <button className={`btn btn--sm ${listening ? 'btn--accent' : ''}`} onClick={() => (listening ? stopListeningWith() : listenWith(a.id, a.name))}>
+              <HeadphonesIcon size={16} />
+              {listening ? 'Stop' : 'Listen along'}
+            </button>
+          )}
+          {a.party && (
+            <button className="btn btn--sm" onClick={() => joinParty(a.party!)}>
+              Join party
+            </button>
+          )}
+        </div>
+      )}
     </motion.article>
   )
 }
 
 const DAY_MS = 86_400_000
 const dayOf = (t: number): number => new Date(new Date(t).toDateString()).getTime()
-/** Today, Yesterday, This week, Earlier. */
-function dayLabel(at: number): string {
-  const d = (dayOf(Date.now()) - dayOf(at)) / DAY_MS
-  return d < 1 ? 'Today' : d < 2 ? 'Yesterday' : d < 7 ? 'This week' : 'Earlier'
-}
-/** The time on a row: "25 min ago" today, the clock time yesterday, the day before that. */
+/** "25 min ago" today, "Yesterday", the weekday this week, the date before that. */
 function rowTime(at: number): string {
-  const label = dayLabel(at)
-  if (label === 'Today') return whenPlayed(at).text
-  if (label === 'Yesterday') return new Date(at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-  if (label === 'This week') return new Date(at).toLocaleDateString('en-US', { weekday: 'long' })
+  const d = (dayOf(Date.now()) - dayOf(at)) / DAY_MS
+  if (d < 1) return whenPlayed(at).text
+  if (d < 2) return 'Yesterday'
+  if (d < 7) return new Date(at).toLocaleDateString('en-US', { weekday: 'long' })
   return new Date(at).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })
-}
-
-/** A row in the timeline: who, what, when, and the cover to play it. */
-function ActivityRow({ a, i }: { a: Activity; i: number }): React.JSX.Element {
-  const navigate = useApp((s) => s.navigate)
-  return (
-    <motion.li
-      className="fzt__row"
-      initial={{ opacity: 0, x: -8 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: Math.min(i, 12) * 0.03, type: 'spring', stiffness: 300, damping: 30 }}
-      onDoubleClick={() => playActivity(a)}
-    >
-      <button className="fzt__pic" onClick={() => navigate({ name: 'user', id: a.id })} onMouseEnter={() => prefetchUser(a.id)} aria-label={a.name}>
-        <Cover src={a.image} round size={44} />
-      </button>
-      <div className="fzt__text">
-        <span className="fzt__name">
-          <button onClick={() => navigate({ name: 'user', id: a.id })}>{a.name}</button>
-          {a.pulse && <PulseBadge small />}
-        </span>
-        <span className="fzt__song">
-          <button onClick={() => a.track.albumId && navigate({ name: 'album', id: a.track.albumId })}>{a.track.name}</button>
-          <button className="fzt__artist" onClick={() => a.track.artistId && navigate({ name: 'artist', id: a.track.artistId })}>
-            {a.track.artist}
-          </button>
-        </span>
-        {a.track.context?.name && <small className="fzt__ctx">from {a.track.context.name}</small>}
-      </div>
-      <span className="fzt__when">{rowTime(a.at)}</span>
-      <button className="fzt__cover" aria-label={`Play ${a.track.name}`} onClick={() => playActivity(a)}>
-        <Cover src={a.track.image} radius={10} size={56} />
-        <span className="fzt__play" aria-hidden="true">
-          <PlayIcon size={18} />
-        </span>
-      </button>
-    </motion.li>
-  )
-}
-
-/** Earlier plays as a timeline, a group per day. */
-function Timeline({ list }: { list: Activity[] }): React.JSX.Element {
-  const groups: { label: string; items: Activity[] }[] = []
-  for (const a of list) {
-    const label = dayLabel(a.at)
-    const g = groups[groups.length - 1]
-    if (g?.label === label) g.items.push(a)
-    else groups.push({ label, items: [a] })
-  }
-  let n = 0
-  return (
-    <div className="fzt">
-      {groups.map((g) => (
-        <section key={g.label} className="fzt__day">
-          <h3>{g.label}</h3>
-          <ol>
-            {g.items.map((a) => (
-              <ActivityRow key={a.id} a={a} i={n++} />
-            ))}
-          </ol>
-        </section>
-      ))}
-    </div>
-  )
 }
 
 /** Asks to connect the Spotify account, so Spotify friends join the feed. */
@@ -214,21 +152,22 @@ const who = (u: PulseSummary): { name: string; image: string | null } => ({
   image: u.thumb
 })
 
-/** A person tile: picture, name, and what they're doing. */
+/** Someone you follow (or who follows you): picture, name, and any buttons. */
 function PersonTile({ user, now, children }: { user: PulseSummary; now?: NowPlaying; children?: React.ReactNode }): React.JSX.Element {
   const navigate = useApp((s) => s.navigate)
-  const line = now?.track ? `${now.paused ? 'Paused' : 'Playing'} ${now.track.name}` : null
+  const live = !!now?.track && !now.paused
   return (
-    <div className="ptile">
-      <button className="ptile__who" onClick={() => navigate({ name: 'user', id: user.id })} onMouseEnter={() => prefetchUser(user.id)}>
-        <span className="ptile__pic">
-          <Cover src={user.thumb} round />
-          {now?.track && !now.paused && <i className="ptile__dot" aria-hidden="true" />}
+    <div className={`fzp ${live ? 'is-live' : ''}`}>
+      <button className="fzp__who" onClick={() => navigate({ name: 'user', id: user.id })} onMouseEnter={() => prefetchUser(user.id)}>
+        <span className="fzp__pic">
+          <Cover src={user.thumb} round size={56} />
         </span>
-        <b>{user.displayName}</b>
-        <small>{line ?? (user.pulse !== false ? <PulseBadge small /> : 'Spotify')}</small>
+        <span className="fzp__text">
+          <b>{user.displayName}</b>
+          <small>{live ? `Playing ${now!.track!.name}` : user.pulse !== false ? 'On Pulse' : 'On Spotify'}</small>
+        </span>
       </button>
-      {children && <div className="ptile__actions">{children}</div>}
+      {children && <div className="fzp__actions">{children}</div>}
     </div>
   )
 }
@@ -344,35 +283,26 @@ export function FriendsView(): React.JSX.Element {
 
       {connected === false && <ConnectSpotify />}
 
-      {live.length > 0 && (
-        <section className="fz-section">
-          <h2 className="fz-h">
-            <i className="fz-h__dot" aria-hidden="true" />
-            Listening now
-          </h2>
-          <div className="fz-lives">
-            {live.map((a, i) => (
-              <NowCardBig key={a.id} a={a} i={i} />
+      <section className="fz-section">
+        {spotify === null && connected && !feed.length ? (
+          <div className="fzc-grid" aria-hidden="true">
+            {[0, 1, 2, 3].map((k) => (
+              <div key={k} className="fzc fzc--ghost" />
             ))}
           </div>
-        </section>
-      )}
-
-      {(recent.length > 0 || !live.length) && (
-        <section className="fz-section">
-          <h2 className="fz-h">{live.length ? 'Earlier' : 'Recently played'}</h2>
-          {spotify === null && connected ? (
-            <Skeleton rows={4} />
-          ) : recent.length ? (
-            <Timeline list={recent} />
-          ) : !live.length ? (
-            <div className="fz-empty">
-              <HeadphonesIcon size={26} />
-              <p>Nobody you follow has played anything lately, or they keep their listening private.</p>
-            </div>
-          ) : null}
-        </section>
-      )}
+        ) : feed.length ? (
+          <div className="fzc-grid">
+            {[...live, ...recent].map((a, i) => (
+              <FriendCard key={a.id} a={a} i={i} />
+            ))}
+          </div>
+        ) : (
+          <div className="fz-empty">
+            <HeadphonesIcon size={26} />
+            <p>Nobody you follow has played anything lately, or they keep their listening private.</p>
+          </div>
+        )}
+      </section>
 
       {server === false ? null : !loaded ? (
         <Skeleton rows={3} />
@@ -383,7 +313,7 @@ export function FriendsView(): React.JSX.Element {
               <h2 className="fz-h">
                 Follows you <span className="shelf__count">{incoming.length}</span>
               </h2>
-              <div className="ptiles">
+              <div className="fzp-row">
                 {incoming.map((u) => (
                   <PersonTile key={u.id} user={u} now={now[u.id]}>
                     <button className="btn btn--accent btn--sm" disabled={busy === u.id} onClick={() => void act('follow', u.id, who(u))}>
@@ -403,7 +333,7 @@ export function FriendsView(): React.JSX.Element {
               <h2 className="fz-h">
                 People you follow <span className="shelf__count">{people.length}</span>
               </h2>
-              <div className="ptiles">
+              <div className="fzp-row">
                 {people.map((u) => (
                   <PersonTile key={u.id} user={u} now={now[u.id]}>
                     {!friends.some((f) => f.id === u.id) && (

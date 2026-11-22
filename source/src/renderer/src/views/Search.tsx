@@ -2,14 +2,17 @@ import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '@/lib/store'
 import * as sp from '@/lib/spotify'
 import { prefetchAlbum, prefetchArtist } from '@/lib/loaders'
-import { playContext, playUris } from '@/lib/player'
+import { playContext, playUris, usePlayer } from '@/lib/player'
 import type { SearchResults, STrack } from '@/lib/types'
 import { Cover, ErrorState, MediaCard, Shelf, Skeleton } from '@/components/common'
 import { TrackList } from '@/components/TrackList'
-import { contextMenuFor } from '@/components/menus'
+import { contextMenuFor, trackMenu } from '@/components/menus'
 import { PlayIcon } from '@/components/Icons'
+import { formatTime } from '@/lib/format'
 import { PulseBadge } from '@/components/PulseBadge'
 import { prefetchUser, rememberPeople, searchKnownPeople, usePulseUsers } from '@/lib/people'
+
+type Kind = 'all' | 'songs' | 'artists' | 'albums' | 'playlists' | 'people'
 
 const RECENT_KEY = 'pulse.recentSearches'
 
@@ -40,6 +43,8 @@ export function Search(): React.JSX.Element {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [recent, setRecent] = useState(loadRecent)
+  const [kind, setKind] = useState<Kind>('all')
+  const currentId = usePlayer((s) => s.track?.id)
   const { people: found, searching } = usePeople(query)
   // people who made a playlist in the results with a matching name are users too
   const owners = useMemo<Person[]>(() => {
@@ -60,7 +65,12 @@ export function Search(): React.JSX.Element {
     return [...byId.values()].sort((a, b) => Number(b.pulse) - Number(a.pulse))
   }, [found, owners])
   const pulseIds = usePulseUsers(people.map((p) => p.id))
-  const pictures = usePictures(people.filter((p) => !p.image).map((p) => p.id).slice(0, 10))
+  const pictures = usePictures(
+    people
+      .filter((p) => !p.image)
+      .map((p) => p.id)
+      .slice(0, 10)
+  )
 
   useEffect(() => {
     const q = query.trim()
@@ -70,6 +80,7 @@ export function Search(): React.JSX.Element {
       return
     }
     setLoading(true)
+    setKind('all')
     let alive = true
     const t = window.setTimeout(() => {
       sp.search(q)
@@ -119,57 +130,120 @@ export function Search(): React.JSX.Element {
   const albums = results.albums?.items ?? []
   const playlists = (results.playlists?.items ?? []).filter((p): p is NonNullable<typeof p> => !!p)
   const topArtist = artists[0]
-  const topIsArtist =
-    topArtist && tracks[0] && topArtist.name.toLowerCase() === query.trim().toLowerCase()
+  const topIsArtist = topArtist && tracks[0] && topArtist.name.toLowerCase() === query.trim().toLowerCase()
   const nothing = !tracks.length && !artists.length && !albums.length && !playlists.length && !people.length
 
   if (nothing) return <ErrorState text={`Nothing found for “${query}”. Check the spelling or try fewer words.`} />
 
+  const topArtistResult = (topIsArtist || (!tracks[0] && topArtist)) && topArtist ? topArtist : null
+  const show = (k: Kind): boolean => kind === 'all' || kind === k
+  const kinds: { id: Kind; label: string; n: number }[] = [
+    { id: 'all', label: 'All', n: 1 },
+    { id: 'songs', label: 'Songs', n: tracks.length },
+    { id: 'artists', label: 'Artists', n: artists.length },
+    { id: 'albums', label: 'Albums', n: albums.length },
+    { id: 'playlists', label: 'Playlists', n: playlists.length },
+    { id: 'people', label: 'People', n: people.length }
+  ]
+  const playTracks = (uri?: string): void =>
+    void playUris(
+      tracks.map((t) => t.uri),
+      uri
+    )
+
   return (
     <div className="search">
-      <div className="search__top">
-        {(topIsArtist || (!tracks[0] && topArtist)) && topArtist ? (
-          <div className="topresult" onClick={() => navigate({ name: 'artist', id: topArtist.id })}>
-            <h2>Top result</h2>
-            <Cover src={sp.pickImage(topArtist.images, 200)} size={104} round />
-            <div className="topresult__name">{topArtist.name}</div>
-            <div className="muted">Artist</div>
+      <div className="search__kinds" role="tablist" aria-label="Show">
+        {kinds
+          .filter((k) => k.n > 0)
+          .map((k) => (
             <button
-              className="play-fab topresult__play"
-              aria-label={`Play ${topArtist.name}`}
-              onClick={(e) => {
-                e.stopPropagation()
-                void playContext(topArtist.uri)
-              }}
+              key={k.id}
+              role="tab"
+              aria-selected={kind === k.id}
+              className={`search__kind ${kind === k.id ? 'is-on' : ''}`}
+              onClick={() => setKind(k.id)}
             >
-              <PlayIcon size={22} />
+              {k.label}
             </button>
-          </div>
-        ) : (
-          tracks[0] && (
-            <div className="topresult" onClick={() => void playUris([tracks[0].uri])}>
-              <h2>Top result</h2>
-              <Cover src={sp.pickImage(tracks[0].album?.images, 200)} size={104} radius={14} />
-              <div className="topresult__name">{tracks[0].name}</div>
-              <div className="muted">Song by {tracks[0].artists.map((a) => a.name).join(', ')}</div>
-              <span className="play-fab topresult__play" aria-hidden="true">
+          ))}
+      </div>
+
+      {kind === 'all' && (
+        <div className="search__top">
+          {topArtistResult ? (
+            <div className="topresult" onClick={() => navigate({ name: 'artist', id: topArtistResult.id })}>
+              <TopBg src={sp.pickImage(topArtistResult.images, 300)} />
+              <Cover src={sp.pickImage(topArtistResult.images, 300)} size={148} round />
+              <div className="topresult__name">{topArtistResult.name}</div>
+              <span className="topresult__kind">Artist</span>
+              <button
+                className="play-fab topresult__play"
+                aria-label={`Play ${topArtistResult.name}`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void playContext(topArtistResult.uri)
+                }}
+              >
                 <PlayIcon size={22} />
-              </span>
+              </button>
             </div>
-          )
-        )}
-        <section className="search__songs">
-          <h2>Songs</h2>
-          <TrackList
-            tracks={tracks}
-            showAlbum={false}
-            onPlay={(i) =>
-              void playUris(
-                tracks.map((t) => t.uri),
-                tracks[i].uri
-              )
-            }
-          />
+          ) : (
+            tracks[0] && (
+              <div className="topresult" onClick={() => playTracks(tracks[0].uri)}>
+                <TopBg src={sp.pickImage(tracks[0].album?.images, 300)} />
+                <Cover src={sp.pickImage(tracks[0].album?.images, 300)} size={148} radius={12} />
+                <div className="topresult__name">{tracks[0].name}</div>
+                <span className="topresult__kind">Song, {tracks[0].artists.map((a) => a.name).join(', ')}</span>
+                <span className="play-fab topresult__play" aria-hidden="true">
+                  <PlayIcon size={22} />
+                </span>
+              </div>
+            )
+          )}
+          {tracks.length > 0 && (
+            <section className="search__songs">
+              <header className="search__songs-head">
+                <h2>Songs</h2>
+                {tracks.length > 5 && (
+                  <button className="shelf__more" onClick={() => setKind('songs')}>
+                    Show all
+                  </button>
+                )}
+              </header>
+              <ol className="songrows">
+                {tracks.slice(0, 5).map((t) => (
+                  <li
+                    key={t.id}
+                    className={`songrow ${t.id === currentId ? 'is-current' : ''}`}
+                    onDoubleClick={() => playTracks(t.uri)}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      openMenu(e.clientX, e.clientY, trackMenu(t, {}))
+                    }}
+                  >
+                    <button className="songrow__art" aria-label={`Play ${t.name}`} onClick={() => playTracks(t.uri)}>
+                      <Cover src={sp.pickImage(t.album?.images, 64)} size={46} radius={8} />
+                      <span className="songrow__play" aria-hidden="true">
+                        <PlayIcon size={16} />
+                      </span>
+                    </button>
+                    <span className="songrow__text">
+                      <b>{t.name}</b>
+                      <span>{t.artists.map((a) => a.name).join(', ')}</span>
+                    </span>
+                    <span className="songrow__time">{formatTime(t.duration_ms)}</span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
+        </div>
+      )}
+
+      {kind === 'songs' && (
+        <section className="search__songs search__songs--all">
+          <TrackList tracks={tracks} onPlay={(i) => playTracks(tracks[i].uri)} />
           {results.tracks && tracks.length < Math.min(results.tracks.total, 50) && (
             <button
               className="shelf__more"
@@ -182,10 +256,10 @@ export function Search(): React.JSX.Element {
             </button>
           )}
         </section>
-      </div>
+      )}
 
-      {artists.length > 0 && (
-        <Shelf title="Artists">
+      {show('artists') && artists.length > 0 && (
+        <Section all={kind === 'all'} title="Artists">
           {artists.map((a) => (
             <MediaCard
               key={a.id}
@@ -193,15 +267,16 @@ export function Search(): React.JSX.Element {
               artistId={a.id}
               image={sp.pickImage(a.images, 300)}
               title={a.name}
+              subtitle="Artist"
               onOpen={() => navigate({ name: 'artist', id: a.id })}
               onPrefetch={() => prefetchArtist(a.id, a.name)}
               onPlay={() => void playContext(a.uri)}
             />
           ))}
-        </Shelf>
+        </Section>
       )}
-      {albums.length > 0 && (
-        <Shelf title="Albums">
+      {show('albums') && albums.length > 0 && (
+        <Section all={kind === 'all'} title="Albums">
           {albums.map((a) => (
             <MediaCard
               key={a.id}
@@ -209,7 +284,7 @@ export function Search(): React.JSX.Element {
               title={a.name}
               subtitle={a.artists.map((x) => x.name).join(', ')}
               onOpen={() => navigate({ name: 'album', id: a.id })}
-                onPrefetch={() => prefetchAlbum(a.id)}
+              onPrefetch={() => prefetchAlbum(a.id)}
               onPlay={() => void playContext(a.uri)}
               onContextMenu={(e) => {
                 e.preventDefault()
@@ -217,10 +292,10 @@ export function Search(): React.JSX.Element {
               }}
             />
           ))}
-        </Shelf>
+        </Section>
       )}
-      {playlists.length > 0 && (
-        <Shelf title="Playlists">
+      {show('playlists') && playlists.length > 0 && (
+        <Section all={kind === 'all'} title="Playlists">
           {playlists.map((p) => (
             <MediaCard
               key={p.id}
@@ -231,10 +306,10 @@ export function Search(): React.JSX.Element {
               onPlay={() => void playContext(p.uri)}
             />
           ))}
-        </Shelf>
+        </Section>
       )}
-      {people.length === 0 && searching && (
-        <Shelf title="Users">
+      {show('people') && people.length === 0 && searching && (
+        <Shelf title="People">
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className="card card--ghost" aria-hidden="true">
               <div className="card__ghost-art is-round" />
@@ -243,8 +318,8 @@ export function Search(): React.JSX.Element {
           ))}
         </Shelf>
       )}
-      {people.length > 0 && (
-        <Shelf title="Users">
+      {show('people') && people.length > 0 && (
+        <Section all={kind === 'all'} title="People">
           {people.map((p) => (
             <MediaCard
               key={p.id}
@@ -256,10 +331,22 @@ export function Search(): React.JSX.Element {
               onPrefetch={() => prefetchUser(p.id)}
             />
           ))}
-        </Shelf>
+        </Section>
       )}
     </div>
   )
+}
+
+/** The top result's soft, blurred wash of its own picture. */
+function TopBg({ src }: { src: string | null | undefined }): React.JSX.Element | null {
+  if (!src) return null
+  return <span className="topresult__bg" aria-hidden="true" style={{ backgroundImage: `url("${src}")` }} />
+}
+
+/** A shelf on the overview, a full grid when one kind is picked. */
+function Section({ all, title, children }: { all: boolean; title: string; children: React.ReactNode }): React.JSX.Element {
+  if (all) return <Shelf title={title}>{children}</Shelf>
+  return <div className="search__grid">{children}</div>
 }
 
 interface Person {

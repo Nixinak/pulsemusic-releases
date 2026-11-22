@@ -112,7 +112,8 @@ export function MixMaker({
 }
 
 /** How many covers orbit. */
-const COVERS = 30
+/** One ring of covers, evenly spaced and turning together: they never pass through each other. */
+const RINGS = [{ r: 1, y: 0, n: 16, speed: 0.22, offset: 0 }]
 /** A new song is picked out of the orbit this often (ms). */
 const PICK_EVERY = 1150
 /** A pick: flies to the middle, holds, flies back (ms). */
@@ -121,7 +122,6 @@ const PICK_HOLD = 520
 const PICK_OUT = 420
 const ease = (x: number): number => (x <= 0 ? 0 : x >= 1 ? 1 : 1 - Math.pow(1 - x, 3))
 const easeInOut = (x: number): number => (x <= 0 ? 0 : x >= 1 ? 1 : x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2)
-const rand = (a: number, b: number): number => a + Math.random() * (b - a)
 const TILT_COS = Math.cos(-0.12)
 const TILT_SIN = Math.sin(-0.12)
 
@@ -151,16 +151,18 @@ function Orbit({ images, done }: { images: string[]; done: boolean }): React.JSX
   const ready = useRef<string[]>([])
   const root = useRef<HTMLDivElement>(null)
   const bodies = useRef<Body[]>(
-    Array.from({ length: COVERS }, (_, i) => ({
-      el: null,
-      src: '',
-      r: rand(0.62, 1.08),
-      y: ((i % 5) - 2) * 0.1 + rand(-0.03, 0.03),
-      speed: rand(0.16, 0.3) * (i % 3 === 0 ? -1 : 1),
-      phase: (i / COVERS) * Math.PI * 2 * 3.3,
-      pickedAt: 0,
-      lap: -1
-    }))
+    RINGS.flatMap((ring) =>
+      Array.from({ length: ring.n }, (_, k) => ({
+        el: null,
+        src: '',
+        r: ring.r,
+        y: ring.y,
+        speed: ring.speed,
+        phase: ring.offset + (k / ring.n) * Math.PI * 2,
+        pickedAt: 0,
+        lap: -1
+      }))
+    )
   )
   const doneRef = useRef(done)
   doneRef.current = done
@@ -215,7 +217,7 @@ function Orbit({ images, done }: { images: string[]; done: boolean }): React.JSX
       const W = window.innerWidth
       const H = window.innerHeight
       const cx = W / 2
-      const cy = H * 0.45
+      const cy = H * 0.4
       const R = Math.min(W * 0.36, H * 0.6)
       const cover = Math.max(80, Math.min(140, Math.min(W, H) * 0.14))
       const t = ((now - t0) / 1000) * (reduce ? 0.3 : 1)
@@ -263,7 +265,7 @@ function Orbit({ images, done }: { images: string[]; done: boolean }): React.JSX
         // the orbit in 3D, seen from a little above and tilted
         const x3 = Math.cos(a) * b.r * R
         const z3 = z * R
-        const y3 = b.y * R + z3 * 0.22
+        const y3 = b.y * R - z3 * 0.3
         const persp = 1900 / (1900 + z3)
         // the whole orbit leans a little
         let x = (x3 * TILT_COS - y3 * TILT_SIN) * persp
@@ -272,7 +274,7 @@ function Orbit({ images, done }: { images: string[]; done: boolean }): React.JSX
         let depth = 1 - (z / b.r + 1) / 2 // 1 = nearest
         let zi = Math.round(1000 - z3)
         let op = 0.25 + depth * 0.75
-        let rot = Math.cos(a) * -14
+        let rot = 0
         // picked: to the middle, hold, back
         if (b.pickedAt) {
           const e = now - b.pickedAt

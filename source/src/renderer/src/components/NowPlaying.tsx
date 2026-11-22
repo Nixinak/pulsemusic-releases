@@ -18,7 +18,7 @@ import { useTransition } from '@/lib/transition'
 import type { NpPanel } from '@/lib/store'
 import type { NpTheme } from '@shared/types'
 import { NpEdgeMenu } from './NpThemes'
-import { MessagesChat } from './NpMessages'
+import { WordsLyrics } from './NpMessages'
 import { Turntable } from './NpDevices'
 import { useNpSounds } from '@/lib/npSounds'
 import { getLyrics, prefetchLyrics } from '@/lib/lyrics'
@@ -30,6 +30,33 @@ const TABS: { id: NpPanel; label: string; Icon: typeof LyricsIcon }[] = [
 ]
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 34 }
+
+/** True after the mouse and keyboard have rested for a moment (only while `active`). */
+function useIdle(active: boolean, ms = 2600): boolean {
+  const [idle, setIdle] = useState(false)
+  useEffect(() => {
+    if (!active) {
+      setIdle(false)
+      return
+    }
+    let t = window.setTimeout(() => setIdle(true), ms)
+    const wake = (): void => {
+      setIdle(false)
+      window.clearTimeout(t)
+      t = window.setTimeout(() => setIdle(true), ms)
+    }
+    window.addEventListener('mousemove', wake)
+    window.addEventListener('keydown', wake)
+    window.addEventListener('mousedown', wake)
+    return () => {
+      window.clearTimeout(t)
+      window.removeEventListener('mousemove', wake)
+      window.removeEventListener('keydown', wake)
+      window.removeEventListener('mousedown', wake)
+    }
+  }, [active, ms])
+  return idle
+}
 
 export function NowPlaying(): React.JSX.Element {
   const open = useApp((s) => s.nowPlaying)
@@ -154,11 +181,14 @@ export function NowPlaying(): React.JSX.Element {
     if (!track && open) setOpen(false)
   }, [track, open, setOpen])
 
+  // in the Words look everything but the words fades away while the mouse rests
+  const idle = useIdle(open && theme === 'messages' && !paused)
+
   return (
     <AnimatePresence>
       {open && track && (
         <motion.div
-          className={`np np--${theme} ${side !== 'none' ? 'np--panel' : ''}`}
+          className={`np np--${theme} ${side !== 'none' ? 'np--panel' : ''} ${idle ? 'np--idle' : ''}`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0, transition: { duration: 0.28 } }}
@@ -232,9 +262,9 @@ export function NowPlaying(): React.JSX.Element {
                       <Turntable art={track.artUrl} paused={paused} />
                     </motion.div>
                   ) : theme === 'messages' ? (
-                    <motion.div layoutId="np-art" className="np__chat" transition={spring}>
-                      <MessagesChat track={track} />
-                    </motion.div>
+                    <div className="np__words">
+                      <WordsLyrics track={track} />
+                    </div>
                   ) : (
                     <motion.div layoutId="np-art" className={`np__art ${paused ? 'is-paused' : ''}`} transition={spring}>
                       <SwapArt id={track.id} src={track.artUrl} radius={12} />

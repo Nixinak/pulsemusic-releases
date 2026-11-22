@@ -13,6 +13,8 @@ export function TopBar(): React.JSX.Element {
   const query = useApp((s) => s.searchQuery)
   const setQuery = useApp((s) => s.setSearchQuery)
   const input = useRef<HTMLInputElement>(null)
+  // the box only shows the query on the search page, so it never lingers over other pages
+  const shown = route.name === 'search' ? query : ''
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -36,19 +38,14 @@ export function TopBar(): React.JSX.Element {
             <ChevronRight size={20} />
           </button>
         </Glass>
-        <Glass
-          radius={999}
-          bezel={12}
-          refraction={36}
-          blur={8}
-          className={`search-pill ${route.name === 'search' || query ? 'is-open' : ''}`}
-        >
+        <Glass radius={999} bezel={12} refraction={36} blur={8} className={`search-pill ${route.name === 'search' ? 'is-open' : ''}`}>
           <button className="search-pill__icon" aria-label="Search" tabIndex={-1} onClick={() => input.current?.focus()}>
             <SearchIcon size={18} />
           </button>
           <input
             ref={input}
-            value={query}
+            value={shown}
+            placeholder="Search songs, artists, people"
             aria-label="Search"
             spellCheck={false}
             onFocus={() => route.name !== 'search' && navigate({ name: 'search' })}
@@ -58,7 +55,7 @@ export function TopBar(): React.JSX.Element {
             }}
             onKeyDown={(e) => e.key === 'Escape' && (e.target as HTMLInputElement).blur()}
           />
-          {query && (
+          {shown && (
             <button className="icon-btn icon-btn--sm" aria-label="Clear search" onClick={() => setQuery('')}>
               <CloseIcon size={15} />
             </button>

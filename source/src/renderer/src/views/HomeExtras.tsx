@@ -285,7 +285,9 @@ export function MoodTile({ m, disabled = false }: { m: (typeof MOODS)[number]; d
 }
 
 export function MoodRow(): React.JSX.Element {
-  const grid = useEvenGrid(MOODS.length, 170, 12, 2)
+  // all eight in one row when they fit at a good size, otherwise two rows of four
+  const grid = useEvenGrid(MOODS.length, 150, 12, 1, 4)
+  const cols = grid.cols >= MOODS.length ? MOODS.length : 4
   const mood = (m: (typeof MOODS)[number]): React.JSX.Element => <MoodTile key={m.ask} m={m} />
   return (
     <section className="shelf">
@@ -296,8 +298,8 @@ export function MoodRow(): React.JSX.Element {
         {grid.slider ? (
           <ShelfRow className="moods--row">{MOODS.map(mood)}</ShelfRow>
         ) : (
-          <div className="moods" style={{ gridTemplateColumns: `repeat(${grid.cols}, minmax(0, 1fr))` }}>
-            {MOODS.slice(0, grid.show).map(mood)}
+          <div className="moods" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+            {MOODS.map(mood)}
           </div>
         )}
       </div>
@@ -348,24 +350,51 @@ export function NewReleases({ albums }: { albums: SAlbumRef[] }): React.JSX.Elem
   const navigate = useApp((s) => s.navigate)
   const openMenu = useApp((s) => s.openMenu)
   if (albums.length < 2) return null
+  const [first, ...rest] = albums
+  const big = sp.pickImage(first.images, 640)
   return (
-    <Shelf title="New from your artists">
-      {albums.map((al) => (
-        <MediaCard
-          key={al.id}
-          image={sp.pickImage(al.images, 300)}
-          title={al.name}
-          subtitle={`${al.album_type === 'single' ? 'Single' : 'Album'} · ${al.artists.map((a) => a.name).join(', ')}`}
-          onOpen={() => navigate({ name: 'album', id: al.id })}
-          onPrefetch={() => prefetchAlbum(al.id)}
-          onPlay={() => void playContext(al.uri)}
-          onContextMenu={(e) => {
-            e.preventDefault()
-            openMenu(e.clientX, e.clientY, contextMenuFor('album', al.uri, al.name))
-          }}
-        />
-      ))}
-    </Shelf>
+    <>
+      <section className="spot" onClick={() => navigate({ name: 'album', id: first.id })} onMouseEnter={() => prefetchAlbum(first.id)}>
+        {big && <img className="spot__bg" src={big} alt="" aria-hidden="true" draggable={false} />}
+        <span className="spot__shade" aria-hidden="true" />
+        {big && <img className="spot__art" src={big} alt="" draggable={false} />}
+        <div className="spot__text">
+          <small>New from {first.artists.map((a) => a.name).join(', ')}</small>
+          <b>{first.name}</b>
+          <span>{first.album_type === 'single' ? 'Single' : 'Album'}</span>
+          <div className="spot__actions">
+            <button
+              className="btn btn--light"
+              onClick={(e) => {
+                e.stopPropagation()
+                void playContext(first.uri)
+              }}
+            >
+              <PlayIcon size={16} /> Play
+            </button>
+          </div>
+        </div>
+      </section>
+      {rest.length > 1 && (
+        <Shelf title="More new music">
+          {rest.map((al) => (
+            <MediaCard
+              key={al.id}
+              image={sp.pickImage(al.images, 300)}
+              title={al.name}
+              subtitle={`${al.album_type === 'single' ? 'Single' : 'Album'} · ${al.artists.map((a) => a.name).join(', ')}`}
+              onOpen={() => navigate({ name: 'album', id: al.id })}
+              onPrefetch={() => prefetchAlbum(al.id)}
+              onPlay={() => void playContext(al.uri)}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                openMenu(e.clientX, e.clientY, contextMenuFor('album', al.uri, al.name))
+              }}
+            />
+          ))}
+        </Shelf>
+      )}
+    </>
   )
 }
 
@@ -381,17 +410,20 @@ export function MonthCard(): React.JSX.Element | null {
   const art = stats.albums.slice(0, 4).map((a) => a.item.art)
   return (
     <section className="monthcard">
-      <div className="monthcard__mosaic" aria-hidden="true">
+      {art[0] && <img className="monthcard__bg" src={art[0]} alt="" aria-hidden="true" draggable={false} />}
+      <span className="monthcard__shade" aria-hidden="true" />
+      <div className="monthcard__fan" aria-hidden="true">
         {art.map((src, i) => (
-          <Cover key={i} src={src} radius={0} />
+          <span key={i} className="monthcard__card" style={{ '--i': i } as React.CSSProperties}>
+            <Cover src={src} radius={14} />
+          </span>
         ))}
       </div>
       <div className="monthcard__text">
         <small>{month} so far</small>
         <b>{formatMinutes(Math.round(stats.ms / 60_000))}</b>
-        <span className="muted">
-          {stats.songs.length} songs, {stats.artists.length} artists
-          {stats.artists[0] ? ` · mostly ${stats.artists[0].item.name}` : ''}
+        <span className="monthcard__line">
+          {stats.songs.length} songs, {stats.artists.length} artists{stats.artists[0] ? `, mostly ${stats.artists[0].item.name}` : ''}
         </span>
         <div className="monthcard__actions">
           <button className="btn btn--accent" onClick={() => setRecapOpen(true)}>

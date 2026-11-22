@@ -1,8 +1,8 @@
-## Pulse Music 1.7.2
+## Pulse Music 1.7.3
 
-- **Fast again**: Pulse no longer holds back your own clicks. Since 1.7.0 it counted every request over the day and, after a few hours of normal use, refused most clicks with "Easy there!" and left pages and searches waiting. Now play, skip, pages and search go straight away; only background work (checking what's playing, made-for-you mixes) keeps to the limits. It also asks what's playing less often when the music plays on this computer.
-- **The Spotify account route is checked first**: requests go through your connected Spotify account only after Spotify has answered a test call that way, and Pulse no longer reloads the web player in the background on every refusal (that was one of the freezes).
-- **Your genres** on Your stats: what genres your top artists play, weighted by how much you listen to them, with the biggest one up front.
-- **Ask the DJ for**: new cards, each mood its own little scene.
-- **Now Playing looks**: Cover, Vinyl and Messages, picked from a new menu that shows each look with the song's own cover. Poster, Lock screen and Visualizer are gone.
-- **Discover** is gone.
+- **Words**: the Messages look is now Words. The lyrics play word by word on black, big and bold, the word being sung lit up, with a little picture next to words like cash or camera. When you leave the mouse alone the controls fade away and only the words are left. Songs without synced lyrics show their title instead.
+- **Pulse DJ**: the ball and its ring are gone. In their place a soft light in Siri's colours, mixed with the song's own, swells with the beat and the DJ's voice; it pulls in and turns quickly while songs are picked. The "Off air" badge is gone and the mood cards are smaller again.
+- **Search**: filters for Songs, Artists, Albums, Playlists and People. The overview shows the top result on its own glowing card next to the five best songs, and a filter shows everything of one kind. The search box no longer keeps your last search on other pages.
+- **Friends**: a new design. What your friends played is a grid of cover cards with who played it, when, and one click to play it, listen along or join their party; the people lists are compact rows.
+- **Home**: the newest release gets a big spotlight, the month card is redone, the DJ moods are one compact row, and the long list of your playlists at the bottom is gone (they're in the sidebar).
+- **Mix maker**: the covers fly around in one clean ring and no longer pass through each other.
