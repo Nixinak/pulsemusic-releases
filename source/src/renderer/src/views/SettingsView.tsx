@@ -7,7 +7,7 @@ import { importSpotifyExport, useHistory } from '@/lib/history'
 import { Toggle } from '@/components/common'
 import { useApp } from '@/lib/store'
 import { usePlayer } from '@/lib/player'
-import { pickImage } from '@/lib/spotify'
+import { pickImage, requestsToday, webRouteOpen } from '@/lib/spotify'
 import {
   GLOBAL_KEYS,
   type FontChoice,
@@ -47,6 +47,63 @@ function Segmented<T extends string>({
         </button>
       ))}
     </Glass>
+  )
+}
+
+/** What Pulse asked Spotify today, so a block can be traced to its cause. */
+function RequestsRow(): React.JSX.Element {
+  const toast = useApp((s) => s.toast)
+  const [t, setT] = useState(() => requestsToday())
+  useEffect(() => {
+    const id = window.setInterval(() => setT(requestsToday()), 5000)
+    return () => window.clearInterval(id)
+  }, [])
+  const sum = (r: Record<string, number>): number => Object.values(r).reduce((a, b) => a + b, 0)
+  const own = sum(t.key)
+  const web = sum(t.web)
+  const top = Object.entries(t.key)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+  const copy = (): void => {
+    const lines = [
+      `Pulse Music ${t.day}`,
+      `Pulse's own key: ${own}`,
+      ...Object.entries(t.key)
+        .sort((a, b) => b[1] - a[1])
+        .map(([k, n]) => `  ${n} ${k}`),
+      `Your Spotify account: ${web}`,
+      ...Object.entries(t.web)
+        .sort((a, b) => b[1] - a[1])
+        .map(([k, n]) => `  ${n} ${k}`)
+    ]
+    void navigator.clipboard.writeText(lines.join('\n')).then(() => toast('Copied'))
+  }
+  return (
+    <>
+      <Row
+        title="Today"
+        hint={
+          <>
+            {own.toLocaleString()} with Pulse’s own key (these count toward Spotify’s daily limit), {web.toLocaleString()} through your Spotify account (free).
+            {webRouteOpen() ? '' : ' Your Spotify account isn’t being used right now, so everything counts. Connect it on the Friends page.'}
+          </>
+        }
+      >
+        <button className="btn" onClick={copy}>
+          Copy details
+        </button>
+      </Row>
+      {top.length > 0 && (
+        <ol className="sreq">
+          {top.map(([k, n]) => (
+            <li key={k}>
+              <span>{k}</span>
+              <b>{n.toLocaleString()}</b>
+            </li>
+          ))}
+        </ol>
+      )}
+    </>
   )
 }
 
@@ -743,6 +800,10 @@ export function SettingsView({ onSignOut }: { onSignOut: () => void }): React.JS
             />
           </Row>
           <GpuRow />
+        </section>
+        <section className="sgroup">
+          <h2>Spotify requests</h2>
+          <RequestsRow />
         </section>
         <section className="sgroup">
           <h2>Storage</h2>

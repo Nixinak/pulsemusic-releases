@@ -10,6 +10,7 @@ import { getAccessToken } from './auth'
 import type { PartyControl, PartyQueueItem, PartyState, PartyTrack, PlaybackSnapshot } from '@shared/types'
 import { partyPage } from './partyPage'
 import { startTunnel, stopTunnel } from './tunnel'
+import { spotifyWebApi } from './spotifyAccount'
 import type { PartyInfo } from '@shared/types'
 
 const PORTS = [43900, 43901, 43902, 43903, 43904]
@@ -35,6 +36,8 @@ const searchCache = new Map<string, { at: number; tracks: PartyTrack[] }>()
 const lastSearch = new Map<string, number>()
 const lastControl = new Map<string, number>()
 const partySearches: number[] = []
+/** Party searches sent with Pulse's own key in the last day (they count toward its allowance). */
+const keySearches: number[] = []
 /** Party votes: song → voter → +1 or -1. A voter is a phone (its address) plus the name used. */
 const votes = new Map<string, Map<string, number>>()
 const lastVote = new Map<string, number>()
@@ -119,6 +122,21 @@ async function search(q: string): Promise<PartyTrack[]> {
     u.searchParams.set('q', query)
     u.searchParams.set('type', type)
     u.searchParams.set('limit', String(limit))
+    // through the host's Spotify web sign-in first: those searches don't count toward Pulse's
+    // own daily allowance (a party with a dozen guests searching used to eat most of it)
+    const web = await spotifyWebApi('GET', u.toString()).catch(() => null)
+    if (web && web.status === 200) {
+      try {
+        return JSON.parse(web.body) as SearchAnswer
+      } catch {
+        /* fall through to Pulse's own key */
+      }
+    }
+    // Pulse's own key: an hour and a day of party searches have their own ceiling
+    const hourAgo = Date.now() - 3_600_000
+    while (keySearches.length && keySearches[0] < Date.now() - 86_400_000) keySearches.shift()
+    if (keySearches.filter((t) => t > hourAgo).length >= 90 || keySearches.length >= 400) throw new Error('busy')
+    keySearches.push(Date.now())
     const res = await fetch(u, {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(8000)
@@ -143,7 +161,7 @@ async function search(q: string): Promise<PartyTrack[]> {
       .trim()
   const artist = (first.artists?.items ?? []).find((a) => a && norm(a.name) === norm(q))
   let byArtist: SearchAnswer['tracks'] = undefined
-  if (artist && partySearches.length < 6) {
+  if (artist && partySearches.length < 5) {
     partySearches.push(Date.now())
     byArtist = (await ask(`artist:"${artist.name}"`, 'track', 10).catch(() => null))?.tracks
   }

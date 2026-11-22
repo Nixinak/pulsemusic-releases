@@ -142,6 +142,7 @@ async function viaWeb<T>(path: string, opts: Options, background: boolean, isTap
   for (const [k, v] of Object.entries(opts.query ?? {})) if (v !== undefined && v !== null) url.searchParams.set(k, String(v))
   const method = opts.method ?? 'GET'
   usage.set('web ' + shape, (usage.get('web ' + shape) ?? 0) + 1)
+  tallyOne('web', `${method} ${shape}`)
   const r = await window.pulse.spotifyAccount.api(method, url.toString(), opts.body !== undefined ? JSON.stringify(opts.body) : undefined).catch(() => null)
   if (!r) {
     // signed out in the meantime, or offline: check again later
@@ -292,7 +293,7 @@ const ledger = new Map<number, { all: number; bg: number }>(
   })()
 )
 let ledgerDirty = false
-setInterval(() => {
+function saveLedger(): void {
   if (!ledgerDirty) return
   ledgerDirty = false
   const from = Math.floor(Date.now() / MIN) - 24 * 60
@@ -302,7 +303,14 @@ setInterval(() => {
   } catch {
     /* storage unavailable */
   }
-}, 15_000)
+}
+setInterval(saveLedger, 15_000)
+// An update restarts the app: the counts of the last seconds are saved first, so a new start
+// knows everything the last one sent (it used to forget up to 15 s of them).
+window.addEventListener('pagehide', () => {
+  saveLedger()
+  saveCounts()
+})
 function count(background: boolean): void {
   const m = Math.floor(Date.now() / MIN)
   const c = ledger.get(m) ?? { all: 0, bg: 0 }
@@ -323,12 +331,12 @@ function since(minutes: number): { all: number; bg: number } {
   return { all, bg }
 }
 /** Background caps: per 10 min, per hour, per day (the first one is lower while hidden). */
-const BG_CAPS = { tenMin: 70, tenMinHidden: 25, hour: 260, day: 1600 }
+const BG_CAPS = { tenMin: 50, tenMinHidden: 20, hour: 180, day: 900 }
 /** Totals for everything together. They only ever hold back background work (polls, mixes,
  *  prefetches): what you click and open always goes, limited only by the 30 s window and by a
  *  real refusal from Spotify. (In 1.7.0 they held back clicks too, and after a few hours of
  *  normal use most clicks were refused with "Easy there!".) */
-const ALL_CAPS = { tenMin: 700, hour: 2400, day: 12_000 }
+const ALL_CAPS = { tenMin: 500, hour: 1500, day: 6000 }
 let bgRestUntil = (() => {
   try {
     return Number(localStorage.getItem(BG_REST_KEY) ?? 0) || 0
@@ -347,7 +355,17 @@ function restBackground(ms: number): void {
 /* The first two minutes after a start (an update restarts the app) belong to what's on screen:
    background work waits, so the start never sends everything at once. */
 const appStartedAt = Date.now()
-const START_CALM = 2 * 60_000
+const START_CALM = (() => {
+  // starts close together (updates installed one after another) each get a longer calm, so a
+  // run of restarts can't repeat the background work every few minutes
+  try {
+    const last = Number(localStorage.getItem('pulse-last-start') ?? 0) || 0
+    localStorage.setItem('pulse-last-start', String(appStartedAt))
+    return appStartedAt - last < 30 * 60_000 ? 10 * 60_000 : 2 * 60_000
+  } catch {
+    return 2 * 60_000
+  }
+})()
 
 /** How long background work must wait for room (0 = it may go now). */
 function backgroundWait(): number {
@@ -402,6 +420,45 @@ const STATIC_MS = 20 * 60_000
 const isStatic = (path: string): boolean => /^\/(search|tracks\/[A-Za-z0-9]+|artists\/[A-Za-z0-9]+|albums\/[A-Za-z0-9]+(\/tracks)?)$/.test(path)
 /** Requests per endpoint in the last minutes, for spotting what eats the allowance. */
 const usage = new Map<string, number>()
+
+/* What used the allowance today, kept across restarts: requests sent with Pulse's own key
+   (these count against its daily allowance) and through your Spotify account (they don't), per
+   endpoint. Settings → Performance shows it, so a block can be traced to what caused it. */
+const TALLY_KEY = 'pulse-tally1'
+interface Tally {
+  day: string
+  key: Record<string, number>
+  web: Record<string, number>
+}
+const today = (): string => new Date().toISOString().slice(0, 10)
+let tally: Tally = (() => {
+  try {
+    const t = JSON.parse(localStorage.getItem(TALLY_KEY) ?? 'null') as Tally | null
+    if (t && t.day === today()) return t
+  } catch {
+    /* fresh */
+  }
+  return { day: today(), key: {}, web: {} }
+})()
+let tallyDirty = false
+function tallyOne(route: 'key' | 'web', shape: string): void {
+  if (tally.day !== today()) tally = { day: today(), key: {}, web: {} }
+  tally[route][shape] = (tally[route][shape] ?? 0) + 1
+  tallyDirty = true
+}
+function saveCounts(): void {
+  try {
+    if (tallyDirty) localStorage.setItem(TALLY_KEY, JSON.stringify(tally))
+    tallyDirty = false
+  } catch {
+    /* storage unavailable */
+  }
+}
+setInterval(saveCounts, 15_000)
+/** Today's requests: through Pulse's own key and through your Spotify account, per endpoint. */
+export function requestsToday(): Tally {
+  return structuredClone(tally)
+}
 setInterval(() => {
   if (!usage.size) return
   const top = [...usage.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6)
@@ -453,6 +510,7 @@ async function rawApi<T = unknown>(path: string, opts: Options = {}, attempt = 0
 
   const url = new URL(path.startsWith('http') ? path : BASE + path)
   usage.set(url.pathname.replace(/[A-Za-z0-9]{22}/g, ':id'), (usage.get(url.pathname.replace(/[A-Za-z0-9]{22}/g, ':id')) ?? 0) + 1)
+  tallyOne('key', `${opts.method ?? 'GET'} ${url.pathname.replace(/^\/v1/, '').replace(/[A-Za-z0-9]{22}/g, ':id')}`)
   for (const [k, v] of Object.entries(opts.query ?? {})) {
     if (v !== undefined && v !== null) url.searchParams.set(k, String(v))
   }

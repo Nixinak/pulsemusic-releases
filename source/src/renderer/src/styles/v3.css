@@ -7482,3 +7482,28 @@
   background: color-mix(in srgb, var(--text) 12%, transparent);
   animation: genres-wait 1.4s ease-in-out infinite alternate;
 }
+
+/* ---------- Settings: what Pulse asked Spotify today ---------- */
+.sreq {
+  display: grid;
+  gap: 2px;
+  margin: 4px 0 8px;
+  padding: 0;
+  list-style: none;
+}
+.sreq li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  font-size: 13px;
+}
+.sreq span {
+  color: var(--text-2);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+.sreq b {
+  font-variant-numeric: tabular-nums;
+}

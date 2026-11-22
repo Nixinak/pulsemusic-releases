@@ -75,8 +75,7 @@ const set = useDj.setState
 const get = useDj.getState
 
 let msgId = 0
-const say = (from: DjMessage['from'], text: string): void =>
-  set((s) => ({ log: [...s.log.slice(-40), { id: ++msgId, from, text }] }))
+const say = (from: DjMessage['from'], text: string): void => set((s) => ({ log: [...s.log.slice(-40), { id: ++msgId, from, text }] }))
 
 /* ---------- Voice ---------- */
 
@@ -304,7 +303,12 @@ function brief(text: string): string {
   let out = sentences[0] ?? t
   if (out.split(' ').length < 6 && sentences[1]) out += ' ' + sentences[1]
   const words = out.split(' ')
-  if (words.length > 22) out = words.slice(0, 20).join(' ').replace(/[,;:–-]+$/, '') + '.'
+  if (words.length > 22)
+    out =
+      words
+        .slice(0, 20)
+        .join(' ')
+        .replace(/[,;:–-]+$/, '') + '.'
   return out
 }
 
@@ -313,7 +317,7 @@ function brief(text: string): string {
 let likedCache: Promise<STrack[]> | null = null
 const usedIds = new Set<string>()
 
-const shuffle = <T,>(a: T[]): T[] => {
+const shuffle = <T>(a: T[]): T[] => {
   const o = a.slice()
   for (let i = o.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
@@ -358,12 +362,27 @@ function savedPool(): Pool | null {
 }
 function fetchPool(): Promise<Pool> {
   poolLoading ??= Promise.all([
-    sp.getTopTracks('short_term', 50).then((r) => r.items).catch(() => [] as STrack[]),
-    sp.getTopTracks('medium_term', 50).then((r) => r.items).catch(() => [] as STrack[]),
-    sp.getAllSavedTracks(600).then((r) => r.map((i) => i.track)).catch(() => [] as STrack[])
+    sp
+      .getTopTracks('short_term', 50)
+      .then((r) => r.items)
+      .catch(() => [] as STrack[]),
+    sp
+      .getTopTracks('medium_term', 50)
+      .then((r) => r.items)
+      .catch(() => [] as STrack[]),
+    sp
+      .getAllSavedTracks(600)
+      .then((r) => r.map((i) => i.track))
+      .catch(() => [] as STrack[])
   ])
     .then(([short, medium, liked]) => {
-      const p: Pool = { at: Date.now(), user: me(), short: short.filter(Boolean).map(slim), medium: medium.filter(Boolean).map(slim), liked: liked.filter(Boolean).map(slim) }
+      const p: Pool = {
+        at: Date.now(),
+        user: me(),
+        short: short.filter(Boolean).map(slim),
+        medium: medium.filter(Boolean).map(slim),
+        liked: liked.filter(Boolean).map(slim)
+      }
       if (p.short.length + p.medium.length + p.liked.length) {
         poolMem = p
         try {
@@ -393,7 +412,12 @@ async function candidates(): Promise<STrack[]> {
   likedCache ??= pool.then((p) => p.liked).catch(() => [])
   const { short, medium, liked } = await pool
   const recentCut = Date.now() - 2 * 3600_000
-  const recent = new Set(useHistory.getState().plays.filter((p) => p.at > recentCut).map((p) => p.id))
+  const recent = new Set(
+    useHistory
+      .getState()
+      .plays.filter((p) => p.at > recentCut)
+      .map((p) => p.id)
+  )
   const seen = new Set<string>()
   const out: STrack[] = []
   for (const t of [...shuffle(short).slice(0, 25), ...shuffle(medium).slice(0, 20), ...shuffle(liked).slice(0, 60)]) {
@@ -408,11 +432,21 @@ function listenerContext(): string {
   const plays = useHistory.getState().plays
   const stats = computeStats(plays, Date.now() - 30 * 86400_000)
   const now = new Date()
-  const parts = [
-    `Now: ${now.toLocaleDateString('en-GB', { weekday: 'long' })}, ${now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}.`
-  ]
-  if (stats.artists.length) parts.push(`Most played artists this month: ${stats.artists.slice(0, 8).map((a) => `${a.item.name} (${a.plays})`).join(', ')}.`)
-  if (stats.songs.length) parts.push(`Most played songs this month: ${stats.songs.slice(0, 6).map((s) => `${s.item.name} by ${s.item.artists[0]?.name} (${s.plays}×)`).join('; ')}.`)
+  const parts = [`Now: ${now.toLocaleDateString('en-GB', { weekday: 'long' })}, ${now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}.`]
+  if (stats.artists.length)
+    parts.push(
+      `Most played artists this month: ${stats.artists
+        .slice(0, 8)
+        .map((a) => `${a.item.name} (${a.plays})`)
+        .join(', ')}.`
+    )
+  if (stats.songs.length)
+    parts.push(
+      `Most played songs this month: ${stats.songs
+        .slice(0, 6)
+        .map((s) => `${s.item.name} by ${s.item.artists[0]?.name} (${s.plays}×)`)
+        .join('; ')}.`
+    )
   return parts.join('\n')
 }
 
@@ -455,13 +489,33 @@ async function searchPool(theme: string, mood?: Mood | null): Promise<STrack[]> 
   const out: STrack[] = []
   const seen = new Set<string>()
   // fresh first, then the all-time results; every query and page at once (one round trip)
-  const plan: [string, number][] = [...fresh.flatMap((x) => [[x, 0], [x, 10]] as [string, number][]), ...base.flatMap((x) => [[x, 0], [x, 10]] as [string, number][])]
+  const plan: [string, number][] = [
+    ...fresh.flatMap(
+      (x) =>
+        [
+          [x, 0],
+          [x, 10]
+        ] as [string, number][]
+    ),
+    ...base.flatMap(
+      (x) =>
+        [
+          [x, 0],
+          [x, 10]
+        ] as [string, number][]
+    )
+  ]
   const answers = await Promise.all(plan.map(([query, offset]) => sp.searchTracks(query, offset).catch(() => null)))
-  for (const r of answers) for (const t of r?.tracks?.items ?? []) if (t?.id && !t.is_local && !seen.has(t.id) && !usedIds.has(t.id)) (seen.add(t.id), out.push(t))
+  for (const r of answers)
+    for (const t of r?.tracks?.items ?? []) if (t?.id && !t.is_local && !seen.has(t.id) && !usedIds.has(t.id)) (seen.add(t.id), out.push(t))
   // too little for a country and era: try the genres without the years (the era is still
   // checked below), then the country's name as plain text
   if (out.length < 8 && mood?.country && !mood.id.startsWith('retry:')) {
-    const looser: Mood = { ...mood, id: `retry:${mood.id}`, queries: [...mood.queries.map((x) => x.replace(/\s*year:\S+/, '')), `${mood.country} ${mood.era ? 'classics' : 'hits'}`] }
+    const looser: Mood = {
+      ...mood,
+      id: `retry:${mood.id}`,
+      queries: [...mood.queries.map((x) => x.replace(/\s*year:\S+/, '')), `${mood.country} ${mood.era ? 'classics' : 'hits'}`]
+    }
     for (const t of await searchPool(theme, looser)) if (!seen.has(t.id)) (seen.add(t.id), out.push(t))
   }
   // an era: only songs from those years (Spotify's year filter goes by the album, which
@@ -600,7 +654,8 @@ async function buildSet(
   for (const [i, d] of wanted.entries()) {
     if (picks.length >= size + 1) break
     const t = looked[i]
-    if (t && !picks.some((x) => x.id === t.id)) picks.splice(Math.min(picks.length, 1 + Math.floor(Math.random() * picks.length)), 0, toPick(t, d.note ?? 'Something new', true))
+    if (t && !picks.some((x) => x.id === t.id))
+      picks.splice(Math.min(picks.length, 1 + Math.floor(Math.random() * picks.length)), 0, toPick(t, d.note ?? 'Something new', true))
   }
   if (picks.length < 3) {
     // The model ignored the list: take songs found for the theme (else the library).
@@ -682,7 +737,16 @@ function watch(): void {
     const id = s.track?.id ?? null
     // Skipping faster than the DJ could line up its next songs ran past the end of the show,
     // and Spotify started its own random "autoplay" music. Bring the show back right away.
-    if (id && id !== lastId && get().active && !djContext && get().status !== 'thinking' && !get().set.some((p) => p.id === id) && !s.upNext.some((q) => q.id === id) && !skipIds.has(id)) {
+    if (
+      id &&
+      id !== lastId &&
+      get().active &&
+      !djContext &&
+      get().status !== 'thinking' &&
+      !get().set.some((p) => p.id === id) &&
+      !s.upNext.some((q) => q.id === id) &&
+      !skipIds.has(id)
+    ) {
       void recoverShow()
     }
     if (id === lastId) return
@@ -782,7 +846,10 @@ async function extend(): Promise<void> {
       if (more.length) {
         const picks = more.map((t) => toPick(t, releaseWalk!.label))
         if (!get().active) return
-        setDjContinuation(get().set[get().set.length - 1]?.id ?? last?.id ?? null, picks.map((p) => p.uri))
+        setDjContinuation(
+          get().set[get().set.length - 1]?.id ?? last?.id ?? null,
+          picks.map((p) => p.uri)
+        )
         set((s) => ({ set: [...s.set, ...picks] }))
         return
       }
@@ -803,8 +870,15 @@ async function extend(): Promise<void> {
       // the listener changed the order during this song: everything after it is sent again
       // when it ends, the new block included
       const at = list.findIndex((p) => p.id === now)
-      setDjContinuation(now, [...list.slice(at + 1), ...picks].map((p) => p.uri))
-    } else setDjContinuation((list[list.length - 1] ?? last)?.id ?? null, picks.map((p) => p.uri))
+      setDjContinuation(
+        now,
+        [...list.slice(at + 1), ...picks].map((p) => p.uri)
+      )
+    } else
+      setDjContinuation(
+        (list[list.length - 1] ?? last)?.id ?? null,
+        picks.map((p) => p.uri)
+      )
     if (intro && picks[0]) pendingIntros.set(picks[0].uri, intro)
     set((s) => ({ set: [...s.set, ...picks] }))
   } catch (e) {
@@ -848,16 +922,28 @@ function followArtists(list: { id: string; name: string }[], only = false): void
   artistBlocksLeft = only ? 99 : 3
 }
 const familyLabel = (seed: { name: string }[]): string =>
-  `${seed.length > 1 ? `${seed.slice(0, -1).map((a) => a.name).join(', ')} and ${seed[seed.length - 1].name}` : seed[0].name}, and artists that sound like them`
+  `${
+    seed.length > 1
+      ? `${seed
+          .slice(0, -1)
+          .map((a) => a.name)
+          .join(', ')} and ${seed[seed.length - 1].name}`
+      : seed[0].name
+  }, and artists that sound like them`
 
 /** Artists that sound like the seed ones (Deezer's similar artists), found on Spotify. */
 const similarCache = new Map<string, Promise<{ id: string; name: string }[]>>()
 function similarTo(seed: { id: string; name: string }[]): Promise<{ id: string; name: string }[]> {
-  const key = seed.map((a) => a.id).sort().join()
+  const key = seed
+    .map((a) => a.id)
+    .sort()
+    .join()
   let p = similarCache.get(key)
   if (!p) {
     p = (async () => {
-      const lists = await Promise.all(seed.slice(0, 3).map((a) => window.pulse.recs?.related(a.name).catch(() => [] as string[]) ?? Promise.resolve([] as string[])))
+      const lists = await Promise.all(
+        seed.slice(0, 3).map((a) => window.pulse.recs?.related(a.name).catch(() => [] as string[]) ?? Promise.resolve([] as string[]))
+      )
       const own = new Set(seed.map((a) => norm(a.name)))
       const names: string[] = []
       for (let i = 0; i < 12; i++)
@@ -866,7 +952,13 @@ function similarTo(seed: { id: string; name: string }[]): Promise<{ id: string; 
           if (n && !own.has(norm(n)) && !names.some((x) => norm(x) === norm(n))) names.push(n)
         }
       const known = await knownArtists()
-      const found = await Promise.all(names.slice(0, 5).map((n) => resolveArtists([n], known).then((r) => r?.[0] ?? null).catch(() => null)))
+      const found = await Promise.all(
+        names.slice(0, 5).map((n) =>
+          resolveArtists([n], known)
+            .then((r) => r?.[0] ?? null)
+            .catch(() => null)
+        )
+      )
       return found.filter((a): a is { id: string; name: string } => !!a && !seed.some((x) => x.id === a.id))
     })()
     similarCache.set(key, p)
@@ -883,7 +975,9 @@ function songsOf(a: { id: string; name: string }, seed: boolean): Promise<STrack
   if (!p) {
     p = seed
       ? loadArtistPopular(a.id, a.name)
-      : sp.searchTracks(`artist:"${a.name}"`, 0).then((r) => (r.tracks?.items ?? []).filter((t): t is STrack => !!t?.id && t.artists.some((x) => x.id === a.id)))
+      : sp
+          .searchTracks(`artist:"${a.name}"`, 0)
+          .then((r) => (r.tracks?.items ?? []).filter((t): t is STrack => !!t?.id && t.artists.some((x) => x.id === a.id)))
     artistSongs.set(a.id, p)
     p.catch(() => artistSongs.delete(a.id))
     if (artistSongs.size > 60) artistSongs.delete(artistSongs.keys().next().value as string)
@@ -953,7 +1047,10 @@ async function findTrack(title: string, artist = ''): Promise<STrack | null> {
 async function knownArtists(): Promise<Map<string, string>> {
   const out = new Map<string, string>()
   for (const p of useHistory.getState().plays) for (const a of p.artists) if (isRealId(a.id)) out.set(a.id, a.name)
-  likedCache ??= sp.getAllSavedTracks(600).then((r) => r.map((i) => i.track)).catch(() => [])
+  likedCache ??= sp
+    .getAllSavedTracks(600)
+    .then((r) => r.map((i) => i.track))
+    .catch(() => [])
   for (const t of await likedCache) for (const a of t?.artists ?? []) out.set(a.id, a.name)
   return out
 }
@@ -973,7 +1070,8 @@ const GENRE_WORDS = new Set(
     'something some energy hype hard soft deep slow fast new upbeat underground'
   ).split(' ')
 )
-const GENRE_CORE = /\b(phonk|trap|drill|rap|hip ?hop|r ?b|rnb|soul|jazz|blues|rock|metal|punk|emo|grunge|indie|pop|house|techno|trance|edm|dnb|dubstep|garage|grime|plugg|rage|lo ?fi|ambient|classical|folk|country|reggae|reggaeton|latin|afrobeats?|amapiano|dancehall|disco|synthwave|hyperpop|electronic|funk)\b/
+const GENRE_CORE =
+  /\b(phonk|trap|drill|rap|hip ?hop|r ?b|rnb|soul|jazz|blues|rock|metal|punk|emo|grunge|indie|pop|house|techno|trance|edm|dnb|dubstep|garage|grime|plugg|rage|lo ?fi|ambient|classical|folk|country|reggae|reggaeton|latin|afrobeats?|amapiano|dancehall|disco|synthwave|hyperpop|electronic|funk)\b/
 /** True when the request is only genre or mood words, like "phonk" or "czech drill". */
 const isGenre = (q: string): boolean => GENRE_CORE.test(q) && q.split(' ').every((w) => GENRE_WORDS.has(w))
 
@@ -1105,17 +1203,37 @@ async function ground(request: string): Promise<{ direct: Intent | null; hints: 
 
   const fullName = (t: STrack): string[] => [norm(t.name), ...t.artists.flatMap((a) => [`${norm(t.name)} ${norm(a.name)}`, `${norm(a.name)} ${norm(t.name)}`])]
   const exactSong = mine(tracks, (t) => t.artists.map((a) => a.id)).find((t) => fullName(t).includes(q))
-  if (exactSong) return { direct: { intent: 'song', title: exactSong.name, artist: exactSong.artists[0]?.name, trackId: exactSong.id, track: exactSong }, hints: '' }
+  if (exactSong)
+    return { direct: { intent: 'song', title: exactSong.name, artist: exactSong.artists[0]?.name, trackId: exactSong.id, track: exactSong }, hints: '' }
   // The album's name exactly (or "album artist" / "artist album").
-  const exactAlbum = albums.find((a) => [norm(a.name), ...a.artists.flatMap((x) => [`${norm(a.name)} ${norm(x.name)}`, `${norm(x.name)} ${norm(a.name)}`])].includes(q))
+  const exactAlbum = albums.find((a) =>
+    [norm(a.name), ...a.artists.flatMap((x) => [`${norm(a.name)} ${norm(x.name)}`, `${norm(x.name)} ${norm(a.name)}`])].includes(q)
+  )
   if (exactAlbum && exactAlbum.album_type !== 'single')
     return { direct: { intent: 'album', album: exactAlbum.name, artist: exactAlbum.artists[0]?.name, albumRef: exactAlbum }, hints: '' }
 
   const lines: string[] = []
-  if (artists.length) lines.push(`Artists: ${mine(artists, (a) => [a.id]).slice(0, 6).map((a) => a.name).join('; ')}`)
+  if (artists.length)
+    lines.push(
+      `Artists: ${mine(artists, (a) => [a.id])
+        .slice(0, 6)
+        .map((a) => a.name)
+        .join('; ')}`
+    )
   if (tracks.length)
-    lines.push(`Songs: ${mine(tracks, (t) => t.artists.map((a) => a.id)).slice(0, 8).map((t) => `"${t.name}" by ${t.artists.map((a) => a.name).join(', ')}`).join('; ')}`)
-  if (albums.length) lines.push(`Albums: ${albums.slice(0, 4).map((a) => `"${a.name}" by ${a.artists[0]?.name}`).join('; ')}`)
+    lines.push(
+      `Songs: ${mine(tracks, (t) => t.artists.map((a) => a.id))
+        .slice(0, 8)
+        .map((t) => `"${t.name}" by ${t.artists.map((a) => a.name).join(', ')}`)
+        .join('; ')}`
+    )
+  if (albums.length)
+    lines.push(
+      `Albums: ${albums
+        .slice(0, 4)
+        .map((a) => `"${a.name}" by ${a.artists[0]?.name}`)
+        .join('; ')}`
+    )
   const fav = [...new Set(known.values())].slice(0, 40)
   if (fav.length) lines.push(`Artists the listener plays: ${fav.join(', ')}`)
   return { direct: null, hints: lines.join('\n') }
@@ -1184,7 +1302,12 @@ async function playPicks(all: DjPick[], line: string, context?: string, ready?: 
   djContext = context ?? null
   setDjContinuation(null)
   if (context) await playContext(context, picks[0]?.uri, undefined, { source: 'dj' })
-  else await playUris(picks.map((p) => p.uri), undefined, { source: 'dj' })
+  else
+    await playUris(
+      picks.map((p) => p.uri),
+      undefined,
+      { source: 'dj' }
+    )
   set({ status: 'playing' })
   if (picks[0]) await waitForTrack(picks[0].uri)
   if (line && get().active) await speak(line, await voice)
@@ -1206,7 +1329,10 @@ function followUp(first: DjPick, theme: string, mood: Mood | null, seeds: STrack
       if (!get().active || get().set[0]?.id !== first.id) return
       const rest = uniquePicks(picks, get().set)
       flavour = t
-      setDjContinuation(first.id, rest.map((p) => p.uri))
+      setDjContinuation(
+        first.id,
+        rest.map((p) => p.uri)
+      )
       set((s) => ({ set: [...s.set, ...rest] }))
       if (intro && rest[0] && shouldTalk(1)) pendingIntros.set(rest[0].uri, intro)
     })
@@ -1223,13 +1349,20 @@ function followUp(first: DjPick, theme: string, mood: Mood | null, seeds: STrack
 type Angle = 'newest' | 'oldest' | 'hits' | 'deep' | 'only' | 'like'
 const ANGLES: [Angle, string][] = [
   ['like', 'neco jako|neco jak|neco ve stylu|podobne jako|podobny jako|podobne|ve stylu|like|similar to|sounds like|in the style of|artists like'],
-  ['newest', 'nejnovejsi|nejnovjsi|nove|novy|novou|novych|novinky|novinku|novinka|novejsi|nova|posledni|aktualni|cerstve|cerstvy|latest|newest|new|fresh|recent|newer|lately released'],
+  [
+    'newest',
+    'nejnovejsi|nejnovjsi|nove|novy|novou|novych|novinky|novinku|novinka|novejsi|nova|posledni|aktualni|cerstve|cerstvy|latest|newest|new|fresh|recent|newer|lately released'
+  ],
   ['oldest', 'nejstarsi|stare|stary|starsi|starych|prvni|puvodni|old|oldest|older|earliest|first|early|classic'],
-  ['hits', 'nejvetsi hity|nejlepsi|nejznamejsi|nejhranejsi|nejpopularnejsi|hity|hit|top|best of|best|greatest hits|biggest hits|hits|popular|most popular|famous'],
+  [
+    'hits',
+    'nejvetsi hity|nejlepsi|nejznamejsi|nejhranejsi|nejpopularnejsi|hity|hit|top|best of|best|greatest hits|biggest hits|hits|popular|most popular|famous'
+  ],
   ['deep', 'mene zname|nezname|neznamy|vzacne|deep cuts|deep cut|underrated|hidden gems|lesser known|b sides|album tracks|deep'],
   ['only', 'jen|jenom|pouze|nic nez|only|just|nothing but']
 ]
-const FILL = '(?:pisnicky|pisnicku|pisne|pisni|songy|songu|songs|song|tracky|tracks|track|veci|vec|hudbu|music|stuff|releases|vydani|alba|album|singly|singles|od nej|od ni)'
+const FILL =
+  '(?:pisnicky|pisnicku|pisne|pisni|songy|songu|songs|song|tracky|tracks|track|veci|vec|hudbu|music|stuff|releases|vydani|alba|album|singly|singles|od nej|od ni)'
 
 function readAngle(request: string): { angle: Angle; name: string } | null {
   const t = norm(request)
@@ -1248,7 +1381,10 @@ function readAngle(request: string): { angle: Angle; name: string } | null {
     m ??= new RegExp(`^${FILL}\\s+${w}\\s+(?:(?:od|by|from|of)\\s+)?(.+)$`).exec(t)
     // "like" only at the start: "Riad like" means nothing
     if (angle === 'like' && m && !new RegExp(`^(?:${FILL}\\s+)?${w}\\s`).test(t)) m = null
-    const name = m?.[1]?.replace(new RegExp(`^${FILL}\\s+(?:od|by|from|of)\\s+`), '').replace(/^(?:od|by|from|of)\s+/, '').trim()
+    const name = m?.[1]
+      ?.replace(new RegExp(`^${FILL}\\s+(?:od|by|from|of)\\s+`), '')
+      .replace(/^(?:od|by|from|of)\s+/, '')
+      .trim()
     if (name && name.length >= 2 && !/^(?:pisnicky|songy|songs|music|hudbu|veci)$/.test(name)) return { angle, name }
   }
   return null
@@ -1286,7 +1422,14 @@ async function nextReleases(count = 3): Promise<STrack[]> {
   while (w.next < w.albums.length && out.length < 8) {
     const batch = w.albums.slice(w.next, w.next + count)
     w.next += batch.length
-    const lists = await Promise.all(batch.map((al) => sp.getAlbumTracks(al.id).then((l) => l.map((t) => ({ ...t, album: { ...al, images: al.images } }) as STrack)).catch(() => [] as STrack[])))
+    const lists = await Promise.all(
+      batch.map((al) =>
+        sp
+          .getAlbumTracks(al.id)
+          .then((l) => l.map((t) => ({ ...t, album: { ...al, images: al.images } }) as STrack))
+          .catch(() => [] as STrack[])
+      )
+    )
     out.push(...lists.flat().filter((t) => t.artists.some((a) => a.id === w.artist.id) && !usedIds.has(t.id)))
   }
   return dedupe(out).slice(0, 12)
@@ -1313,19 +1456,31 @@ async function playAngle(angle: Angle, ar: { id: string; name: string }, line: s
       angle === 'newest'
         ? `The latest from ${ar.name}${year ? `, starting with ${year}` : ''}, newest first.`
         : `Back to where ${ar.name} began${year ? `, ${year}` : ''}, oldest first.`
-    await playPicks(first.map((t) => toPick(t, label)), line || said)
+    await playPicks(
+      first.map((t) => toPick(t, label)),
+      line || said
+    )
     return true
   }
   if (angle === 'like') {
     // artists that sound like them (not them): a few songs each
     const similar = (await similarTo([ar]).catch(() => [] as { id: string; name: string }[])).slice(0, 6)
     if (!similar.length) return false
-    const lists = await Promise.all(similar.map((a) => songsOf(a, false).then((l) => shuffle(l.filter((t) => t.artists[0]?.id === a.id)).slice(0, 3)).catch(() => [] as STrack[])))
+    const lists = await Promise.all(
+      similar.map((a) =>
+        songsOf(a, false)
+          .then((l) => shuffle(l.filter((t) => t.artists[0]?.id === a.id)).slice(0, 3))
+          .catch(() => [] as STrack[])
+      )
+    )
     const list = dedupe(interleave(lists)).slice(0, 12)
     if (!list.length) return false
     flavour = `artists that sound like ${ar.name}`
     followArtists(similar.slice(0, 4))
-    await playPicks(list.map((t) => toPick(t, `Like ${ar.name}`)), line || `If you like ${ar.name}, you’ll like these.`)
+    await playPicks(
+      list.map((t) => toPick(t, `Like ${ar.name}`)),
+      line || `If you like ${ar.name}, you’ll like these.`
+    )
     return true
   }
   const popular = await loadArtistPopular(ar.id, ar.name).catch(() => [] as STrack[])
@@ -1334,18 +1489,31 @@ async function playAngle(angle: Angle, ar: { id: string; name: string }, line: s
     if (!list.length) return false
     flavour = `${ar.name} and artists like them`
     followArtists([ar])
-    await playPicks(list.map((t) => toPick(t, 'A big one')), line || `The biggest songs by ${ar.name}, back to back.`)
+    await playPicks(
+      list.map((t) => toPick(t, 'A big one')),
+      line || `The biggest songs by ${ar.name}, back to back.`
+    )
     return true
   }
   if (angle === 'deep') {
     const hits = new Set(popular.map((t) => t.id))
     const albums = shuffle((await sp.getArtistAlbums(ar.id).catch(() => [] as SAlbumRef[])).filter((a) => a.album_type === 'album')).slice(0, 3)
-    const lists = await Promise.all(albums.map((al) => sp.getAlbumTracks(al.id).then((l) => l.map((t) => ({ ...t, album: { ...al, images: al.images } }) as STrack)).catch(() => [] as STrack[])))
+    const lists = await Promise.all(
+      albums.map((al) =>
+        sp
+          .getAlbumTracks(al.id)
+          .then((l) => l.map((t) => ({ ...t, album: { ...al, images: al.images } }) as STrack))
+          .catch(() => [] as STrack[])
+      )
+    )
     const list = shuffle(lists.flat().filter((t) => !hits.has(t.id) && t.artists.some((a) => a.id === ar.id))).slice(0, 10)
     if (!list.length) return false
     flavour = `${ar.name} and artists like them`
     followArtists([ar])
-    await playPicks(list.map((t) => toPick(t, 'Deep cut')), line || `${ar.name} past the hits: the songs fewer people know.`)
+    await playPicks(
+      list.map((t) => toPick(t, 'Deep cut')),
+      line || `${ar.name} past the hits: the songs fewer people know.`
+    )
     return true
   }
   // only them
@@ -1356,7 +1524,10 @@ async function playAngle(angle: Angle, ar: { id: string; name: string }, line: s
   if (!list.length) return false
   flavour = ar.name
   followArtists([ar], true)
-  await playPicks(list.map((t) => toPick(t, ar.name)), line || `Nothing but ${ar.name}.`)
+  await playPicks(
+    list.map((t) => toPick(t, ar.name)),
+    line || `Nothing but ${ar.name}.`
+  )
   return true
 }
 
@@ -1395,7 +1566,12 @@ async function handleRequest(request: string): Promise<void> {
   if (intent.intent === 'song' && intent.title) {
     const t =
       intent.track ??
-      (intent.trackId ? await sp.getTrack(intent.trackId).then((x) => (x?.id ? x : null)).catch(() => null) : null) ??
+      (intent.trackId
+        ? await sp
+            .getTrack(intent.trackId)
+            .then((x) => (x?.id ? x : null))
+            .catch(() => null)
+        : null) ??
       (await findTrack(intent.title, intent.artist)) ??
       (await findTrack(cleanRequest(request).q || request))
     if (t) {
@@ -1405,13 +1581,14 @@ async function handleRequest(request: string): Promise<void> {
     }
   }
   if (intent.intent === 'songs' && intent.list?.length) {
-    const found = (await Promise.all(intent.list.slice(0, 12).map((x) => findTrack(x.title, x.artist).catch(() => null)))).filter(
-      (t): t is STrack => !!t
-    )
+    const found = (await Promise.all(intent.list.slice(0, 12).map((x) => findTrack(x.title, x.artist).catch(() => null)))).filter((t): t is STrack => !!t)
     if (found.length) {
       flavour = `songs in the style of ${found.map((t) => t.artists[0]?.name).join(', ')}`
       followArtists(found.map((t) => t.artists[0]).filter(Boolean))
-      return playPicks(found.map((t) => toPick(t, 'You asked for it')), line)
+      return playPicks(
+        found.map((t) => toPick(t, 'You asked for it')),
+        line
+      )
     }
   }
   // the model may name several artists in "list"
@@ -1434,7 +1611,10 @@ async function handleRequest(request: string): Promise<void> {
       const said = names.length === 2 ? `${names[0]} and ${names[1]}` : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
       flavour = `${said} and artists like them`
       followArtists(who)
-      return playPicks(list.map((t) => toPick(t, t.artists[0]?.name ?? '')), line || `${said}, back to back.`)
+      return playPicks(
+        list.map((t) => toPick(t, t.artists[0]?.name ?? '')),
+        line || `${said}, back to back.`
+      )
     }
   }
   if (intent.intent === 'album' && (intent.albumRef || intent.album)) {
@@ -1457,7 +1637,10 @@ async function handleRequest(request: string): Promise<void> {
       if (list.length) {
         flavour = `${ar.name} and artists like them`
         followArtists([ar])
-        return playPicks(list.map((t) => toPick(t, mine.includes(t) ? 'From your library' : 'Popular')), line || `A set of ${ar.name}, coming up.`)
+        return playPicks(
+          list.map((t) => toPick(t, mine.includes(t) ? 'From your library' : 'Popular')),
+          line || `A set of ${ar.name}, coming up.`
+        )
       }
     }
   }
@@ -1534,6 +1717,9 @@ let warming: Promise<void> | null = null
 export function warmDj(): void {
   if (warm && Date.now() - warm.at > 3 * 3600_000) warm = null
   if (warming || warm || get().active) return
+  // a set made just in case costs Pulse's own allowance when it can't go through your Spotify
+  // account: then the set is made when you press Start
+  if (!sp.webRouteOpen()) return
   const st = useApp.getState().settings
   if (st.djProvider === 'claude' && !st.djClaudeKey) return
   if (st.djProvider === 'local') void window.pulse.dj.preload()
@@ -1602,7 +1788,10 @@ export function moveInDjSet(from: number, to: number): void {
   rest.splice(to, 0, it)
   set({ set: [...list.slice(0, at + 1), ...rest] })
   reorderedAfter = cur
-  setDjContinuation(cur, rest.map((p) => p.uri))
+  setDjContinuation(
+    cur,
+    rest.map((p) => p.uri)
+  )
 }
 
 export { speak as djSpeak }

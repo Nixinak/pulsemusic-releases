@@ -57,7 +57,7 @@ const fresh = (k: string): boolean => {
 async function lookUp(a: GenreArtist): Promise<string[]> {
   const real = /^[A-Za-z0-9]{22}$/.test(a.id)
   if (real) {
-    const s = await sp.api<{ genres?: string[] }>(`/artists/${a.id}`).catch(() => null)
+    const s = await sp.api<{ genres?: string[] }>(`/artists/${a.id}`, { background: true, patient: true }).catch(() => null)
     if (s?.genres?.length) return s.genres.slice(0, 4).map((g) => g.toLowerCase())
   }
   return window.pulse.artistGenres(real ? a.id : null, a.name).catch(() => [])
