@@ -1,3 +1,8 @@
-## Pulse Music 1.7.1
+## Pulse Music 1.7.2
 
-- **Messages, a new Now Playing look**: the lyrics arrive as text messages. Each line is a bubble from one side or the other, and the words type themselves in as they're sung. Before a line after a pause, the other side is "typing". Now and then a line comes as a shared place with a little map. The artist is the contact, with the cover as their picture, and the chat opens with the song shared as a card. Pick it in the menu at the right edge of Now Playing or in Settings → Now Playing.
+- **Fast again**: Pulse no longer holds back your own clicks. Since 1.7.0 it counted every request over the day and, after a few hours of normal use, refused most clicks with "Easy there!" and left pages and searches waiting. Now play, skip, pages and search go straight away; only background work (checking what's playing, made-for-you mixes) keeps to the limits. It also asks what's playing less often when the music plays on this computer.
+- **The Spotify account route is checked first**: requests go through your connected Spotify account only after Spotify has answered a test call that way, and Pulse no longer reloads the web player in the background on every refusal (that was one of the freezes).
+- **Your genres** on Your stats: what genres your top artists play, weighted by how much you listen to them, with the biggest one up front.
+- **Ask the DJ for**: new cards, each mood its own little scene.
+- **Now Playing looks**: Cover, Vinyl and Messages, picked from a new menu that shows each look with the song's own cover. Poster, Lock screen and Visualizer are gone.
+- **Discover** is gone.

@@ -56,7 +56,8 @@ const KINDS: [RegExp, ArtistLinkKind, string][] = [
   [/(^|\.)wikipedia\.org$/, 'wikipedia', 'Wikipedia']
 ]
 // Not useful to show: databases and stores the listener doesn't care about.
-const SKIP = /(^|\.)(spotify\.com|musicbrainz\.org|wikidata\.org|discogs\.com|allmusic\.com|last\.fm|setlist\.fm|songkick\.com|viaf\.org|imdb\.com|rateyourmusic\.com|secondhandsongs\.com|bbc\.co\.uk|itunes\.apple\.com|tidal\.com|amazon\.\w+|napster\.com|qobuz\.com|beatport\.com|whosampled\.com)$/
+const SKIP =
+  /(^|\.)(spotify\.com|musicbrainz\.org|wikidata\.org|discogs\.com|allmusic\.com|last\.fm|setlist\.fm|songkick\.com|viaf\.org|imdb\.com|rateyourmusic\.com|secondhandsongs\.com|bbc\.co\.uk|itunes\.apple\.com|tidal\.com|amazon\.\w+|napster\.com|qobuz\.com|beatport\.com|whosampled\.com)$/
 
 function classify(url: string, homepage = false): ArtistLink | null {
   let u: URL
@@ -96,9 +97,7 @@ interface MbArtist {
 
 async function musicBrainz(spotifyId: string): Promise<MbArtist | null> {
   const resource = encodeURIComponent(`https://open.spotify.com/artist/${spotifyId}`)
-  const url = await json<{ relations?: { artist?: { id: string } }[] }>(
-    `https://musicbrainz.org/ws/2/url?resource=${resource}&inc=artist-rels&fmt=json`
-  )
+  const url = await json<{ relations?: { artist?: { id: string } }[] }>(`https://musicbrainz.org/ws/2/url?resource=${resource}&inc=artist-rels&fmt=json`)
   const mbid = url?.relations?.find((r) => r.artist)?.artist?.id
   if (!mbid) return null
   return json<MbArtist>(`https://musicbrainz.org/ws/2/artist/${mbid}?inc=url-rels+aliases&fmt=json`)
@@ -209,8 +208,7 @@ function pickBanner(candidates: ArtistInfo['images']): ArtistInfo['images'][numb
 /* ---------- All together ---------- */
 
 /** `p`, or null when it takes longer than `ms` (it keeps running and may fill a cache). */
-const capped = <T>(p: Promise<T>, ms: number): Promise<T | null> =>
-  Promise.race([p.catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), ms))])
+const capped = <T>(p: Promise<T>, ms: number): Promise<T | null> => Promise.race([p.catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), ms))])
 
 /** How long About waits for any one source before showing what it has. */
 const WAIT_MS = 3500
@@ -222,12 +220,20 @@ async function load(q: ArtistInfoQuery): Promise<ArtistInfo & { partial: boolean
   const relsOf = (mb: MbArtist | null): MbRel[] => (mb?.relations ?? []).filter((r) => r.url?.resource)
   const relUrlIn = (mb: MbArtist | null, re: RegExp): string | undefined => relsOf(mb).find((r) => re.test(r.url!.resource))?.url?.resource
   const gP = genius(q.name, q.titles, null).catch(() => null)
-  const dP = mbP.then((mb) => deezer(q.name, q.titles, /deezer\.com\/(?:\w+\/)?artist\/(\d+)/.exec(relUrlIn(mb, /deezer\.com/) ?? '')?.[1] ?? null)).catch(() => null)
+  const dP = mbP
+    .then((mb) => deezer(q.name, q.titles, /deezer\.com\/(?:\w+\/)?artist\/(\d+)/.exec(relUrlIn(mb, /deezer\.com/) ?? '')?.[1] ?? null))
+    .catch(() => null)
   const wP = mbP.then((mb) => wikipedia(relUrlIn(mb, /wikidata\.org/), relUrlIn(mb, /wikipedia\.org/))).catch(() => null)
   // the full page opens a hidden browser window and can take a while: About doesn't wait for
   // it (the artist page shows its bio and links on its own when it arrives)
   const pageP = getArtistPage(q.id)
-  const [mb, g, d, wiki, page] = await Promise.all([capped(mbP, WAIT_MS), capped(gP, WAIT_MS), capped(dP, WAIT_MS + 1500), capped(wP, WAIT_MS + 1500), capped(pageP, WAIT_MS)])
+  const [mb, g, d, wiki, page] = await Promise.all([
+    capped(mbP, WAIT_MS),
+    capped(gP, WAIT_MS),
+    capped(dP, WAIT_MS + 1500),
+    capped(wP, WAIT_MS + 1500),
+    capped(pageP, WAIT_MS)
+  ])
   const partial = page === null
   const rels = relsOf(mb)
   const relUrl = (re: RegExp): string | undefined => relUrlIn(mb, re)
@@ -243,7 +249,21 @@ async function load(q: ArtistInfoQuery): Promise<ArtistInfo & { partial: boolean
   if (g?.url || geniusSlug) addLink(links, { kind: 'genius', label: 'Genius', url: g?.url ?? geniusSlug! })
   if (d) addLink(links, { kind: 'deezer', label: 'Deezer', url: `https://www.deezer.com/artist/${d.id}` })
   if (wiki) addLink(links, { kind: 'wikipedia', label: 'Wikipedia', url: wiki.url })
-  const order: ArtistLinkKind[] = ['instagram', 'tiktok', 'youtube', 'x', 'facebook', 'soundcloud', 'twitch', 'bandcamp', 'website', 'apple', 'deezer', 'genius', 'wikipedia']
+  const order: ArtistLinkKind[] = [
+    'instagram',
+    'tiktok',
+    'youtube',
+    'x',
+    'facebook',
+    'soundcloud',
+    'twitch',
+    'bandcamp',
+    'website',
+    'apple',
+    'deezer',
+    'genius',
+    'wikipedia'
+  ]
   links.sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind))
 
   const images: ArtistInfo['images'] = []
@@ -278,9 +298,7 @@ async function load(q: ArtistInfoQuery): Promise<ArtistInfo & { partial: boolean
     kind: mb?.type ?? null,
     fans: d?.nb_fan ?? null,
     followers: g?.followers_count ?? null,
-    aka: [...new Set([...(g?.alternate_names ?? []), ...(mb?.aliases ?? []).map((a) => a.name)])]
-      .filter((n) => norm(n) !== norm(q.name))
-      .slice(0, 4)
+    aka: [...new Set([...(g?.alternate_names ?? []), ...(mb?.aliases ?? []).map((a) => a.name)])].filter((n) => norm(n) !== norm(q.name)).slice(0, 4)
   }
 }
 
@@ -296,4 +314,38 @@ export function getArtistInfo(q: ArtistInfoQuery): Promise<ArtistInfo> {
     if (r.partial || (!r.links.length && !r.bio && r.images.length <= 1)) setTimeout(() => cache.delete(key), 60_000)
   }).catch(() => cache.delete(key))
   return p.then(({ partial: _partial, ...info }) => info)
+}
+
+/* ---------- Genres (for Your stats) ----------
+ * MusicBrainz's curated genres for an artist: found through the artist's Spotify link when
+ * MusicBrainz has it, otherwise by name. MusicBrainz asks for at most one request a second,
+ * so every call here waits its turn. */
+let mbNext = 0
+async function mbJson<T>(url: string): Promise<T | null> {
+  const wait = Math.max(0, mbNext - Date.now())
+  mbNext = Math.max(Date.now(), mbNext) + 1100
+  if (wait) await new Promise((r) => setTimeout(r, wait))
+  return json<T>(url)
+}
+interface MbGenres {
+  genres?: { name: string; count: number }[]
+  tags?: { name: string; count: number }[]
+}
+export async function artistGenres(spotifyId: string | null, name: string): Promise<string[]> {
+  let mbid: string | null = null
+  if (spotifyId && /^[A-Za-z0-9]{22}$/.test(spotifyId)) {
+    const resource = encodeURIComponent(`https://open.spotify.com/artist/${spotifyId}`)
+    const url = await mbJson<{ relations?: { artist?: { id: string } }[] }>(`https://musicbrainz.org/ws/2/url?resource=${resource}&inc=artist-rels&fmt=json`)
+    mbid = url?.relations?.find((r) => r.artist)?.artist?.id ?? null
+  }
+  if (!mbid && name.trim()) {
+    const q = encodeURIComponent(`artist:"${name.replace(/"/g, '')}"`)
+    const found = await mbJson<{ artists?: { id: string; name: string; score: number }[] }>(`https://musicbrainz.org/ws/2/artist/?query=${q}&limit=3&fmt=json`)
+    const hit = found?.artists?.find((a) => a.score >= 90 && norm(a.name) === norm(name))
+    mbid = hit?.id ?? null
+  }
+  if (!mbid) return []
+  const d = await mbJson<MbGenres>(`https://musicbrainz.org/ws/2/artist/${mbid}?inc=genres+tags&fmt=json`)
+  const list = (d?.genres?.length ? d.genres : (d?.tags ?? []).filter((t) => t.count > 0)).slice().sort((a, b) => b.count - a.count)
+  return list.slice(0, 4).map((g) => g.name.toLowerCase())
 }

@@ -17,8 +17,6 @@ export type Route =
   | { name: 'settings' }
   | { name: 'profile' }
   | { name: 'mix' }
-  /** New songs one at a time, like a short-video feed. */
-  | { name: 'discover' }
   | { name: 'stats' }
   /** 1,000 goals in ladders, with how rare each is among Spotify listeners. */
   | { name: 'achievements' }

@@ -1,91 +1,16 @@
-// Now Playing looks: the big cover (the usual one), a turntable, a poster, a visualizer, a
-// lock screen and the lyrics as text messages, plus the menu at the
-// right edge of the screen that switches between them (three lines) and turns real full screen
-// on and off. The menu shows when the pointer comes near the right edge.
+// Now Playing looks: the big cover (the usual one), a turntable and the lyrics as text
+// messages, plus the menu at the right edge of the screen that switches between them and turns
+// real full screen on and off. The menu shows when the pointer comes near the right edge.
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { NpTheme } from '@shared/types'
 import { Glass } from './Glass'
 
 export const NP_THEMES: { id: NpTheme; label: string; hint: string }[] = [
-  {
-    id: 'cover',
-    label: 'Album cover',
-    hint: 'The cover, big and centre stage'
-  },
+  { id: 'cover', label: 'Cover', hint: 'The cover, big and centre stage' },
   { id: 'vinyl', label: 'Vinyl', hint: 'A turntable spinning the record' },
-  { id: 'poster', label: 'Poster', hint: 'The song as a printed gig poster' },
-  {
-    id: 'pulse',
-    label: 'Visualizer',
-    hint: 'A ring of bars that moves with the beat'
-  },
-  {
-    id: 'lock',
-    label: 'Lock screen',
-    hint: 'The cover as wallpaper, with the time'
-  },
   { id: 'messages', label: 'Messages', hint: 'The lyrics arrive as text messages' }
 ]
-
-/* ---------- The lock screen ---------- */
-
-/** The cover filling the screen like a wallpaper (it slowly drifts closer). */
-export function LockWall({ art }: { art: string | null }): React.JSX.Element {
-  return (
-    <div className="lockwall" aria-hidden="true">
-      <AnimatePresence initial={false}>
-        {art && (
-          <motion.img
-            key={art}
-            src={art}
-            alt=""
-            draggable={false}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1.1 }}
-          />
-        )}
-      </AnimatePresence>
-    </div>
-  )
-}
-
-/** The date and a big clock, like a lock screen. */
-export function LockClock(): React.JSX.Element {
-  const [now, setNow] = useState(() => new Date())
-  useEffect(() => {
-    let t = 0
-    // ticks on the minute, so the clock changes when the real one does
-    const next = (): void => {
-      t = window.setTimeout(
-        () => {
-          setNow(new Date())
-          next()
-        },
-        60_000 - (Date.now() % 60_000) + 30
-      )
-    }
-    next()
-    return () => window.clearTimeout(t)
-  }, [])
-  const date = now.toLocaleDateString('en-GB', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short'
-  })
-  const time = now.toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-  return (
-    <div className="lockclock">
-      <span className="lockclock__date">{date}</span>
-      <span className="lockclock__time">{time}</span>
-    </div>
-  )
-}
 
 /* ---------- The menu at the edge ---------- */
 
@@ -100,40 +25,31 @@ const FullIcon = ({ on }: { on: boolean }): React.JSX.Element => (
   </svg>
 )
 
-/** Small drawings of each look, for the menu. */
-function ThemePreview({ id }: { id: NpTheme }): React.JSX.Element {
+/** Each look in miniature, drawn with the song's own cover. */
+function ThemePreview({ id, art }: { id: NpTheme; art: string | null }): React.JSX.Element {
+  const img = art ? <img src={art} alt="" draggable={false} /> : <i className="npv__blank" />
   return (
-    <span className={`npm__pv npm__pv--${id}`} aria-hidden="true">
-      {id === 'poster' && (
+    <span className={`npv npv--${id}`} aria-hidden="true">
+      {id === 'cover' && (
         <>
-          <i className="npm__pv-art" />
-          <i className="npm__pv-big" />
+          <span className="npv__wash">{img}</span>
+          <span className="npv__art">{img}</span>
         </>
       )}
-      {id === 'pulse' && (
-        <>
-          <i className="npm__pv-ring" />
-          <i className="npm__pv-dot" />
-        </>
-      )}
-      {id === 'cover' && <i className="npm__pv-art" />}
       {id === 'vinyl' && (
         <>
-          <i className="npm__pv-text" />
-          <i className="npm__pv-disc" />
+          <span className="npv__record">
+            <span className="npv__label">{img}</span>
+          </span>
+          <i className="npv__arm" />
         </>
       )}
       {id === 'messages' && (
         <>
-          <i className="npm__pv-msg npm__pv-msg--in" />
-          <i className="npm__pv-msg npm__pv-msg--out" />
-          <i className="npm__pv-msg npm__pv-msg--in2" />
-        </>
-      )}
-      {id === 'lock' && (
-        <>
-          <i className="npm__pv-clock" />
-          <i className="npm__pv-art" />
+          <i className="npv__b npv__b--in" style={{ width: '58%' }} />
+          <i className="npv__b npv__b--out" style={{ width: '50%' }} />
+          <i className="npv__b npv__b--in" style={{ width: '70%' }} />
+          <i className="npv__b npv__b--out npv__b--last" style={{ width: '36%' }} />
         </>
       )}
     </span>
@@ -142,6 +58,7 @@ function ThemePreview({ id }: { id: NpTheme }): React.JSX.Element {
 
 export function NpEdgeMenu({
   theme,
+  art,
   full,
   scratch,
   onTheme,
@@ -149,6 +66,8 @@ export function NpEdgeMenu({
   onScratch
 }: {
   theme: NpTheme
+  /** The song's cover, for the previews. */
+  art: string | null
   full: boolean
   scratch: boolean
   onTheme: (t: NpTheme) => void
@@ -238,21 +157,18 @@ export function NpEdgeMenu({
             transition={{ type: 'spring', stiffness: 420, damping: 34 }}
           >
             <Glass radius={24} bezel={14} refraction={36} simple className="npm__glass">
-              <p className="npm__h">Look</p>
-              <div className="npm__list" role="radiogroup" aria-label="Now Playing look">
+              <div className="npm__looks" role="radiogroup" aria-label="Now Playing look">
                 {NP_THEMES.map((t) => (
                   <button
                     key={t.id}
                     role="radio"
                     aria-checked={theme === t.id}
-                    className={`npm__opt ${theme === t.id ? 'is-on' : ''}`}
+                    title={t.hint}
+                    className={`npm__look ${theme === t.id ? 'is-on' : ''}`}
                     onClick={() => onTheme(t.id)}
                   >
-                    <ThemePreview id={t.id} />
-                    <span className="npm__txt">
-                      <b>{t.label}</b>
-                      <small>{t.hint}</small>
-                    </span>
+                    <ThemePreview id={t.id} art={art} />
+                    <span>{t.label}</span>
                   </button>
                 ))}
               </div>

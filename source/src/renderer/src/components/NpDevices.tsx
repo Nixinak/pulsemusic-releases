@@ -8,7 +8,6 @@ import { useLivePosition } from './common'
 import { formatTime } from '@/lib/format'
 import { duck, livePosition, usePlayer } from '@/lib/player'
 import { useApp } from '@/lib/store'
-import { BANDS, readBeat, useBeat } from '@/lib/beat'
 import { prepareScratch, scratchMove, scratchStart, scratchStop } from '@/lib/npSounds'
 
 /* ================= Turntable ================= */

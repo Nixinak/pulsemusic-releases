@@ -45,7 +45,6 @@ import { DjVoiceOverlay } from '@/components/DjVoice'
 import { startHistory } from '@/lib/history'
 import { startMadeForYou } from '@/lib/madeForYou'
 import { MadeView } from '@/views/MadeView'
-import { DiscoverView } from '@/views/DiscoverView'
 import { AchievementsView } from '@/views/AchievementsView'
 import { restoreStartPage, startAppExtras } from '@/lib/appExtras'
 
@@ -91,8 +90,6 @@ function Page({ route, onSignOut }: { route: Route; onSignOut: () => void }): Re
       return <StatsView />
     case 'mix':
       return <MixView />
-    case 'discover':
-      return <DiscoverView />
     case 'achievements':
       return <AchievementsView />
     case 'party':

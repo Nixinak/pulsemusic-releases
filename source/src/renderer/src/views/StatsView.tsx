@@ -11,6 +11,7 @@ import { useApp } from '@/lib/store'
 import { computeStats, isRealId, startOfYear, useHistory } from '@/lib/history'
 import { funFacts } from '@/lib/funFacts'
 import { FocusImg } from '@/components/FocusImg'
+import { Genres } from '@/components/Genres'
 import { FunFacts } from '@/components/FunFacts'
 import { Achievements, AchievementsChip } from '@/components/Achievements'
 import { formatMinutes } from '@/lib/recap'
@@ -130,6 +131,8 @@ export function StatsView(): React.JSX.Element {
   const spTracks = useQuery(needSpotify ? `stats:tracks50:${spRange}` : null, () => sp.getTopTracks(spRange, 50))
   const artistList: TopArtist[] = useMemo(() => own?.artists ?? (spArtists.data?.items ?? []).filter((a) => a?.id).map(fromSpArtist), [own, spArtists.data])
   const top: TopTrack[] = useMemo(() => own?.tracks ?? (spTracks.data?.items ?? []).filter((t) => t?.id).map(fromSpTrack), [own, spTracks.data])
+  // the genres weigh each artist by minutes when the history has them, by rank otherwise
+  const genreArtists = useMemo(() => artistList.map((a, i) => ({ id: a.id, name: a.name, weight: a.minutes ?? artistList.length - i })), [artistList])
   const loading = !loaded || (needSpotify && spArtists.loading && !spArtists.data)
   const hero = artistList[0]
   const heroImage = useArtistPicture(hero?.name, hero?.id, hero?.image ?? null)
@@ -306,6 +309,7 @@ export function StatsView(): React.JSX.Element {
             )}
           </div>
 
+          <Genres artists={genreArtists} />
           <FunFacts facts={fun} />
           <Achievements />
         </>

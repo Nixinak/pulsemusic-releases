@@ -91,14 +91,20 @@ const webRefused = new Map<string, number>()
 const shapeOf = (path: string): string => path.split('?')[0].replace(/[A-Za-z0-9]{22}/g, ':id')
 export const webRouteOpen = (): boolean => webAccount === true && Date.now() >= webBlockedUntil
 const announce = (): void => void window.dispatchEvent(new CustomEvent('pulse:rate-limit', { detail: rateLimitedUntil() }))
+/** Connected isn't enough: the route is used only after Spotify answered a test call on it. */
 export async function refreshWebRoute(): Promise<void> {
   const st = await window.pulse.spotifyAccount?.status().catch(() => null)
   const was = webAccount
-  webAccount = !!st?.connected
+  if (!st?.connected) webAccount = false
+  else {
+    const r = await window.pulse.spotifyAccount.api('GET', BASE + '/me').catch(() => null)
+    webAccount = !!r && r.status >= 200 && r.status < 300
+    if (!webAccount) console.warn(`[api] web player route not usable (${r ? r.status : 'no answer'}); using Pulse's own key`)
+  }
   if (was !== webAccount) announce()
 }
 void refreshWebRoute()
-setInterval(() => void refreshWebRoute(), 5 * 60_000)
+setInterval(() => void refreshWebRoute(), 30 * 60_000)
 const blockWeb = (secs: number): void => {
   webBlockedUntil = Date.now() + Math.max(60, Math.min(secs || 0, 24 * 3600)) * 1000
   try {
@@ -147,7 +153,13 @@ async function viaWeb<T>(path: string, opts: Options, background: boolean, isTap
     return null
   }
   if (r.status >= 500) return null
-  if (r.status === 401 || (r.status === 403 && (method === 'GET' || /scope|permission|token/i.test(r.body)))) {
+  if (r.status === 401) {
+    // the token stopped working: the route closes until the next check
+    webAccount = false
+    announce()
+    return null
+  }
+  if (r.status === 403 && (method === 'GET' || /scope|permission|token/i.test(r.body))) {
     webRefused.set(shape, Date.now() + 6 * 3600_000)
     return null
   }
@@ -225,7 +237,7 @@ async function takeTurn(background: boolean, isTap = false, patient = false, pol
   // the long windows first (asking what is playing keeps the player right: it only counts
   // toward the overall caps, not the background ones)
   for (;;) {
-    const wait = Math.max(overallWait(), background && !poll ? backgroundWait() : 0)
+    const wait = background ? Math.max(overallWait(), poll ? 0 : backgroundWait()) : 0
     if (!wait) break
     // a poll or prefetch just skips this round; patient work waits; a tap says so
     if (background && !patient) throw new DeferredError()
@@ -260,8 +272,8 @@ async function takeTurn(background: boolean, isTap = false, patient = false, pol
  * the last 24 hours, kept across restarts, and:
  *  - background work (polls, prefetches, the made-for-you mixes) has small hard caps per
  *    10 minutes, hour and day, smaller still while the window is hidden (Pulse in the tray),
- *  - everything, taps included, waits in the rare case the app as a whole gets near what a
- *    long block was seen at; a person clicking around never gets close to that,
+ *  - polls and background work also wait when the app as a whole sent a lot lately; what you
+ *    click and open never waits for these totals,
  *  - after any refusal, background work rests for two hours.
  */
 const LEDGER_KEY = 'pulse-ledger1'
@@ -311,12 +323,12 @@ function since(minutes: number): { all: number; bg: number } {
   return { all, bg }
 }
 /** Background caps: per 10 min, per hour, per day (the first one is lower while hidden). */
-const BG_CAPS = { tenMin: 40, tenMinHidden: 15, hour: 140, day: 500 }
-/** Caps for everything together on Pulse's own key. Spotify's daily quota for developer apps
- *  is small and unpublished (people report blocks after 1,500-2,000 calls of one kind a day),
- *  so the day cap stays well below that; with the web player's route connected the key is
- *  hardly used at all. */
-const ALL_CAPS = { tenMin: 220, hour: 600, day: 1800 }
+const BG_CAPS = { tenMin: 70, tenMinHidden: 25, hour: 260, day: 1600 }
+/** Totals for everything together. They only ever hold back background work (polls, mixes,
+ *  prefetches): what you click and open always goes, limited only by the 30 s window and by a
+ *  real refusal from Spotify. (In 1.7.0 they held back clicks too, and after a few hours of
+ *  normal use most clicks were refused with "Easy there!".) */
+const ALL_CAPS = { tenMin: 700, hour: 2400, day: 12_000 }
 let bgRestUntil = (() => {
   try {
     return Number(localStorage.getItem(BG_REST_KEY) ?? 0) || 0

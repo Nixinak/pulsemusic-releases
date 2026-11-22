@@ -48,7 +48,7 @@ import {
 import { cleanOldVoices, installVoice, speak, voiceStatus } from './voice'
 import { discordStatus, refreshPresence, setDiscordEnabled, setDiscordGetButton, updatePresence } from './discord'
 import { fetchGenius, fetchLrclib, fetchLyricsOvh } from './lyrics'
-import { getArtistInfo } from './artistInfo'
+import { artistGenres, getArtistInfo } from './artistInfo'
 import { ensureEngine, localReady, setupLocal, stopEngine } from './aiSetup'
 import { getArtistPage, getArtistQuick } from './spotifyPage'
 import {
@@ -56,7 +56,6 @@ import {
   disconnectSpotifyAccount,
   spotifyAccountStatus,
   spotifyAnalysis,
-  spotifyCanvas,
   spotifyWebApi,
   spotifyFriends,
   spotifyLyrics
@@ -472,6 +471,9 @@ function registerIpc(): void {
     return next
   })
 
+  ipcMain.handle('artist:genres', (_e, id: unknown, name: unknown) =>
+    typeof name === 'string' ? artistGenres(typeof id === 'string' ? id : null, name).catch(() => []) : []
+  )
   ipcMain.handle('artist:info', (_e, q) => getArtistInfo(q))
   ipcMain.handle('lastfm:status', () => lastfmStatus())
   ipcMain.handle('lastfm:connect', () => connectLastfm())
@@ -630,7 +632,6 @@ function registerIpc(): void {
   ipcMain.handle('spotify-account:api', (_e, method: unknown, url: unknown, body: unknown) =>
     typeof method === 'string' && typeof url === 'string' ? spotifyWebApi(method, url, typeof body === 'string' ? body : undefined).catch(() => null) : null
   )
-  ipcMain.handle('spotify-account:canvas', (_e, id: unknown) => (typeof id === 'string' ? spotifyCanvas(id).catch(() => null) : null))
   ipcMain.handle('spotify-account:analysis', (_e, id: unknown) => (typeof id === 'string' ? spotifyAnalysis(id).catch(() => null) : null))
   ipcMain.handle('spotify-account:lyrics', (_e, id: unknown) => (typeof id === 'string' ? spotifyLyrics(id).catch(() => null) : null))
   ipcMain.handle('lyrics:lrclib', (_e, q) => fetchLrclib(q))

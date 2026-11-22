@@ -17,10 +17,9 @@ import { TransitionStage } from './TransitionCard'
 import { useTransition } from '@/lib/transition'
 import type { NpPanel } from '@/lib/store'
 import type { NpTheme } from '@shared/types'
-import { LockClock, LockWall, NpEdgeMenu } from './NpThemes'
+import { NpEdgeMenu } from './NpThemes'
 import { MessagesChat } from './NpMessages'
 import { Turntable } from './NpDevices'
-import { Poster, PulseRing } from './NpExtras'
 import { useNpSounds } from '@/lib/npSounds'
 import { getLyrics, prefetchLyrics } from '@/lib/lyrics'
 
@@ -83,7 +82,8 @@ export function NowPlaying(): React.JSX.Element {
   const showStage = transitioning && (panel === 'lyrics' || panel === 'queue')
   // "Album cover" is the base look ("Classic" was folded into it)
   const savedTheme = useApp((s) => s.settings.npTheme)
-  const theme: NpTheme = !savedTheme || savedTheme === 'classic' || savedTheme === 'cd' || savedTheme === 'cassette' ? 'cover' : savedTheme
+  // looks that were removed (or never set) show the cover
+  const theme: NpTheme = savedTheme === 'vinyl' || savedTheme === 'messages' ? savedTheme : 'cover'
   // In the Messages look the chat is the lyrics, so the Lyrics tab doesn't open a second copy beside it.
   const side = theme === 'messages' && panel === 'lyrics' ? 'none' : panel
   const wantFull = useApp((s) => !!s.settings.npFullscreen)
@@ -165,7 +165,7 @@ export function NowPlaying(): React.JSX.Element {
           transition={{ duration: 0.4 }}
         >
           <div className="np__bg" aria-hidden="true">
-            {theme === 'lock' ? <LockWall art={track.artUrl} /> : <NpBackdrop art={track.artUrl} />}
+            <NpBackdrop art={track.artUrl} />
             <div className="np__bg-shade" />
           </div>
 
@@ -227,33 +227,17 @@ export function NowPlaying(): React.JSX.Element {
                 }}
               >
                 <section className="np__left">
-                  {theme === 'lock' && <LockClock />}
                   {theme === 'vinyl' ? (
                     <motion.div layoutId="np-art" className="np__deck" transition={spring}>
                       <Turntable art={track.artUrl} paused={paused} />
-                    </motion.div>
-                  ) : theme === 'poster' ? (
-                    <motion.div layoutId="np-art" className="np__deck np__deck--tall" transition={spring}>
-                      <Poster
-                        art={track.artUrl}
-                        paused={paused}
-                        title={track.name}
-                        artist={track.artists.map((a) => a.name).join(', ')}
-                        album={track.album.name}
-                        durationMs={track.durationMs}
-                      />
                     </motion.div>
                   ) : theme === 'messages' ? (
                     <motion.div layoutId="np-art" className="np__chat" transition={spring}>
                       <MessagesChat track={track} />
                     </motion.div>
-                  ) : theme === 'pulse' ? (
-                    <motion.div layoutId="np-art" className="np__deck" transition={spring}>
-                      <PulseRing art={track.artUrl} paused={paused} />
-                    </motion.div>
                   ) : (
                     <motion.div layoutId="np-art" className={`np__art ${paused ? 'is-paused' : ''}`} transition={spring}>
-                      <SwapArt id={track.id} src={track.artUrl} radius={theme === 'cover' || theme === 'lock' ? 12 : 22} />
+                      <SwapArt id={track.id} src={track.artUrl} radius={12} />
                     </motion.div>
                   )}
 
@@ -264,7 +248,7 @@ export function NowPlaying(): React.JSX.Element {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ ...spring, delay: 0.08 }}
                   >
-                    {(theme === 'vinyl' || theme === 'pulse') && <small className="np__eyebrow">Now playing</small>}
+                    {theme === 'vinyl' && <small className="np__eyebrow">Now playing</small>}
                     <div className="np__titles">
                       <AnimatePresence mode="wait">
                         <motion.div
@@ -329,6 +313,7 @@ export function NowPlaying(): React.JSX.Element {
 
           <NpEdgeMenu
             theme={theme}
+            art={track.artUrl}
             full={isFull}
             scratch={scratch}
             onScratch={(on) => void updateSettings({ npScratch: on })}

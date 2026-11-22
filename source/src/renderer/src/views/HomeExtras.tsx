@@ -28,7 +28,13 @@ type RecentItem = { track: STrack; played_at: string; context?: { type?: string;
  * `minWidth`), `rows` rows of them, never a half-empty last row. Too narrow for `minCols`
  * columns: a sideways slider instead.
  */
-export function useEvenGrid(count: number, minWidth: number, gap: number, rows: number, minCols = 2): { ref: React.RefObject<HTMLDivElement | null>; cols: number; show: number; slider: boolean } {
+export function useEvenGrid(
+  count: number,
+  minWidth: number,
+  gap: number,
+  rows: number,
+  minCols = 2
+): { ref: React.RefObject<HTMLDivElement | null>; cols: number; show: number; slider: boolean } {
   const ref = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
   useLayoutEffect(() => {
@@ -89,7 +95,14 @@ export function QuickTiles({ recent }: { recent: RecentItem[] }): React.JSX.Elem
       if (pl) {
         if (seen.has(pl.uri)) continue
         seen.add(pl.uri)
-        out.push({ key: pl.id, title: pl.name, image: sp.pickImage(pl.images, 120), uri: pl.uri, open: () => navigate({ name: 'playlist', id: pl.id }), play: () => void playContext(pl.uri) })
+        out.push({
+          key: pl.id,
+          title: pl.name,
+          image: sp.pickImage(pl.images, 120),
+          uri: pl.uri,
+          open: () => navigate({ name: 'playlist', id: pl.id }),
+          play: () => void playContext(pl.uri)
+        })
         continue
       }
       const al = r.track?.album
@@ -112,7 +125,14 @@ export function QuickTiles({ recent }: { recent: RecentItem[] }): React.JSX.Elem
       if (out.length >= 16) break
       if (seen.has(p.uri)) continue
       seen.add(p.uri)
-      out.push({ key: p.id, title: p.name, image: sp.pickImage(p.images, 120), uri: p.uri, open: () => navigate({ name: 'playlist', id: p.id }), play: () => void playContext(p.uri) })
+      out.push({
+        key: p.id,
+        title: p.name,
+        image: sp.pickImage(p.images, 120),
+        uri: p.uri,
+        open: () => navigate({ name: 'playlist', id: p.id }),
+        play: () => void playContext(p.uri)
+      })
     }
     return out
   }, [recent, playlists, navigate, meId])
@@ -182,7 +202,9 @@ export function YourMixes({ artists, tracks }: { artists: SArtist[]; tracks: STr
     if (artists.length < 3) return []
     const n = Math.min(6, Math.floor(artists.length / 2))
     return Array.from({ length: n }, (_, i) => {
-      const group = [artists[i], artists[(i + n) % artists.length], artists[(i + 2 * n) % artists.length]].filter((a, j, l) => a && l.findIndex((x) => x.id === a.id) === j)
+      const group = [artists[i], artists[(i + n) % artists.length], artists[(i + 2 * n) % artists.length]].filter(
+        (a, j, l) => a && l.findIndex((x) => x.id === a.id) === j
+      )
       const ids = new Set(group.map((a) => a.id))
       const songs = tracks.filter((t) => t.artists.some((a) => ids.has(a.id)))
       return { id: `mix${i}`, n: i + 1, group, songs, hue: MIX_HUES[i % MIX_HUES.length] }
@@ -194,7 +216,14 @@ export function YourMixes({ artists, tracks }: { artists: SArtist[]; tracks: STr
     let uris = m.songs.map((t) => t.uri)
     if (uris.length < 12) {
       // too few of your own top songs: add each artist's popular songs
-      const more = await Promise.all(m.group.map((a) => sp.searchTracks(`artist:"${a.name}"`, 0).then((r) => (r.tracks?.items ?? []).filter((t) => t?.artists?.some((x) => x.id === a.id))).catch(() => [] as STrack[])))
+      const more = await Promise.all(
+        m.group.map((a) =>
+          sp
+            .searchTracks(`artist:"${a.name}"`, 0)
+            .then((r) => (r.tracks?.items ?? []).filter((t) => t?.artists?.some((x) => x.id === a.id)))
+            .catch(() => [] as STrack[])
+        )
+      )
       const extra = more.flat().map((t) => t.uri)
       uris = [...new Set([...uris, ...extra])]
     }
@@ -248,10 +277,9 @@ export const MOODS: { label: string; ask: string; a: string; b: string; art: Moo
 export function MoodTile({ m, disabled = false }: { m: (typeof MOODS)[number]; disabled?: boolean }): React.JSX.Element {
   return (
     <button className="mood" disabled={disabled} style={{ ['--a' as string]: m.a, ['--b' as string]: m.b }} onClick={() => void startDj(m.ask)}>
-      <span className="mood__glow" aria-hidden="true" />
       <MoodArt kind={m.art} />
+      <span className="mood__grain" aria-hidden="true" />
       <b>{m.label}</b>
-      <SparkleIcon size={16} />
     </button>
   )
 }
@@ -283,7 +311,10 @@ export function RecentlyPlayed({ recent }: { recent: RecentItem[] }): React.JSX.
   const navigate = useApp((s) => s.navigate)
   const songs = useMemo(() => {
     const seen = new Set<string>()
-    return recent.map((r) => r.track).filter((t) => t?.id && !seen.has(t.id) && !!seen.add(t.id)).slice(0, 20)
+    return recent
+      .map((r) => r.track)
+      .filter((t) => t?.id && !seen.has(t.id) && !!seen.add(t.id))
+      .slice(0, 20)
   }, [recent])
   if (songs.length < 3) return null
   const uris = songs.map((t) => t.uri)
@@ -380,7 +411,9 @@ export function MonthCard(): React.JSX.Element | null {
 export function SavedAlbums(): React.JSX.Element | null {
   const navigate = useApp((s) => s.navigate)
   // one page is plenty here (the Library loads them all)
-  const albums = useQuery('home:albums', () => sp.api<{ items: { added_at: string; album: SAlbumRef }[] }>('/me/albums', { query: { limit: 20 } }).then((r) => r.items))
+  const albums = useQuery('home:albums', () =>
+    sp.api<{ items: { added_at: string; album: SAlbumRef }[] }>('/me/albums', { query: { limit: 20 } }).then((r) => r.items)
+  )
   const list = (albums.data ?? []).filter((x) => x?.album?.id)
   if (list.length < 2) return null
   return (
@@ -459,7 +492,13 @@ export function YearBanner(): React.JSX.Element | null {
     }
   }
   return (
-    <section className="yearbanner" role="button" tabIndex={0} onClick={() => setRecapOpen(true, yearPeriod(y))} onKeyDown={(e) => e.key === 'Enter' && setRecapOpen(true, yearPeriod(y))}>
+    <section
+      className="yearbanner"
+      role="button"
+      tabIndex={0}
+      onClick={() => setRecapOpen(true, yearPeriod(y))}
+      onKeyDown={(e) => e.key === 'Enter' && setRecapOpen(true, yearPeriod(y))}
+    >
       <span className="ryear__glow" aria-hidden="true" />
       {image && <img className="yearbanner__bg" src={image} alt="" decoding="async" draggable={false} />}
       <span className="yearbanner__shade" aria-hidden="true" />

@@ -8,7 +8,7 @@ import { pickImage, playlistSongs } from '@/lib/spotify'
 import { Glass } from './Glass'
 import { useProfile } from '@/lib/profile'
 import { Cover } from './common'
-import { PartyIcon, ChartIcon, HeartIcon, HomeIcon, LibraryIcon, MicIcon, PlusIcon, SearchIcon, SettingsIcon, UsersIcon, WandIcon, SparkleIcon } from './Icons'
+import { PartyIcon, ChartIcon, HeartIcon, HomeIcon, LibraryIcon, MicIcon, PlusIcon, SearchIcon, SettingsIcon, UsersIcon, WandIcon } from './Icons'
 import { useNewFollowers } from '@/lib/friends'
 import { contextMenuFor } from './menus'
 
@@ -18,7 +18,6 @@ const NAV: { label: string; route: Route; icon: typeof HomeIcon }[] = [
   { label: 'Library', route: { name: 'library' }, icon: LibraryIcon },
   { label: 'DJ', route: { name: 'dj' }, icon: MicIcon },
   { label: 'Your stats', route: { name: 'stats' }, icon: ChartIcon },
-  { label: 'Discover', route: { name: 'discover' }, icon: SparkleIcon },
   { label: 'Mix', route: { name: 'mix' }, icon: WandIcon },
   { label: 'Party', route: { name: 'party' }, icon: PartyIcon },
   { label: 'Friends', route: { name: 'friends' }, icon: UsersIcon }

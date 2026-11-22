@@ -34,6 +34,7 @@ const api: PulseApi = {
     onChange: (cb) => listen<Settings>('settings:changed', cb)
   },
   artistInfo: (q) => ipcRenderer.invoke('artist:info', q),
+  artistGenres: (id, name) => ipcRenderer.invoke('artist:genres', id, name),
   artistPage: (id) => ipcRenderer.invoke('artist:page', id),
   artistQuick: (id) => ipcRenderer.invoke('artist:quick', id),
   lastfm: {
@@ -98,7 +99,6 @@ const api: PulseApi = {
     friends: () => ipcRenderer.invoke('spotify-account:friends'),
     lyrics: (id) => ipcRenderer.invoke('spotify-account:lyrics', id),
     analysis: (id) => ipcRenderer.invoke('spotify-account:analysis', id),
-    canvas: (id) => ipcRenderer.invoke('spotify-account:canvas', id),
     api: (method, url, body) => ipcRenderer.invoke('spotify-account:api', method, url, body)
   },
   lyrics: {

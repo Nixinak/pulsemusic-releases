@@ -14,7 +14,7 @@ let restored = false
 let started = false
 
 /** Pages it makes no sense to open on (they need something that isn't there at start). */
-const SKIP = new Set<Route['name']>(['settings', 'party', 'dj', 'discover'])
+const SKIP = new Set<string>(['settings', 'party', 'dj', 'discover'])
 
 /** Called once the settings have loaded: opens the last page when that is wanted. */
 export function restoreStartPage(s: Settings): void {

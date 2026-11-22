@@ -1,93 +1,129 @@
-// Little illustrations for the "Ask the DJ for" mood cards: dumbbells for Gym, a rain cloud
-// for Sad hours, and so on. Drawn in white so they sit on any card gradient; each one gets
-// its own small hover animation (see .moodart in v3.css).
+// Scenes for the "Ask the DJ for" mood cards. Each mood is a small full-bleed picture drawn on
+// the card's own two colours (--a, --b): a road at night under streetlights, rain on glass with
+// the city out of focus behind it, a synthwave sun over a grid, and so on. Shapes are white or
+// black at low opacity so every scene sits on its card's gradient; hover moves a layer or two.
 
 export type MoodArtKind = 'drive' | 'gym' | 'chill' | 'party' | 'focus' | 'sad' | 'throwback' | 'new'
 
-const S = { stroke: '#fff', strokeWidth: 3, strokeLinecap: 'round', strokeLinejoin: 'round' } as const
-const SOFT = 'rgba(255,255,255,0.2)'
-
-function Spark({ x, y, r = 4, className = '' }: { x: number; y: number; r?: number; className?: string }): React.JSX.Element {
-  const k = r * 0.28
-  return (
-    <path
-      className={`ma-twinkle ${className}`}
-      d={`M${x} ${y - r}Q${x + k} ${y - k} ${x + r} ${y}Q${x + k} ${y + k} ${x} ${y + r}Q${x - k} ${y + k} ${x - r} ${y}Q${x - k} ${y - k} ${x} ${y - r}Z`}
-      fill="#fff"
-    />
-  )
+/** The same "random" numbers every time, so a scene never changes between renders. */
+function seeded(seed: number): () => number {
+  let s = seed
+  return () => {
+    s = (s * 16807) % 2147483647
+    return s / 2147483647
+  }
 }
 
+const W = 320
+const H = 180
+
 function Drive(): React.JSX.Element {
+  const horizon = 96
+  const vx = 196
+  // the dashes in the middle of the road, smaller as they go away
+  const dashes = Array.from({ length: 7 }, (_, i) => {
+    const t0 = Math.pow(i / 7, 1.8)
+    const t1 = Math.pow((i + 0.45) / 7, 1.8)
+    const y0 = horizon + (H - horizon) * t0
+    const y1 = horizon + (H - horizon) * t1
+    const x = (y: number): number => vx + (150 - vx) * ((y - horizon) / (H - horizon))
+    const w = (y: number): number => 0.6 + 4 * ((y - horizon) / (H - horizon))
+    return `M${x(y0) - w(y0)} ${y0}L${x(y0) + w(y0)} ${y0}L${x(y1) + w(y1)} ${y1}L${x(y1) - w(y1)} ${y1}Z`
+  })
+  const lamps = Array.from({ length: 6 }, (_, i) => {
+    const t = Math.pow((i + 1) / 6.5, 1.7)
+    return { x: vx + (318 - vx) * t, y: horizon - 2 - 52 * t, r: 1 + 5 * t }
+  })
+  const rnd = seeded(7)
+  const towers = Array.from({ length: 16 }, (_, i) => ({ x: i * 20 - 4 + rnd() * 6, w: 10 + rnd() * 12, h: 6 + rnd() * 22 }))
   return (
     <>
-      {/* Moon */}
-      <path className="ma-moon" d="M49.6 11.2A13 13 0 1 0 64.8 26.4A11 11 0 0 1 49.6 11.2Z" fill="#fff" />
-      <Spark x={22} y={14} r={3.5} />
-      <Spark x={33} y={27} r={2.5} className="ma-d2" />
-      <Spark x={70} y={44} r={2.5} className="ma-d3" />
-      {/* Road running to the horizon */}
-      <path d="M8 78L36 48H44L72 78Z" fill={SOFT} />
-      <path d="M8 78L36 48M72 78L44 48" {...S} strokeWidth={2.5} fill="none" />
-      <path className="ma-road" d="M40 50V78" {...S} strokeWidth={2.5} strokeDasharray="4 5" fill="none" />
+      <rect width={W} height={horizon} fill="url(#ma-sky)" />
+      <g className="ma-stars" fill="#fff">
+        {Array.from({ length: 22 }, (_, i) => {
+          const r = seeded(100 + i)
+          return <circle key={i} cx={r() * W} cy={r() * 60} r={0.5 + r() * 0.9} opacity={0.3 + r() * 0.6} />
+        })}
+      </g>
+      <path d="M262 24a14 14 0 1 0 16 20 11.5 11.5 0 0 1-16-20Z" fill="#fff" opacity="0.92" />
+      <g fill="#000" opacity="0.38">
+        {towers.map((t, i) => (
+          <rect key={i} x={t.x} y={horizon - t.h} width={t.w} height={t.h} />
+        ))}
+      </g>
+      <rect y={horizon - 10} width={W} height="14" fill="url(#ma-haze)" />
+      <path d={`M${vx - 3} ${horizon}L${vx + 3} ${horizon}L330 ${H}L-30 ${H}Z`} fill="#000" opacity="0.42" />
+      <g className="ma-road" fill="#fff" opacity="0.85">
+        {dashes.map((d, i) => (
+          <path key={i} d={d} />
+        ))}
+      </g>
+      {lamps.map((l, i) => (
+        <g key={i}>
+          <circle cx={l.x} cy={l.y} r={l.r * 4} fill="url(#ma-lamp)" />
+          <circle cx={l.x} cy={l.y} r={l.r * 0.7} fill="#fff6d8" />
+        </g>
+      ))}
     </>
   )
 }
 
 function Gym(): React.JSX.Element {
+  // a heartbeat across the card, over bold bars that climb
+  const beat = 'M-10 112H70L82 112L92 70L104 150L118 40L132 128L142 112H196L206 92L214 124L222 112H330'
   return (
     <>
-      <g className="ma-lift">
-        <g transform="translate(0 -5) rotate(-28 40 42)">
-          <rect x="14" y="39" width="52" height="6" rx="3" fill="#fff" />
-          <rect x="13" y="25" width="10" height="34" rx="3.5" fill={SOFT} {...S} />
-          <rect x="5" y="30" width="8" height="24" rx="3" fill={SOFT} {...S} />
-          <rect x="57" y="25" width="10" height="34" rx="3.5" fill={SOFT} {...S} />
-          <rect x="67" y="30" width="8" height="24" rx="3" fill={SOFT} {...S} />
-          <path d="M31 39.5v5M35 39.5v5M45 39.5v5M49 39.5v5" stroke="rgba(0,0,0,0.25)" strokeWidth={1.5} />
-        </g>
+      <g className="ma-bars">
+        {Array.from({ length: 11 }, (_, i) => {
+          const h = 30 + Math.abs(Math.sin(i * 1.3)) * 90 + i * 4
+          return <rect key={i} x={20 + i * 28} y={H - h} width="16" height={h} rx="4" fill="#000" opacity={0.1 + (i % 3) * 0.05} />
+        })}
       </g>
-      {/* Effort lines */}
-      <path className="ma-pump" d="M60 10l3 5M69 15l-2 5M52 8l1 4" {...S} strokeWidth={2.5} fill="none" />
+      <path d={beat} fill="none" stroke="#fff" strokeWidth="9" strokeLinejoin="round" strokeLinecap="round" opacity="0.18" />
+      <path className="ma-beat" d={beat} fill="none" stroke="#fff" strokeWidth="3.2" strokeLinejoin="round" strokeLinecap="round" pathLength={1} />
+      <circle cx="118" cy="40" r="5" fill="#fff" />
     </>
   )
 }
 
 function Chill(): React.JSX.Element {
+  const wave = (y: number, amp: number, len: number, phase: number): string => {
+    let d = `M-40 ${y}`
+    for (let x = -40; x <= W + 40; x += 8) d += `L${x} ${(y + Math.sin((x + phase) / len) * amp).toFixed(1)}`
+    return `${d}L${W + 40} ${H}L-40 ${H}Z`
+  }
   return (
     <>
-      <path className="ma-sun" d="M22 48A18 18 0 0 1 58 48Z" fill="#fff" />
-      <path d="M40 22v-6M24 30l-4-4M56 30l4-4M16 44h-5M64 44h5" {...S} strokeWidth={2.5} fill="none" opacity={0.85} />
-      <g className="ma-waves" fill="none" {...S}>
-        <path d="M-30 56q6-5 12 0t12 0 12 0 12 0 12 0 12 0 12 0 12 0 12 0 12 0 12 0 12 0 12 0" />
-        <path d="M-36 65q6-5 12 0t12 0 12 0 12 0 12 0 12 0 12 0 12 0 12 0 12 0 12 0 12 0 12 0" opacity={0.75} />
-        <path d="M-30 74q6-5 12 0t12 0 12 0 12 0 12 0 12 0 12 0 12 0 12 0 12 0 12 0 12 0 12 0" opacity={0.5} />
+      <circle cx="226" cy="74" r="44" fill="#fff" opacity="0.9" />
+      <circle cx="226" cy="74" r="74" fill="url(#ma-glow)" />
+      <g className="ma-waves">
+        <path d={wave(98, 6, 30, 0)} fill="#fff" opacity="0.16" />
+        <path d={wave(112, 7, 26, 40)} fill="#fff" opacity="0.18" />
+        <path d={wave(128, 6, 34, 90)} fill="#000" opacity="0.14" />
+        <path d={wave(146, 5, 28, 20)} fill="#000" opacity="0.2" />
       </g>
     </>
   )
 }
 
 function Party(): React.JSX.Element {
+  const rnd = seeded(21)
+  const confetti = Array.from({ length: 34 }, () => ({ x: rnd() * W, y: rnd() * H, w: 2 + rnd() * 5, r: rnd() * 180, o: 0.4 + rnd() * 0.6 }))
   return (
     <>
-      <g className="ma-sway">
-        <path d="M40 2v18" {...S} strokeWidth={2} />
-        <circle cx="40" cy="42" r="21" fill={SOFT} {...S} />
-        <g fill="none" stroke="#fff" strokeWidth={1.6} opacity={0.8}>
-          <ellipse cx="40" cy="42" rx="8" ry="21" />
-          <ellipse cx="40" cy="42" rx="15" ry="21" />
-          <path d="M20 35h40M19 42h42M20 49h40M23 28h34M23 56h34" />
-        </g>
-        <rect x="27" y="29" width="6" height="6" rx="1" fill="#fff" />
-        <rect x="34" y="36" width="5" height="5" rx="1" fill="#fff" opacity={0.7} />
+      <g className="ma-beams" style={{ transformOrigin: '230px 30px' }}>
+        {[-62, -38, -14, 10, 34, 58].map((a, i) => (
+          <path key={i} d="M230 30L210 220L250 220Z" fill="#fff" opacity={0.07 + (i % 2) * 0.05} transform={`rotate(${a} 230 30)`} />
+        ))}
       </g>
-      <Spark x={67} y={18} r={5} />
-      <Spark x={12} y={62} r={4} className="ma-d2" />
-      <g className="ma-confetti" fill="#fff">
-        <rect x="10" y="16" width="5" height="3" rx="1" transform="rotate(25 12 17)" />
-        <rect x="66" y="58" width="5" height="3" rx="1" transform="rotate(-30 68 59)" />
-        <circle cx="70" cy="34" r="2" />
-        <circle cx="16" cy="40" r="1.8" />
+      <circle cx="230" cy="30" r="20" fill="url(#ma-ball)" />
+      <g opacity="0.35" stroke="#000" strokeWidth="0.6">
+        <path d="M210 30h40M213 20h34M213 40h34M230 10v40M220 12v36M240 12v36" />
+      </g>
+      <g className="ma-confetti">
+        {confetti.map((c, i) => (
+          <rect key={i} x={c.x} y={c.y} width={c.w} height={c.w * 0.5} fill="#fff" opacity={c.o} transform={`rotate(${c.r} ${c.x} ${c.y})`} />
+        ))}
       </g>
     </>
   )
@@ -96,76 +132,105 @@ function Party(): React.JSX.Element {
 function Focus(): React.JSX.Element {
   return (
     <>
-      <circle cx="36" cy="46" r="26" fill={SOFT} {...S} />
-      <circle cx="36" cy="46" r="17" fill="none" {...S} />
-      <circle cx="36" cy="46" r="8" fill="#fff" />
-      <g className="ma-arrow">
-        <path d="M37 45L70 12" {...S} fill="none" />
-        <path d="M64 8l6 4-2 8M70 12l-9 1" {...S} strokeWidth={2.5} fill="none" />
-        <path d="M70 12l6-3M70 12l3-6" {...S} strokeWidth={2.5} fill="none" />
+      <g stroke="#fff" fill="none" opacity="0.16">
+        {Array.from({ length: 9 }, (_, i) => (
+          <path key={i} d={`M${i * 40} 0V${H}`} />
+        ))}
+        {Array.from({ length: 5 }, (_, i) => (
+          <path key={i} d={`M0 ${i * 40 + 10}H${W}`} />
+        ))}
       </g>
+      <g className="ma-rings" fill="none" stroke="#fff">
+        {[70, 52, 34, 16].map((r, i) => (
+          <circle key={r} cx="232" cy="78" r={r} strokeWidth={1.2 + i * 0.4} opacity={0.25 + i * 0.18} />
+        ))}
+      </g>
+      <circle cx="232" cy="78" r="5" fill="#fff" />
+      <circle cx="232" cy="78" r="22" fill="url(#ma-glow)" />
     </>
   )
 }
 
 function Sad(): React.JSX.Element {
+  const rnd = seeded(5)
+  const bokeh = Array.from({ length: 16 }, () => ({ x: rnd() * W, y: 40 + rnd() * 100, r: 8 + rnd() * 20, o: 0.06 + rnd() * 0.16 }))
+  const drops = Array.from({ length: 26 }, () => ({ x: rnd() * W, y: rnd() * H, r: 1 + rnd() * 2.6 }))
+  const rain = Array.from({ length: 40 }, () => ({ x: rnd() * (W + 60), y: rnd() * H, l: 10 + rnd() * 18 }))
   return (
     <>
-      <path
-        d="M22 44h38a12 12 0 0 0 0-24 16 16 0 0 0-30-4 13 13 0 0 0-8 28Z"
-        fill="rgba(255,255,255,0.9)"
-      />
-      <g className="ma-rain" {...S} strokeWidth={2.5} fill="none">
-        <path className="ma-drop" d="M28 52l-3 7" />
-        <path className="ma-drop ma-d2" d="M42 52l-3 7" />
-        <path className="ma-drop ma-d3" d="M56 52l-3 7" />
-        <path className="ma-drop ma-d4" d="M35 64l-3 7" />
-        <path className="ma-drop ma-d5" d="M49 64l-3 7" />
+      {bokeh.map((b, i) => (
+        <circle key={i} cx={b.x} cy={b.y} r={b.r} fill="#fff" opacity={b.o} />
+      ))}
+      <g className="ma-rain" stroke="#fff" strokeWidth="1" strokeLinecap="round" opacity="0.4">
+        {rain.map((r, i) => (
+          <path key={i} d={`M${r.x} ${r.y}l-${r.l * 0.25} ${r.l}`} />
+        ))}
       </g>
+      {drops.map((d, i) => (
+        <g key={i}>
+          <circle cx={d.x} cy={d.y} r={d.r} fill="#000" opacity="0.18" />
+          <circle cx={d.x - d.r * 0.3} cy={d.y - d.r * 0.3} r={d.r * 0.45} fill="#fff" opacity="0.55" />
+        </g>
+      ))}
     </>
   )
 }
 
 function Throwback(): React.JSX.Element {
-  const reel = (cx: number): React.JSX.Element => (
-    <g className="ma-reel">
-      <circle cx={cx} cy="44" r="6.5" fill="#fff" />
-      <path d={`M${cx} 40v8M${cx - 4} 44h8`} stroke="rgba(0,0,0,0.35)" strokeWidth={1.8} strokeLinecap="round" />
-    </g>
-  )
-  return (
-    <g transform="rotate(-10 40 42)">
-      <rect x="6" y="18" width="68" height="46" rx="7" fill={SOFT} {...S} />
-      <rect x="13" y="25" width="54" height="26" rx="4" fill="rgba(255,255,255,0.3)" />
-      <rect x="31" y="39" width="18" height="10" rx="2" fill="rgba(0,0,0,0.2)" />
-      {reel(24)}
-      {reel(56)}
-      <path d="M20 64l4-9h32l4 9" {...S} strokeWidth={2.5} fill="none" />
-      <path d="M17 31h20" stroke="#fff" strokeWidth={2} strokeLinecap="round" opacity={0.9} />
-    </g>
-  )
-}
-
-function New(): React.JSX.Element {
+  const horizon = 108
   return (
     <>
-      <g className="ma-spin">
-        <polygon
-          points="40.0,18.0 44.3,23.0 50.4,20.4 52.2,26.8 58.8,27.0 57.6,33.5 63.4,36.7 59.5,42.0 63.4,47.3 57.6,50.5 58.8,57.0 52.2,57.2 50.4,63.6 44.3,61.0 40.0,66.0 35.7,61.0 29.6,63.6 27.8,57.2 21.2,57.0 22.4,50.5 16.6,47.3 20.5,42.0 16.6,36.7 22.4,33.5 21.2,27.0 27.8,26.8 29.6,20.4 35.7,23.0"
-          fill="#fff"
-        />
+      <clipPath id="ma-sunclip">
+        <circle cx="210" cy={horizon} r="52" />
+      </clipPath>
+      <g className="ma-sun">
+        <circle cx="210" cy={horizon} r="52" fill="url(#ma-sun)" />
+        <g clipPath="url(#ma-sunclip)">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <rect key={i} x="150" y={horizon - 30 + i * 7} width="120" height={1.5 + i * 0.9} style={{ fill: 'var(--a)' }} />
+          ))}
+        </g>
       </g>
-      <text x="40" y="46.5" textAnchor="middle" fontSize="12.5" fontWeight="900" fill="var(--a)" style={{ fontFamily: 'var(--font-display)', letterSpacing: '0.02em' }}>
-        NEW
-      </text>
-      <Spark x={10} y={14} r={4.5} />
-      <Spark x={70} y={70} r={3.5} className="ma-d2" />
-      <Spark x={68} y={12} r={2.5} className="ma-d3" />
+      <rect y={horizon} width={W} height={H - horizon} fill="#000" opacity="0.35" />
+      <g stroke="#fff" opacity="0.4" strokeWidth="1">
+        {Array.from({ length: 6 }, (_, i) => {
+          const y = horizon + Math.pow((i + 1) / 6, 1.8) * (H - horizon)
+          return <path key={i} d={`M0 ${y}H${W}`} />
+        })}
+        {Array.from({ length: 15 }, (_, i) => (
+          <path key={i} d={`M${210 + (i - 7) * 6} ${horizon}L${210 + (i - 7) * 70} ${H}`} />
+        ))}
+      </g>
     </>
   )
 }
 
-const ART: Record<MoodArtKind, () => React.JSX.Element> = {
+function New(): React.JSX.Element {
+  const rnd = seeded(11)
+  const sparks = Array.from({ length: 14 }, () => ({ x: rnd() * W, y: rnd() * H, r: 1.5 + rnd() * 4 }))
+  const star = (x: number, y: number, r: number): string => {
+    const k = r * 0.22
+    return `M${x} ${y - r}Q${x + k} ${y - k} ${x + r} ${y}Q${x + k} ${y + k} ${x} ${y + r}Q${x - k} ${y + k} ${x - r} ${y}Q${x - k} ${y - k} ${x} ${y - r}Z`
+  }
+  return (
+    <>
+      <g className="ma-rays" style={{ transformOrigin: '226px 76px' }} opacity="0.16" fill="#fff">
+        {Array.from({ length: 12 }, (_, i) => (
+          <path key={i} d="M226 76L220 -60L232 -60Z" transform={`rotate(${i * 30} 226 76)`} />
+        ))}
+      </g>
+      <circle cx="226" cy="76" r="60" fill="url(#ma-glow)" />
+      <path className="ma-star" d={star(226, 76, 34)} fill="#fff" />
+      <g className="ma-sparks" fill="#fff">
+        {sparks.map((s, i) => (
+          <path key={i} d={star(s.x, s.y, s.r)} opacity={0.5 + (i % 3) * 0.2} />
+        ))}
+      </g>
+    </>
+  )
+}
+
+const SCENES: Record<MoodArtKind, () => React.JSX.Element> = {
   drive: Drive,
   gym: Gym,
   chill: Chill,
@@ -177,10 +242,37 @@ const ART: Record<MoodArtKind, () => React.JSX.Element> = {
 }
 
 export function MoodArt({ kind }: { kind: MoodArtKind }): React.JSX.Element {
-  const Art = ART[kind]
+  const Scene = SCENES[kind]
   return (
-    <svg className={`moodart moodart--${kind}`} viewBox="0 0 80 80" aria-hidden="true" overflow="visible">
-      <Art />
+    <svg className={`moodart moodart--${kind}`} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <defs>
+        <linearGradient id="ma-sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#000" stopOpacity="0.45" />
+          <stop offset="1" stopColor="#000" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id="ma-haze" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fff" stopOpacity="0" />
+          <stop offset="0.5" stopColor="#fff" stopOpacity="0.22" />
+          <stop offset="1" stopColor="#fff" stopOpacity="0" />
+        </linearGradient>
+        <radialGradient id="ma-lamp">
+          <stop offset="0" stopColor="#ffe9a8" stopOpacity="0.75" />
+          <stop offset="1" stopColor="#ffe9a8" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="ma-glow">
+          <stop offset="0" stopColor="#fff" stopOpacity="0.55" />
+          <stop offset="1" stopColor="#fff" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="ma-ball" cx="0.35" cy="0.3">
+          <stop offset="0" stopColor="#fff" />
+          <stop offset="1" stopColor="#fff" stopOpacity="0.55" />
+        </radialGradient>
+        <linearGradient id="ma-sun" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fff6c2" />
+          <stop offset="1" stopColor="#ff7aa8" />
+        </linearGradient>
+      </defs>
+      <Scene />
     </svg>
   )
 }

@@ -76,7 +76,12 @@ function captureToken(): Promise<string | null> {
   })
 }
 
+/** A forced new token loads the web player in the background (seconds), so it's done at most
+ *  once every 10 minutes; a refusal in between just gets the current answer. */
+let lastFresh = 0
 async function webToken(fresh = false): Promise<string | null> {
+  if (fresh && Date.now() - lastFresh < 10 * 60_000) fresh = false
+  if (fresh) lastFresh = Date.now()
   if (!fresh && token && Date.now() - token.at < TOKEN_MS) return token.value
   if (!(await signedIn())) return null
   fetching ??= captureToken().finally(() => (fetching = null))
@@ -428,49 +433,6 @@ export async function spotifyFriends(): Promise<SpotifyFriend[] | null> {
   if (!list) return friendsCache?.list ?? null
   friendsCache = { at: Date.now(), list }
   return list
-}
-
-/* ---------- Canvas: the short looping video an artist puts on a song ----------
- * Read like the Spotify app reads it (a small protobuf request); only the video's address is
- * taken from the answer. */
-const canvasCache = new Map<string, Promise<string | null>>()
-export function spotifyCanvas(trackId: string): Promise<string | null> {
-  if (!/^[A-Za-z0-9]{22}$/.test(trackId)) return Promise.resolve(null)
-  let p = canvasCache.get(trackId)
-  if (!p) {
-    p = (async () => {
-      if (!(await signedIn())) return null
-      const uri = Buffer.from(`spotify:track:${trackId}`)
-      // EntityCanvazRequest { entities: [{ entity_uri }] }
-      const entity = Buffer.concat([Buffer.from([0x0a, uri.length]), uri])
-      const body = Buffer.concat([Buffer.from([0x0a, entity.length]), entity])
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const t = await webToken(attempt > 0)
-        if (!t) return null
-        const res = await fetch('https://spclient.wg.spotify.com/canvaz-cache/v0/canvases', {
-          method: 'POST',
-          body,
-          headers: {
-            Authorization: `Bearer ${t}`,
-            'User-Agent': UA,
-            'Content-Type': 'application/x-protobuf',
-            Accept: 'application/protobuf',
-            ...(token?.clientToken ? { 'client-token': token.clientToken } : {})
-          },
-          signal: AbortSignal.timeout(8000)
-        }).catch(() => null)
-        if (!res) return null
-        if (res.status === 401) continue
-        if (!res.ok) return null
-        const text = Buffer.from(await res.arrayBuffer()).toString('latin1')
-        return /https:\/\/canvaz\.scdn\.co\/[!-~]+?\.mp4/.exec(text)?.[0] ?? null
-      }
-      return null
-    })().catch(() => null)
-    canvasCache.set(trackId, p)
-    if (canvasCache.size > 300) canvasCache.delete(canvasCache.keys().next().value as string)
-  }
-  return p
 }
 
 /* ---------- Spotify's analysis of a song ----------

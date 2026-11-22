@@ -667,6 +667,8 @@ export interface PulseApi {
     onChange(cb: (s: Settings) => void): () => void
   }
   artistInfo(q: ArtistInfoQuery): Promise<ArtistInfo>
+  /** An artist's genres from MusicBrainz (by Spotify id when linked, else by name); [] when unknown. */
+  artistGenres(spotifyId: string | null, name: string): Promise<string[]>
   artistPage(id: string): Promise<PageArtist | null>
   /** Popular songs from the small embed page, fast (no covers, no play counts). */
   artistQuick(id: string): Promise<{ tracks: PageTrack[]; avatar: string | null } | null>
@@ -765,8 +767,6 @@ export interface PulseApi {
     lyrics(trackId: string): Promise<SpotifyLyrics | null>
     /** Spotify's analysis of a song: beat times and per-slice [start, loudness max, loudness start, time of max, 12 pitches, 12 timbre]. */
     analysis(trackId: string): Promise<SongAnalysis | null>
-    /** The short looping video (Canvas) the artist put on a song, if any (an mp4 address). */
-    canvas(trackId: string): Promise<string | null>
     /** A Web API call sent with the web player's token (it doesn't count against Pulse's own
      *  quota); null when not signed in or the request couldn't be made. */
     api(method: string, url: string, body?: string): Promise<{ status: number; body: string; retryAfter: number } | null>
