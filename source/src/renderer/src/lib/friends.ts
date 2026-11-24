@@ -1,11 +1,11 @@
 // Following people in Pulse. You can follow anyone; two people who follow each other are
 // friends. People who use Pulse share what they play, so you can see it and listen with them.
 import { create } from 'zustand'
-import type { FriendAction, FriendsState, Listener, NowPlaying } from '@shared/types'
+import type { FriendAction, FriendsState, Listener, NowPlaying, TogetherControl, TogetherRequest } from '@shared/types'
 import { pulseServerOn, rememberPeople } from './people'
 import { useApp, errorText } from './store'
 import { useProfile } from './profile'
-import { livePosition, onUserPlay, playUris, seekTo, togglePlay, usePlayer } from './player'
+import { livePosition, nextTrack, onUserPlay, playContext, playUris, previousTrack, seekTo, setPartySteer, steered, togglePlay, usePlayer } from './player'
 import { useParty } from './party'
 
 const message = (e: unknown): string => errorText(e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
@@ -25,8 +25,7 @@ const EMPTY: FriendsState = { friends: [], incoming: [], outgoing: [], now: {} }
 const toast = (text: string, tone?: 'info' | 'error'): void => useApp.getState().toast(text, tone)
 
 /** Spotify serves every cover at 64, 300 and 640 px under the same id: ask for the sharp one. */
-export const sharpCover = (url: string | null | undefined): string | null =>
-  url ? url.replace(/(\/image\/ab67616d0000)(4851|1e02)/, '$1b273') : null
+export const sharpCover = (url: string | null | undefined): string | null => (url ? url.replace(/(\/image\/ab67616d0000)(4851|1e02)/, '$1b273') : null)
 
 /** Covers from older versions of Pulse were shared at 64 px: show them sharp. */
 function sharpNow(now: FriendsState['now']): FriendsState['now'] {
@@ -63,7 +62,13 @@ export const useFriends = create<Friends>((set, get) => ({
         else if (news.length > 1) toast(`${news.length} people followed you`)
       }
       set({ ...next, now: sharpNow(next.now), loaded: true })
-      rememberPeople([...next.friends, ...next.incoming, ...next.outgoing].map((u) => ({ id: u.id, name: u.displayName, image: u.thumb?.startsWith('https://') ? u.thumb : null })))
+      rememberPeople(
+        [...next.friends, ...next.incoming, ...next.outgoing].map((u) => ({
+          id: u.id,
+          name: u.displayName,
+          image: u.thumb?.startsWith('https://') ? u.thumb : null
+        }))
+      )
     } catch (e) {
       console.warn('[friends] could not load', e)
       set({ loaded: true })
@@ -158,7 +163,13 @@ function startSharingNow(): () => void {
     const party = useParty.getState().url
     const withId = useListenWith.getState().with?.id ?? null
     const now = {
-      track: { uri: s.track.uri, name: s.track.name, artists: s.track.artists.map((a) => a.name).join(', '), image: sharpCover(s.track.artUrl ?? s.track.artUrlSmall), durationMs: s.track.durationMs },
+      track: {
+        uri: s.track.uri,
+        name: s.track.name,
+        artists: s.track.artists.map((a) => a.name).join(', '),
+        image: sharpCover(s.track.artUrl ?? s.track.artUrlSmall),
+        durationMs: s.track.durationMs
+      },
       positionMs: Math.round(livePosition(s)),
       paused: s.paused,
       party: party && party.startsWith('https://') ? party : null,
@@ -180,7 +191,9 @@ function startSharingNow(): () => void {
     timer = window.setTimeout(() => void send(), ms)
   }
   const unsub = usePlayer.subscribe((s, p) => {
-    if (s.track?.id !== p.track?.id || s.paused !== p.paused || Math.abs(livePosition(s) - livePosition(p)) > 5000) soon()
+    // a new song is sent at once, so people listening along change with you
+    if (s.track?.id !== p.track?.id) soon(150)
+    else if (s.paused !== p.paused || Math.abs(livePosition(s) - livePosition(p)) > 5000) soon()
   })
   const beat = window.setInterval(() => !usePlayer.getState().paused && void send(), 90_000)
   const unsubProfile = useProfile.subscribe((s, p) => s.profile.shared !== p.profile.shared && soon(500))
@@ -190,7 +203,11 @@ function startSharingNow(): () => void {
   const ask = window.setInterval(() => {
     if (stopped || usePlayer.getState().paused || document.hidden) return
     void pulseServerOn().then((on) => {
-      if (on) void window.pulse.people.listeners().then(gotListeners).catch(() => {})
+      if (on)
+        void window.pulse.people
+          .listeners()
+          .then(gotListeners)
+          .catch(() => {})
     })
   }, 30_000)
   soon(6000)
@@ -217,10 +234,29 @@ export const useListenWith = create<ListenWith>(() => ({ with: null, now: null }
 let lwTimer = 0
 let lwUnsub: (() => void) | null = null
 let lwOwnPlay = false
+let lwSteering = false
+/** After you steer, the host needs a few seconds to follow: no pulling you back meanwhile. */
+let lwHoldUntil = 0
+
+/** Sends what you did to the person you listen with, so it plays for both of you. */
+function steerHost(action: TogetherControl): void {
+  const w = useListenWith.getState().with
+  if (!w) return
+  lwHoldUntil = Date.now() + 9000
+  void window.pulse.people
+    .steer(w.id, action)
+    .then((ok) => {
+      if (!ok) toast(`${w.name} isn’t sharing what they play right now`, 'error')
+    })
+    .catch((e) => toast(message(e), 'error'))
+  // look again soon, once they've had a moment to follow
+  window.setTimeout(() => void syncWith(), 3500)
+}
 
 async function syncWith(): Promise<void> {
   const w = useListenWith.getState().with
   if (!w) return
+  if (Date.now() < lwHoldUntil) return
   let n: NowPlaying | null
   try {
     n = await window.pulse.people.nowOf(w.id)
@@ -231,6 +267,7 @@ async function syncWith(): Promise<void> {
   if (useListenWith.getState().with?.id !== w.id) return
   if (n?.track) n = { ...n, track: { ...n.track, image: sharpCover(n.track.image) } }
   useListenWith.setState({ now: n })
+  planEnd(n)
   if (!n?.track) return
   const me = usePlayer.getState()
   const pos = nowPosition(n)
@@ -240,33 +277,97 @@ async function syncWith(): Promise<void> {
     try {
       await playUris([n.track.uri])
       // the song starts from the beginning: jump to where they are
-      if (pos > 3000) window.setTimeout(() => void seekTo(nowPosition(n!)), 900)
+      if (pos > 3000) window.setTimeout(() => followLocally(() => seekTo(nowPosition(n!))), 900)
     } finally {
       window.setTimeout(() => (lwOwnPlay = false), 1500)
     }
     return
   }
-  if (n.paused !== me.paused) void togglePlay()
-  else if (!n.paused && Math.abs(livePosition(me) - pos) > 6000) void seekTo(pos)
+  // paused on purpose just before the end: wait for their next song instead of resuming
+  if (me.paused && !n.paused && endPausedUri === n.track.uri) return
+  if (n.paused !== me.paused) followLocally(() => togglePlay())
+  else if (!n.paused && Math.abs(livePosition(me) - pos) > 6000) followLocally(() => seekTo(pos))
 }
 
-/** Plays what they play, following along until you stop or start something else. */
+/** Changes made only to follow them (not sent back to them as your own). */
+function followLocally(fn: () => Promise<void>): void {
+  lwOwnPlay = true
+  void fn().finally(() => window.setTimeout(() => (lwOwnPlay = false), 800))
+}
+
+/* The end of a song: you play their song on its own, so when it ends Spotify (or Autoplay)
+   would start something else for a moment until the next look sees their new song. Instead the
+   song is paused just before its end and Pulse looks every 1.5 s until their next one starts. */
+let endTimer = 0
+let fastTimer = 0
+let endPausedUri: string | null = null
+function planEnd(n: NowPlaying | null): void {
+  window.clearTimeout(endTimer)
+  if (!n?.track || n.paused || !n.track.durationMs) return
+  const left = n.track.durationMs - nowPosition(n)
+  if (left > 20_000) return
+  const uri = n.track.uri
+  endTimer = window.setTimeout(
+    () => {
+      const me = usePlayer.getState()
+      if (!useListenWith.getState().with || me.track?.uri !== uri || me.paused) return
+      endPausedUri = uri
+      followLocally(() => togglePlay())
+      // their next song: look often until it's there
+      window.clearInterval(fastTimer)
+      let tries = 0
+      fastTimer = window.setInterval(() => {
+        const cur = useListenWith.getState().now?.track?.uri
+        if (++tries > 12 || !useListenWith.getState().with || (cur && cur !== uri)) return window.clearInterval(fastTimer)
+        void syncWith()
+      }, 1500)
+    },
+    Math.max(0, left - 700)
+  )
+}
+
+/** Plays what they play, together: what either of you starts, skips or pauses plays for both,
+ *  until you press Stop. */
 export function listenWith(id: string, name: string): void {
   stopListeningWith(true)
   useListenWith.setState({ with: { id, name }, now: null })
   toast(`Listening with ${name}`)
   void syncWith()
   lwTimer = window.setInterval(() => void syncWith(), 6000)
-  // you picked something yourself: you're no longer listening with them
-  lwUnsub = onUserPlay(() => {
-    if (!lwOwnPlay) stopListeningWith()
+  // you picked something yourself: it plays for them too, and you keep listening together
+  lwUnsub = onUserPlay((what) => {
+    if (lwOwnPlay) return
+    steerHost({ action: 'play', uris: what.uris, contextUri: what.contextUri, offsetUri: what.offsetUri })
   })
+  // pause, skip and jump go to them as well (a party you joined keeps its own buttons)
+  if (!steered()) {
+    lwSteering = true
+    setPartySteer((c) => {
+      // Pulse following them itself: only here
+      if (lwOwnPlay) return false
+      if (c.action === 'toggle' || c.action === 'seek') {
+        steerHost(c)
+        return false
+      }
+      if (c.action === 'next' || c.action === 'previous') {
+        steerHost(c)
+        return true
+      }
+      return false
+    })
+  }
 }
 
 export function stopListeningWith(quiet = false): void {
   window.clearInterval(lwTimer)
   lwUnsub?.()
   lwUnsub = null
+  if (lwSteering) setPartySteer(null)
+  lwSteering = false
+  lwHoldUntil = 0
+  window.clearTimeout(endTimer)
+  window.clearInterval(fastTimer)
+  endPausedUri = null
   const was = useListenWith.getState().with
   useListenWith.setState({ with: null, now: null })
   if (was && !quiet) toast(`Stopped listening with ${was.name}`)
@@ -320,12 +421,50 @@ function gotListeners(list: Listener[] | void): void {
   const fresh = list.filter((l) => !known.has(l.id))
   const gone = before.filter((l) => !list.some((x) => x.id === l.id))
   useListeners.setState({ list })
+  watchRequests(list.length > 0)
   if (fresh[0]) {
     window.clearTimeout(arrivedTimer)
     useListeners.setState({ arrived: fresh[0] })
     arrivedTimer = window.setTimeout(() => useListeners.setState({ arrived: null }), 7000)
   }
   for (const l of gone) toast(`${l.displayName} stopped listening along`)
+}
+
+/* Requests from people listening with you: while anyone does, Pulse asks the Pulse server every
+   4 s (it isn't Spotify, so this costs nothing from Spotify's allowance) and plays them. */
+let requestTimer = 0
+function watchRequests(on: boolean): void {
+  if (on && !requestTimer) requestTimer = window.setInterval(() => void takeRequests(), 4000)
+  if (!on && requestTimer) {
+    window.clearInterval(requestTimer)
+    requestTimer = 0
+  }
+}
+const said: Record<TogetherControl['action'], string> = {
+  toggle: 'paused or played',
+  next: 'skipped to the next song',
+  previous: 'went back a song',
+  seek: 'jumped in the song',
+  play: 'put on something new'
+}
+async function takeRequests(): Promise<void> {
+  const list: TogetherRequest[] = await window.pulse.people.takeRequests().catch(() => [])
+  for (const r of list) {
+    const a = r.action
+    try {
+      if (a.action === 'toggle') await togglePlay()
+      else if (a.action === 'next') await nextTrack()
+      else if (a.action === 'previous') await previousTrack()
+      else if (a.action === 'seek') await seekTo(a.positionMs)
+      else if (a.action === 'play') {
+        if (a.contextUri) await playContext(a.contextUri, a.offsetUri ?? undefined)
+        else if (a.uris.length) await playUris(a.uris, a.offsetUri ?? undefined)
+      }
+      toast(`${r.name} ${said[a.action]}`)
+    } catch (e) {
+      console.info('[together] request skipped', message(e))
+    }
+  }
 }
 
 /** Hides the big "is listening with you" notice. */

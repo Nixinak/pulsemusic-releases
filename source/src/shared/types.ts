@@ -597,6 +597,21 @@ export interface PulseProfile extends Omit<Profile, 'customColors'> {
 }
 
 /** Everyone at a party can steer the music, not only the host. */
+/** Steering the music of someone you listen along with. */
+export type TogetherControl =
+  | { action: 'toggle' }
+  | { action: 'next' }
+  | { action: 'previous' }
+  | { action: 'seek'; positionMs: number }
+  | { action: 'play'; uris: string[]; contextUri: string | null; offsetUri: string | null }
+
+/** A request that arrived from someone listening along with you. */
+export interface TogetherRequest {
+  from: string
+  name: string
+  action: TogetherControl
+}
+
 export type PartyControl =
   | { action: 'toggle' }
   | { action: 'next' }
@@ -722,6 +737,10 @@ export interface PulseApi {
     shareNow(now: Omit<NowPlaying, 'at'> | null): Promise<Listener[]>
     /** Who listens along with you right now. */
     listeners(): Promise<Listener[]>
+    /** Asks the person you listen along with to play, skip, pause or jump. */
+    steer(to: string, action: TogetherControl): Promise<boolean>
+    /** Requests from people listening along with you since the last ask. */
+    takeRequests(): Promise<TogetherRequest[]>
     /** What someone you follow is playing. */
     nowOf(id: string): Promise<NowPlaying | null>
     /** Who follows someone in Pulse and who they follow (null: the server can't tell). */

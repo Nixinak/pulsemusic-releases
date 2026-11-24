@@ -235,6 +235,21 @@ function cleanNow(b) {
   }
 }
 
+const URI = /^spotify:(track|episode|album|playlist|artist):[A-Za-z0-9]{10,40}$/
+function cleanControl(a) {
+  if (!a || typeof a !== 'object') return null
+  if (a.action === 'toggle' || a.action === 'next' || a.action === 'previous') return { action: a.action }
+  if (a.action === 'seek' && Number.isFinite(a.positionMs)) return { action: 'seek', positionMs: Math.max(0, Math.round(a.positionMs)) }
+  if (a.action === 'play') {
+    const uris = (Array.isArray(a.uris) ? a.uris : []).filter((u) => typeof u === 'string' && URI.test(u)).slice(0, 100)
+    const contextUri = typeof a.contextUri === 'string' && URI.test(a.contextUri) ? a.contextUri : null
+    const offsetUri = typeof a.offsetUri === 'string' && URI.test(a.offsetUri) ? a.offsetUri : null
+    if (!uris.length && !contextUri) return null
+    return { action: 'play', uris, contextUri, offsetUri }
+  }
+  return null
+}
+
 async function nowRoute(req, env, path) {
   const me = await whoIs(req, env)
   if (!me) return json(401, { error: 'Sign in with Spotify again.' })
@@ -245,6 +260,19 @@ async function nowRoute(req, env, path) {
   }
   if (path === '/v1/listeners' && req.method === 'GET') {
     return json(200, { listeners: await hub(env, 'LISTENERS', { id: me }) })
+  }
+  // Listening together: whoever listens along with someone can steer the music (play a song,
+  // skip, pause, jump); the host's Pulse picks the requests up and plays them.
+  if (path === '/v1/control' && req.method === 'POST') {
+    const b = await req.json().catch(() => ({}))
+    const to = typeof b?.to === 'string' && ID.test(b.to) ? b.to : null
+    const action = cleanControl(b?.action)
+    if (!to || !action) return json(400, { error: 'Bad request' })
+    const r = await hub(env, 'CTRL.PUSH', { from: me, to, action })
+    return r.ok ? json(200, { ok: true }) : json(403, { error: 'You’re not listening with them.' })
+  }
+  if (path === '/v1/control' && req.method === 'GET') {
+    return json(200, { controls: await hub(env, 'CTRL.TAKE', { id: me }) })
   }
   if (path === '/v1/now' && req.method === 'DELETE') {
     await hub(env, 'DELETE', { id: me })
@@ -336,6 +364,25 @@ export class Presence {
           if (n && Date.now() - n.at < FRESH) out[id] = n
         }
         return Response.json(out)
+      }
+
+      /* steering a shared session: only someone listening with that person can, and requests
+         are kept a minute at most (the host's Pulse asks every few seconds) */
+      case 'CTRL.PUSH': {
+        const live = this.mem.get(b.from) ?? (await this.ctx.storage.get(`n:${b.from}`))
+        if (live?.with !== b.to || Date.now() - live.at >= FRESH) return Response.json({ ok: false })
+        if (!this.ctrl) this.ctrl = new Map()
+        const list = (this.ctrl.get(b.to) ?? []).filter((c) => Date.now() - c.at < 60_000)
+        list.push({ from: b.from, action: b.action, at: Date.now() })
+        this.ctrl.set(b.to, list.slice(-10))
+        return Response.json({ ok: true })
+      }
+      case 'CTRL.TAKE': {
+        const list = (this.ctrl?.get(b.id) ?? []).filter((c) => Date.now() - c.at < 60_000)
+        this.ctrl?.delete(b.id)
+        if (!list.length) return Response.json([])
+        const index = await this.loadIndex()
+        return Response.json(list.map((c) => ({ from: c.from, name: index.get(c.from)?.displayName || c.from, action: c.action })))
       }
 
       /* people listening along with someone: everyone whose "with" is them, still sending */

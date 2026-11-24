@@ -2,10 +2,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { dismissArrived, listenWith, nowPosition, stopListeningWith, useFriends, useListeners, useListenWith, useNowOf } from '@/lib/friends'
-import { joinParty } from '@/lib/listenAlong'
+import { joinParty, leaveParty, useListenAlong } from '@/lib/listenAlong'
+import { stopParty, useParty } from '@/lib/party'
 import { useApp } from '@/lib/store'
 import { Cover } from './common'
-import { CloseIcon, HeadphonesIcon } from './Icons'
+import { CloseIcon, HeadphonesIcon, PartyIcon } from './Icons'
 
 const clock = (ms: number): string => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`
 
@@ -126,6 +127,12 @@ export function TogetherCorner(): React.JSX.Element | null {
   // their picture, from the people you follow or who follow you (one value, so no new list each time)
   const withThumb = useFriends((s) => (w ? ([...s.friends, ...s.outgoing, ...s.incoming].find((p) => p.id === w.id)?.thumb ?? null) : null))
   const navigate = useApp((s) => s.navigate)
+  // a party you host, or one you joined
+  const hosting = useParty((s) => s.url)
+  const joined = useListenAlong((s) => s.url)
+  const joinedNow = useListenAlong((s) => s.state?.nowPlaying ?? null)
+  const joinedStatus = useListenAlong((s) => s.status)
+  const party = hosting || joined
   const [open, setOpen] = useState(false)
   const box = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -137,8 +144,8 @@ export function TogetherCorner(): React.JSX.Element | null {
     return () => window.removeEventListener('pointerdown', off)
   }, [open])
   useEffect(() => {
-    if (!w && !list.length) setOpen(false)
-  }, [w, list.length])
+    if (!w && !list.length && !party) setOpen(false)
+  }, [w, list.length, party])
   const names = list.map((l) => l.displayName)
   const listenersText =
     names.length === 1
@@ -146,10 +153,10 @@ export function TogetherCorner(): React.JSX.Element | null {
       : names.length === 2
         ? `${names[0]} and ${names[1]} are listening with you`
         : `${names[0]} and ${names.length - 1} others are listening with you`
-  const label = w ? `Listening with ${w.name}` : listenersText
+  const label = w ? `Listening with ${w.name}` : list.length ? listenersText : hosting ? 'Your party is on' : 'At a party'
   return (
     <AnimatePresence>
-      {(w || list.length > 0) && (
+      {(w || list.length > 0 || party) && (
         <motion.div
           ref={box}
           className="together"
@@ -164,6 +171,11 @@ export function TogetherCorner(): React.JSX.Element | null {
             aria-label={w && list.length ? `${label}. ${listenersText}` : label}
             onClick={() => setOpen((o) => !o)}
           >
+            {party && (
+              <span className="together__party" aria-hidden="true">
+                <PartyIcon size={15} />
+              </span>
+            )}
             <span className="together__faces">
               {w && <Cover src={withThumb} round size={26} />}
               {list.slice(0, w ? 2 : 3).map((l) => (
@@ -179,9 +191,17 @@ export function TogetherCorner(): React.JSX.Element | null {
                 <>
                   <b>{names[0]}</b> is listening
                 </>
-              ) : (
+              ) : names.length > 1 ? (
                 <>
                   <b>{names.length}</b> listening with you
+                </>
+              ) : hosting ? (
+                <>
+                  <b>Party</b> on
+                </>
+              ) : (
+                <>
+                  At a <b>party</b>
                 </>
               )}
             </span>
@@ -206,6 +226,7 @@ export function TogetherCorner(): React.JSX.Element | null {
                 {w && (
                   <section>
                     <h3>You’re listening with</h3>
+                    <p className="together__note">What either of you plays, skips or pauses changes for both of you.</p>
                     <div className="together__row">
                       <button className="together__who" onClick={() => navigate({ name: 'user', id: w.id })}>
                         <Cover src={withThumb} round size={40} />
@@ -216,6 +237,25 @@ export function TogetherCorner(): React.JSX.Element | null {
                       </button>
                       <button className="btn" onClick={() => stopListeningWith()}>
                         Stop
+                      </button>
+                    </div>
+                  </section>
+                )}
+                {party && (
+                  <section>
+                    <h3>{hosting ? 'Your party' : 'A party you joined'}</h3>
+                    <div className="together__row">
+                      <button className="together__who" onClick={() => navigate({ name: 'party' })}>
+                        <span className="together__party together__party--big">
+                          <PartyIcon size={20} />
+                        </span>
+                        <span>
+                          <b>{hosting ? 'Your party is on' : (joinedNow?.name ?? 'Party')}</b>
+                          <small>{hosting ? 'Guests add songs from their phones' : joinedNow ? joinedNow.artists : joinedStatus || 'Connecting…'}</small>
+                        </span>
+                      </button>
+                      <button className="btn" onClick={() => (hosting ? void stopParty() : leaveParty())}>
+                        {hosting ? 'End' : 'Leave'}
                       </button>
                     </div>
                   </section>

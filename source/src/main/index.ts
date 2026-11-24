@@ -31,6 +31,8 @@ import {
   nowOf,
   followsOf,
   getListeners,
+  steerTogether,
+  takeTogetherRequests,
   getSpotifyFollows,
   shareNow,
   savedSpotifyUser,
@@ -68,7 +70,7 @@ import { prepareTunnel } from './tunnel'
 import { partyInfo, setPartyNowPlaying, setPartyQueue, startParty, stopParty, partyVote } from './party'
 import { getSettings, loadSettings, updateSettings } from './settings'
 import { loadProfile, saveProfile } from './profile'
-import type { Profile } from '@shared/types'
+import type { Profile, TogetherControl } from '@shared/types'
 
 let mainWindow: BrowserWindow | null = null
 let miniWindow: BrowserWindow | null = null
@@ -553,6 +555,8 @@ function registerIpc(): void {
   ipcMain.handle('people:share-now', (_e, now: unknown) => shareNow((now ?? null) as Parameters<typeof shareNow>[0]))
   ipcMain.handle('people:now-of', (_e, id: unknown) => (sid(id) ? nowOf(sid(id)!) : null))
   ipcMain.handle('people:listeners', () => getListeners())
+  ipcMain.handle('people:steer', (_e, to: string, action: TogetherControl) => steerTogether(String(to), action))
+  ipcMain.handle('people:take-requests', () => takeTogetherRequests().catch(() => []))
   ipcMain.handle('people:follows-of', (_e, id: unknown) => (sid(id) ? followsOf(sid(id)!) : null))
   ipcMain.handle('people:spotify-follows', (_e, id: unknown, kind: unknown) =>
     sid(id) && (kind === 'followers' || kind === 'following') ? getSpotifyFollows(sid(id)!, kind) : []

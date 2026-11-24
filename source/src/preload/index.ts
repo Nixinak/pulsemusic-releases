@@ -68,6 +68,8 @@ const api: PulseApi = {
     shareNow: (now) => ipcRenderer.invoke('people:share-now', now),
     nowOf: (id) => ipcRenderer.invoke('people:now-of', id),
     listeners: () => ipcRenderer.invoke('people:listeners'),
+    steer: (to, action) => ipcRenderer.invoke('people:steer', to, action),
+    takeRequests: () => ipcRenderer.invoke('people:take-requests'),
     followsOf: (id) => ipcRenderer.invoke('people:follows-of', id),
     spotifyFollows: (id, kind) => ipcRenderer.invoke('people:spotify-follows', id, kind)
   },

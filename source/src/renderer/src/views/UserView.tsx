@@ -95,7 +95,14 @@ export function UserView({ id }: { id: string }): React.JSX.Element {
     <div className="profile profile--view">
       <header className="profile__hero">
         <div className="profile__banner bleed">
-          {pulse?.banner ? <img decoding="async" src={pulse.banner} alt="" /> : <div className="profile__banner-fallback" />}
+          {pulse?.banner ? (
+            <img decoding="async" src={pulse.banner} alt="" />
+          ) : avatar ? (
+            // no cover picture: their profile picture, large and soft, so the face sits on its own colours
+            <img decoding="async" className="profile__banner-soft" src={avatar} alt="" />
+          ) : (
+            <div className="profile__banner-fallback" />
+          )}
         </div>
         <div className="profile__id">
           <div className="profile__avatar">

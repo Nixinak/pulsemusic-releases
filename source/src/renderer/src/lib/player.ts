@@ -791,6 +791,8 @@ let steer: Steer | null = null
 export function setPartySteer(fn: Steer | null): void {
   steer = fn
 }
+/** Whether something else (a party you joined) is steering the buttons already. */
+export const steered = (): boolean => !!steer
 
 export async function togglePlay(): Promise<void> {
   if (steer?.({ action: 'toggle' })) return
@@ -945,7 +947,7 @@ export interface PlayOptions {
 
 export async function playContext(contextUri: string, offsetUri?: string, shuffle?: boolean, opts: PlayOptions = {}): Promise<void> {
   if (!requireDevice()) return
-  startedByUser(opts)
+  startedByUser(opts, { uris: [], contextUri, offsetUri: offsetUri ?? null })
   sentList = null
   if (shuffle !== undefined && shuffle !== get().shuffle) {
     set({ shuffle })
@@ -997,7 +999,7 @@ export async function playUris(uris: string[], offsetUri?: string, opts: PlayOpt
     const at = offsetUri ? Math.max(0, uris.indexOf(offsetUri)) : 0
     uris = uris.slice(at, at + 100)
   }
-  startedByUser(opts)
+  startedByUser(opts, { uris: uris.slice(0, 100), contextUri: null, offsetUri: offsetUri ?? null })
   sentList = uris.slice(0, 100)
   await guard(() => sp.play({ uris: uris.slice(0, 100), offsetUri, positionMs: opts.positionMs }, targetDevice()), 'Spotify could not start playback.')
   softRefresh()
@@ -1174,14 +1176,20 @@ async function maybeAutoplay(cur: PlayerTrack): Promise<void> {
   }
 }
 
-const userPlayListeners = new Set<() => void>()
+/** What someone started: songs, or an album/playlist from one of its songs. */
+export interface Started {
+  uris: string[]
+  contextUri: string | null
+  offsetUri: string | null
+}
+const userPlayListeners = new Set<(what: Started) => void>()
 /** Called when the listener starts something themselves (the DJ stops then). */
-export function onUserPlay(cb: () => void): () => void {
+export function onUserPlay(cb: (what: Started) => void): () => void {
   userPlayListeners.add(cb)
   return () => userPlayListeners.delete(cb)
 }
 
-function startedByUser(opts: PlayOptions): void {
+function startedByUser(opts: PlayOptions, what: Started = { uris: [], contextUri: null, offsetUri: null }): void {
   djPlaying = opts.source === 'dj'
   autoplayFor = null
   queueMode = false
@@ -1192,7 +1200,7 @@ function startedByUser(opts: PlayOptions): void {
   ordered = null
   if (opts.source !== 'dj') {
     djNext = null
-    userPlayListeners.forEach((cb) => cb())
+    userPlayListeners.forEach((cb) => cb(what))
   }
 }
 

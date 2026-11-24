@@ -7,7 +7,7 @@ import { connectSpotifyFriends } from '@/lib/spotifyFriends'
 import { invalidate } from '@/lib/useQuery'
 import { cleanDescription } from '@/lib/format'
 import { Glass } from './Glass'
-import { ChevronRight, CloseIcon } from './Icons'
+import { CheckIcon, ChevronRight, CloseIcon } from './Icons'
 import { QueueList } from './QueueList'
 import { Lyrics } from './Lyrics'
 import { usePlayer } from '@/lib/player'
@@ -421,24 +421,31 @@ export function RateLimitNotice(): React.JSX.Element | null {
   )
 }
 
+/** Notices: small cards at the bottom right, above the player, each with a mark for what kind it
+ *  is (a tick, a warning) and a thin line that runs out while it stays. Click one to close it. */
 export function Toasts(): React.JSX.Element {
   const toasts = useApp((s) => s.toasts)
+  const dismiss = (id: number): void => useApp.setState((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }))
   return (
     <div className="toasts" aria-live="polite">
-      <AnimatePresence>
+      <AnimatePresence initial={false}>
         {toasts.map((t) => (
-          <motion.div
+          <motion.button
             key={t.id}
             layout
-            initial={{ opacity: 0, y: 16, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            transition={pop}
+            className={`toast toast--${t.tone}`}
+            onClick={() => dismiss(t.id)}
+            initial={{ opacity: 0, x: 24, scale: 0.96 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: 24, scale: 0.96, transition: { duration: 0.18 } }}
+            transition={{ type: 'spring', stiffness: 420, damping: 34 }}
           >
-            <Glass radius={999} tone="thick" bezel={10} refraction={24} className={`toast toast--${t.tone}`}>
-              {t.text}
-            </Glass>
-          </motion.div>
+            <span className="toast__mark" aria-hidden="true">
+              {t.tone === 'error' ? '!' : <CheckIcon size={14} />}
+            </span>
+            <span className="toast__text">{t.text}</span>
+            <i className="toast__time" aria-hidden="true" />
+          </motion.button>
         ))}
       </AnimatePresence>
     </div>

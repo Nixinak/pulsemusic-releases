@@ -257,7 +257,8 @@ export const useApp = create<AppState>((set, get) => ({
     if (get().toasts.some((t) => t.text === text)) return
     const id = ++toastId
     set((s) => ({ toasts: [...s.toasts.slice(-2), { id, text, tone }] }))
-    setTimeout(() => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), 3200)
+    // a problem stays a little longer than a confirmation (the card's line shows the time)
+    setTimeout(() => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), tone === 'error' ? 6000 : 3600)
   },
 
   modal: null,

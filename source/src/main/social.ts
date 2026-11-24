@@ -11,10 +11,22 @@
 import { BrowserWindow, session } from 'electron'
 import { getAccessToken } from './auth'
 import { readStore, writeStore } from './datastore'
-import type { PulseProfile, PulseSummary, SpotifyUserPage, SpotifyUserHit, EmbedPlaylist, FriendsState, FriendAction, NowPlaying, FollowLists, Listener } from '@shared/types'
+import type {
+  PulseProfile,
+  PulseSummary,
+  SpotifyUserPage,
+  SpotifyUserHit,
+  EmbedPlaylist,
+  FriendsState,
+  FriendAction,
+  NowPlaying,
+  FollowLists,
+  Listener,
+  TogetherControl,
+  TogetherRequest
+} from '@shared/types'
 
-const UA =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
 
 /* ---------- Reading Spotify's public pages ---------- */
 
@@ -53,7 +65,14 @@ function within<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
   return Promise.race([p, new Promise<T>((r) => setTimeout(() => r(fallback), ms))])
 }
 
-function readPage<T>(url: string, onJson: (j: Json) => void, readDom: string, enough: (dom: T | null) => boolean, maxMs = 14_000, ownLane = false): Promise<T | null> {
+function readPage<T>(
+  url: string,
+  onJson: (j: Json) => void,
+  readDom: string,
+  enough: (dom: T | null) => boolean,
+  maxMs = 14_000,
+  ownLane = false
+): Promise<T | null> {
   let win: BrowserWindow | null = null
   const work = async (): Promise<T | null> => {
     const started = Date.now()
@@ -77,7 +96,12 @@ function readPage<T>(url: string, onJson: (j: Json) => void, readDom: string, en
         cb({ cancel: ['image', 'media', 'font'].includes(d.resourceType) || (!own && d.resourceType !== 'mainFrame') })
       })
     }
-    win = new BrowserWindow({ show: false, width: 1400, height: 900, webPreferences: { session: ses, backgroundThrottling: false, images: false, sandbox: true } })
+    win = new BrowserWindow({
+      show: false,
+      width: 1400,
+      height: 900,
+      webPreferences: { session: ses, backgroundThrottling: false, images: false, sandbox: true }
+    })
     const w = win
     w.webContents.setAudioMuted(true)
     const dbg = w.webContents.debugger
@@ -123,7 +147,11 @@ function readPage<T>(url: string, onJson: (j: Json) => void, readDom: string, en
     let dom: T | null = null
     const until = started + maxMs
     while (Date.now() < until && !w.isDestroyed()) {
-      dom = (await within(w.webContents.executeJavaScript(readDom).catch(() => null), 2500, null)) as T | null
+      dom = (await within(
+        w.webContents.executeJavaScript(readDom).catch(() => null),
+        2500,
+        null
+      )) as T | null
       if (enough(dom)) break
       await new Promise((r) => setTimeout(r, 200))
     }
@@ -298,7 +326,15 @@ async function readSpotifyUser(id: string): Promise<SpotifyUserPage | null> {
       }).filter((x) => x.id && x.name && x.id !== ${JSON.stringify(id)});
       return { name, image, followers, following, lists, people, ready: !!(titled || h1) };
     })()`
-  type Dom = { name: string | null; image: string | null; followers: number | null; following: number | null; lists: { id: string; name: string; image: string | null }[]; people: { id: string; name: string; image: string | null }[]; ready: boolean }
+  type Dom = {
+    name: string | null
+    image: string | null
+    followers: number | null
+    following: number | null
+    lists: { id: string; name: string; image: string | null }[]
+    people: { id: string; name: string; image: string | null }[]
+    ready: boolean
+  }
   const dom = await readPage<Dom>(
     `https://open.spotify.com/user/${encodeURIComponent(id)}`,
     (j) => {
@@ -317,7 +353,12 @@ async function readSpotifyUser(id: string): Promise<SpotifyUserPage | null> {
         }
         if (typeof o.uri === 'string' && o.uri.startsWith('spotify:playlist:') && typeof o.name === 'string') {
           const pid = o.uri.slice('spotify:playlist:'.length)
-          lists.set(pid, { id: pid, name: o.name, image: pictureOf(o) ?? lists.get(pid)?.image ?? null, followers: typeof o.followers_count === 'number' ? o.followers_count : null })
+          lists.set(pid, {
+            id: pid,
+            name: o.name,
+            image: pictureOf(o) ?? lists.get(pid)?.image ?? null,
+            followers: typeof o.followers_count === 'number' ? o.followers_count : null
+          })
         }
       })
     },
@@ -357,7 +398,12 @@ async function readSpotifyUser(id: string): Promise<SpotifyUserPage | null> {
     // still has the name and picture, and sometimes its data
     page = await userFromHtml(id).catch((e) => (console.warn('[people] user page HTML:', e), null))
   }
-  console.info(`[people] user ${id}:`, page ? `${page.name}, ${page.playlists.length} playlists${page.partial ? ' (name only)' : ''}` : 'nothing', '· page h1:', dom?.name ?? 'none')
+  console.info(
+    `[people] user ${id}:`,
+    page ? `${page.name}, ${page.playlists.length} playlists${page.partial ? ' (name only)' : ''}` : 'nothing',
+    '· page h1:',
+    dom?.name ?? 'none'
+  )
   // don't keep a failure for long
   userCache.set(id, { at: page && !page.partial ? Date.now() : Date.now() - 9 * 60_000, page })
   if (page && !page.partial) keepPage(id, page)
@@ -415,7 +461,12 @@ export async function getSpotifyFollows(id: string, kind: 'followers' | 'followi
 }
 
 const decodeHtml = (s: string): string =>
-  s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#x27;|&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+  s
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;|&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
 
 /** Name, picture (and playlists when the page carries its data) from the plain HTML of the profile page. */
 export async function userFromHtml(id: string): Promise<SpotifyUserPage | null> {
@@ -426,7 +477,9 @@ export async function userFromHtml(id: string): Promise<SpotifyUserPage | null> 
   if (!res.ok) return null
   const html = await res.text()
   const meta = (p: string): string | null => {
-    const m = new RegExp(`<meta[^>]+(?:property|name)="${p}"[^>]+content="([^"]*)"`, 'i').exec(html) ?? new RegExp(`<meta[^>]+content="([^"]*)"[^>]+(?:property|name)="${p}"`, 'i').exec(html)
+    const m =
+      new RegExp(`<meta[^>]+(?:property|name)="${p}"[^>]+content="([^"]*)"`, 'i').exec(html) ??
+      new RegExp(`<meta[^>]+content="([^"]*)"[^>]+(?:property|name)="${p}"`, 'i').exec(html)
     return m ? decodeHtml(m[1]) : null
   }
   const me = `spotify:user:${id}`
@@ -520,7 +573,11 @@ export async function lookupPulse(ids: string[]): Promise<PulseSummary[]> {
   const fresh = (id: string): boolean => Date.now() - (badgeCache.get(id)?.at ?? 0) < 10 * 60_000
   const ask = [...new Set(ids)].filter((id) => !fresh(id)).slice(0, 100)
   if (ask.length) {
-    const r = await server<{ users: PulseSummary[] }>('/v1/lookup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: ask }) }).catch(() => null)
+    const r = await server<{ users: PulseSummary[] }>('/v1/lookup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ask })
+    }).catch(() => null)
     if (r) {
       for (const id of ask) badgeCache.set(id, { at: Date.now(), on: null })
       for (const u of r.users) badgeCache.set(u.id, { at: Date.now(), on: u })
@@ -584,6 +641,18 @@ export async function getListeners(): Promise<Listener[]> {
   if (!SERVER) return []
   const r = await signedIn<{ listeners?: Listener[] }>('/v1/listeners')
   return Array.isArray(r?.listeners) ? r.listeners : []
+}
+
+export async function steerTogether(to: string, action: TogetherControl): Promise<boolean> {
+  if (!SERVER) return false
+  const r = await signedIn<{ ok?: boolean }>('/v1/control', { method: 'POST', body: JSON.stringify({ to, action }) })
+  return !!r?.ok
+}
+
+export async function takeTogetherRequests(): Promise<TogetherRequest[]> {
+  if (!SERVER) return []
+  const r = await signedIn<{ controls?: TogetherRequest[] }>('/v1/control')
+  return Array.isArray(r?.controls) ? r.controls : []
 }
 
 /** Someone's Pulse follow lists (null when the server doesn't have them yet). */
