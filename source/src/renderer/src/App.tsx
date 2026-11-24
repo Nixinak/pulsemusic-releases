@@ -14,7 +14,7 @@ import { useTransitionDriver } from '@/lib/transition'
 import { Sidebar } from '@/components/Sidebar'
 import { TopBar } from '@/components/TopBar'
 import { PlayerBar } from '@/components/PlayerBar'
-import { ListenerNotice, ListenWithBar } from '@/components/NowCard'
+import { ListenerNotice, TogetherCorner } from '@/components/NowCard'
 import { NowPlaying } from '@/components/NowPlaying'
 import { ContextMenu, LyricsDrawer, Modals, QueueDrawer, RateLimitNotice, Toasts, UpdateNotice } from '@/components/Overlays'
 import { Glass } from '@/components/Glass'
@@ -264,7 +264,6 @@ function Shell({ onSignOut }: { onSignOut: () => void }): React.JSX.Element {
             </AnimatePresence>
           </ScrollContext.Provider>
         </div>
-        <ListenWithBar />
         <PlayerBar />
       </main>
       <QueueDrawer />
@@ -279,6 +278,7 @@ function Shell({ onSignOut }: { onSignOut: () => void }): React.JSX.Element {
       <RateLimitNotice />
       <UpdateNotice />
       <ImageCropLayer />
+      <TogetherCorner />
       <ListenerNotice />
       <Toasts />
     </div>
