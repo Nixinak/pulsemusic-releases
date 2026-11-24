@@ -1,7 +1,4 @@
-## Pulse Music 1.7.8
+## Pulse Music 1.7.9
 
-- **Listening together, both ways**: while you listen along with someone, what you play, skip, pause or jump to changes for both of you. It no longer stops listening together. Pulse tells them who did it.
-- **No wrong song between songs**: when a song ends while you listen along, Pulse waits for their next song instead of letting something else start for a moment.
-- **The corner tab** (top right, next to the window buttons) also shows a party you host or joined, with End or Leave.
-- **Notices** are now small cards at the bottom right with a tick or a warning sign and a line that shows how long they stay. Click one to close it.
-- **Profiles**: someone's bio, links, profile song and what they play now sit in one centred column. Without a cover picture their profile picture fills the top, softly blurred.
+- **Someone's profile, redesigned like a record sleeve**: on the left the person: their picture as a big square cover, the name, playlists and followers, Follow, bio and links. It stays in view while you scroll.
+- **On the right, their music**: what they're playing now in a big panel, the cover with its record sliding out and turning while it plays, with the time, Listen along and Join party. When nothing plays, the song on their profile takes its place with Play. Under it come your taste match, their top artists and top songs.

@@ -7,20 +7,103 @@ import { prefetch, useQuery } from '@/lib/useQuery'
 import * as sp from '@/lib/spotify'
 import { playContext, playUris } from '@/lib/player'
 import { prefetchArtist } from '@/lib/loaders'
-import type { PulseItem, PulseProfile } from '@shared/types'
+import type { FavoriteItem, PulseItem, PulseProfile } from '@shared/types'
 import { Cover, ErrorState, MediaCard, Shelf, usePagePalette, ShelfRow } from '@/components/common'
 import { HeaderSkeleton } from '@/views/Collections'
 import { Glass } from '@/components/Glass'
 import { PulseBadge } from '@/components/PulseBadge'
 import { ImageWall } from '@/components/ImageWall'
-import { ProfileLinks, ProfileSong } from '@/components/ProfileExtras'
+import { ProfileLinks } from '@/components/ProfileExtras'
 import { FriendButton } from '@/components/FriendButton'
 import { prefetchUser, pulseServerOn, rememberPeople, usePulseUsers } from '@/lib/people'
-import { NowCard } from '@/components/NowCard'
+import { listenWith, nowPosition, stopListeningWith, useListenWith, useNowOf } from '@/lib/friends'
+import { joinParty } from '@/lib/listenAlong'
+import { usePlayer } from '@/lib/player'
+import { formatTime } from '@/lib/format'
 import { FollowCounts } from './FollowsView'
 import { resolveColors } from '@/components/PalettePicker'
 import { paletteFromColors } from '@/lib/colors'
-import { MoreIcon, PlayIcon } from '@/components/Icons'
+import { HeadphonesIcon, MoreIcon, PlayIcon } from '@/components/Icons'
+
+/** The big panel on someone's page: the song they play right now, its cover with a record
+ *  sliding out of it (turning while it plays), and Listen along. When nothing plays, the song on
+ *  their profile takes its place. */
+function NowPanel({ id, name, song }: { id: string; name: string; song: FavoriteItem | null }): React.JSX.Element | null {
+  const n = useNowOf(id)
+  const listening = useListenWith((s) => s.with?.id === id)
+  const myUri = usePlayer((s) => (s.paused ? null : s.track?.uri))
+  const [, tick] = useState(0)
+  useEffect(() => {
+    if (!n?.track || n.paused) return
+    const t = window.setInterval(() => tick((x) => x + 1), 1000)
+    return () => window.clearInterval(t)
+  }, [n])
+  const live = n?.track ?? null
+  if (!live && !song) return null
+  const playing = live ? !n!.paused : myUri === song?.uri
+  const image = live ? live.image : (song?.image ?? null)
+  const pos = live && n ? nowPosition(n) : 0
+  const pct = live && live.durationMs ? Math.min(100, (pos / live.durationMs) * 100) : 0
+  return (
+    <div className={`nowpanel ${playing ? 'is-playing' : ''} ${live ? 'is-live' : 'is-song'}`}>
+      <div className="nowpanel__sleeve">
+        <span className="nowpanel__disc" aria-hidden="true" style={image ? { backgroundImage: `url("${image}")` } : undefined} />
+        <Cover src={image} radius={14} />
+      </div>
+      <div className="nowpanel__body">
+        <span className="nowpanel__state">
+          {live ? (
+            <>
+              <i className={n!.paused ? '' : 'is-on'} aria-hidden="true" />
+              {n!.paused ? `${name} paused` : `${name} is listening`}
+            </>
+          ) : (
+            'On their profile'
+          )}
+        </span>
+        <b className="nowpanel__title">{live ? live.name : song!.name}</b>
+        <span className="nowpanel__artist">{live ? live.artists : song!.subtitle}</span>
+        {live && live.durationMs > 0 && (
+          <div className="nowpanel__time">
+            <span className="nowpanel__bar">
+              <i style={{ width: `${pct}%` }} />
+            </span>
+            <small>
+              {formatTime(pos)} / {formatTime(live.durationMs)}
+            </small>
+          </div>
+        )}
+        <div className="nowpanel__actions">
+          {live ? (
+            <button className={`btn ${listening ? '' : 'btn--accent'}`} onClick={() => (listening ? stopListeningWith() : listenWith(id, name))}>
+              <HeadphonesIcon size={18} />
+              {listening ? 'Stop listening' : 'Listen along'}
+            </button>
+          ) : (
+            <button className="btn btn--accent" onClick={() => void playUris([song!.uri])}>
+              <PlayIcon size={18} />
+              Play
+            </button>
+          )}
+          {live && n?.party && (
+            <button className="btn" onClick={() => joinParty(n.party!)}>
+              Join party
+            </button>
+          )}
+          {live && song && song.uri !== live.uri && (
+            <button className="nowpanel__song" onClick={() => void playUris([song.uri])} title={`Play ${song.name}`}>
+              <Cover src={song.image} size={32} radius={8} />
+              <span>
+                <small>On their profile</small>
+                {song.name}
+              </span>
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const maxOf = (a: number | null | undefined, b: number | undefined): number | null => (a == null && b == null ? null : Math.max(a ?? 0, b ?? 0))
 
@@ -92,7 +175,7 @@ export function UserView({ id }: { id: string }): React.JSX.Element {
   const playlists = known?.playlists ?? []
 
   return (
-    <div className="profile profile--view">
+    <div className="profile profile--view profile--sleeve">
       <header className="profile__hero">
         <div className="profile__banner bleed">
           {pulse?.banner ? (
@@ -104,19 +187,16 @@ export function UserView({ id }: { id: string }): React.JSX.Element {
             <div className="profile__banner-fallback" />
           )}
         </div>
-        <div className="profile__id">
-          <div className="profile__avatar">
-            <Cover src={avatar} round />
-          </div>
-          <div className="profile__names">
-            <h1 className="profile__name">{name}</h1>
-            {pulse?.tagline && <p className="profile__tagline">{pulse.tagline}</p>}
-            {pulse && (
-              <span className="profile__handle">
-                <PulseBadge />
-              </span>
-            )}
-            <span className="profile__meta">
+        <div className="uprof">
+          {/* who they are: the picture like a record cover, the name, the numbers, the buttons */}
+          <aside className="uprof__id">
+            <div className="uprof__portrait">
+              <Cover src={avatar} radius={36} />
+            </div>
+            <h1 className="uprof__name">{name}</h1>
+            {pulse?.tagline && <p className="uprof__tagline">{pulse.tagline}</p>}
+            <div className="uprof__meta">
+              {pulse && <PulseBadge />}
               {known && !known.partial && (
                 <span className="pstat">
                   <b>{playlists.length}</b> {playlists.length === 1 ? 'playlist' : 'playlists'}
@@ -127,66 +207,60 @@ export function UserView({ id }: { id: string }): React.JSX.Element {
                 followers={maxOf(page?.followers, followsQ.data?.followers.length)}
                 following={maxOf(page?.following, followsQ.data?.following.length)}
               />
-            </span>
-          </div>
-        </div>
-        <div className="profile__friend">
-          {me && serverOn && <FriendButton id={id} name={name} image={avatar} />}
-          <button
-            className="icon-btn profile__more"
-            aria-label="More"
-            title="More"
-            onClick={(e) => {
-              const r = e.currentTarget.getBoundingClientRect()
-              openMenu(r.left, r.bottom + 6, [
-                {
-                  label: 'Copy username',
-                  onSelect: () => {
-                    void navigator.clipboard.writeText(id).then(
-                      () => toast('Username copied'),
-                      () => toast('Couldn’t copy the username', 'error')
-                    )
-                  }
-                },
-                {
-                  label: 'Copy profile link',
-                  onSelect: () => void navigator.clipboard.writeText(`https://open.spotify.com/user/${id}`).then(() => toast('Link copied'))
-                },
-                {
-                  label: 'Open in Spotify',
-                  onSelect: () => window.pulse.openExternal(`https://open.spotify.com/user/${id}`)
-                }
-              ])
-            }}
-          >
-            <MoreIcon size={20} />
-          </button>
-        </div>
-        {pulse?.bio || pulse?.anthem || pulse?.links?.length ? (
-          <div className="profile__about">
-            {pulse.bio && <p className="profile__bio">{pulse.bio}</p>}
-            {pulse.anthem || pulse.links?.length ? (
-              <div className="profile__extras">
-                <ProfileSong song={pulse.anthem} />
-                <ProfileLinks links={pulse.links} />
+            </div>
+            <div className="uprof__actions">
+              {me && serverOn && <FriendButton id={id} name={name} image={avatar} />}
+              <button
+                className="icon-btn uprof__more"
+                aria-label="More"
+                title="More"
+                onClick={(e) => {
+                  const r = e.currentTarget.getBoundingClientRect()
+                  openMenu(r.left, r.bottom + 6, [
+                    {
+                      label: 'Copy username',
+                      onSelect: () => {
+                        void navigator.clipboard.writeText(id).then(
+                          () => toast('Username copied'),
+                          () => toast('Couldn’t copy the username', 'error')
+                        )
+                      }
+                    },
+                    {
+                      label: 'Copy profile link',
+                      onSelect: () => void navigator.clipboard.writeText(`https://open.spotify.com/user/${id}`).then(() => toast('Link copied'))
+                    },
+                    {
+                      label: 'Open in Spotify',
+                      onSelect: () => window.pulse.openExternal(`https://open.spotify.com/user/${id}`)
+                    }
+                  ])
+                }}
+              >
+                <MoreIcon size={20} />
+              </button>
+            </div>
+            {pulse?.bio && <p className="uprof__bio">{pulse.bio}</p>}
+            {pulse?.links?.length ? <ProfileLinks links={pulse.links} /> : null}
+          </aside>
+
+          {/* what they play: now, the song on their profile, and how your tastes meet */}
+          <section className="uprof__side">
+            {pulse && <NowPanel id={id} name={name} song={pulse.anthem ?? null} />}
+            {pulse && <TasteMatch profile={pulse} name={name} />}
+            {pulse && pulse.blocks.length > 0 && (
+              <div className="profile__blocks">
+                {pulse.blocks.map((b) => (
+                  <section key={b.id} className={`pblock pblock--${b.type}`}>
+                    <ReadBlock block={b} profile={pulse} />
+                  </section>
+                ))}
               </div>
-            ) : null}
-          </div>
-        ) : null}
-        {pulse && <NowCard id={id} name={name} />}
-      </header>
-
-      {pulse && <TasteMatch profile={pulse} name={name} />}
-
-      {pulse && pulse.blocks.length > 0 && (
-        <div className="profile__blocks">
-          {pulse.blocks.map((b) => (
-            <section key={b.id} className={`pblock pblock--${b.type}`}>
-              <ReadBlock block={b} profile={pulse} />
-            </section>
-          ))}
+            )}
+            {!pulse && <p className="uprof__plain">Not on Pulse yet. Their public playlists and the people they follow are below.</p>}
+          </section>
         </div>
-      )}
+      </header>
 
       {playlists.length > 0 && (
         <Shelf title="Public playlists">
